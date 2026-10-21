@@ -1,0 +1,20 @@
+{
+    "name": "RushAhead.Tests.PlayMode",
+    "rootNamespace": "RushAhead.Tests",
+    "references": [
+        "UnityEngine.TestRunner",
+        "RushAhead.Content",
+        "RushAhead.Sim",
+        "RushAhead.AI",
+        "RushAhead.Net"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": true,
+    "precompiledReferences": ["nunit.framework.dll"],
+    "autoReferenced": false,
+    "defineConstraints": ["UNITY_INCLUDE_TESTS"],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

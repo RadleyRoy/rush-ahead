@@ -1,0 +1,14 @@
+{
+    "name": "RushAhead.Net",
+    "rootNamespace": "RushAhead.Net",
+    "references": ["RushAhead.Sim", "RushAhead.Content", "Unity.Netcode.Runtime", "Unity.Networking.Transport", "Unity.Collections"],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

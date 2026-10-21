@@ -1,0 +1,14 @@
+{
+    "name": "RushAhead.Render",
+    "rootNamespace": "RushAhead.Render",
+    "references": ["RushAhead.Sim", "RushAhead.Content"],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

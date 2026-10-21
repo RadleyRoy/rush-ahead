@@ -1,0 +1,14 @@
+{
+    "name": "RushAhead.AI",
+    "rootNamespace": "RushAhead.AI",
+    "references": ["RushAhead.Sim", "RushAhead.Content", "Unity.Mathematics"],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

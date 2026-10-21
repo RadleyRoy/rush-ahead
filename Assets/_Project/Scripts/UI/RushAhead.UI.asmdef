@@ -1,0 +1,14 @@
+{
+    "name": "RushAhead.UI",
+    "rootNamespace": "RushAhead.UI",
+    "references": ["RushAhead.Sim", "RushAhead.Content", "RushAhead.Net", "RushAhead.Render", "RushAhead.AI", "Unity.InputSystem"],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
