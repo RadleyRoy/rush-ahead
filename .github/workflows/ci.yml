@@ -52,11 +52,16 @@ jobs:
           restore-keys: Library-tests-
 
       # EditMode only until Phase 2 adds PlayMode tests; then switch testMode to `all`.
+      #
+      # Don't set `coverageEnabled: false` here. v4.4.0 turns it into `--no-coverageEnabled`, but
+      # game-ci/cli parses with strict(true) and negation-prefix disabled, so it rejects the whole
+      # run as an unknown argument. Coverage therefore stays on (the CLI default). That's fine for
+      # EditMode, but Unity 6000.3 can crash PlayMode runs under coverage
+      # (game-ci/unity-test-runner#301), so revisit before enabling PlayMode tests.
       - uses: game-ci/unity-test-runner@32e57712352b500e17974b245a6dce9e11a73213 # v4.4.0
         id: tests
         with:
           testMode: editmode
-          coverageEnabled: false
           checkName: Unity test results
           githubToken: ${{ secrets.GITHUB_TOKEN }}
 
