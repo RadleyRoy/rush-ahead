@@ -7,10 +7,11 @@ name: CI
 # `pull_request` (never `pull_request_target`), so fork code can't reach them. The Unity jobs are
 # skipped for fork PRs instead of failing on activation. Third-party actions are pinned to commit SHAs.
 
+# Automatic triggers are paused: GameCI's file-based activation of a Unity Personal licence
+# currently fails on Unity 6000.3 with "Code 400 TimeStamp validation failed" from Unity's licensing
+# service (game-ci/unity-test-runner#336). Restore `push: branches: [main]` and `pull_request:` once
+# that is fixed. Until then the workflow only runs from the Actions tab.
 on:
-  push:
-    branches: [main]
-  pull_request:
   workflow_dispatch:
 
 concurrency:
