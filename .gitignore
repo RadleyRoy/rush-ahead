@@ -63,6 +63,9 @@ crashlytics-buildid.txt
 *.ulf
 *.alf
 
+# CI: Git LFS cache key generated during checkout
+.lfs-assets-id
+
 # OS
 .DS_Store
 Thumbs.db

@@ -1,0 +1,119 @@
+name: CI
+
+# Tests on every push and same-repo pull request, then an Android APK and an iOS Xcode project.
+#
+# Security: this repo is public and the Unity jobs use the account's licence and password.
+# GitHub never passes secrets to pull requests from forks, and this workflow deliberately uses
+# `pull_request` (never `pull_request_target`), so fork code can't reach them. The Unity jobs are
+# skipped for fork PRs instead of failing on activation. Third-party actions are pinned to commit SHAs.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  checks: write # unity-test-runner publishes results as a check run
+
+env:
+  UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+  UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+  UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
+
+jobs:
+  test:
+    name: Tests
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          lfs: false # LFS objects come through the cache below
+
+      - name: Restore Git LFS objects
+        run: git lfs ls-files -l | cut -d' ' -f1 | sort > .lfs-assets-id
+      - uses: actions/cache@v6
+        with:
+          path: .git/lfs
+          key: lfs-${{ hashFiles('.lfs-assets-id') }}
+      - run: git lfs pull
+
+      - uses: actions/cache@v6
+        with:
+          path: Library
+          key: Library-tests-${{ hashFiles('Assets/**', 'Packages/**', 'ProjectSettings/**') }}
+          restore-keys: Library-tests-
+
+      # EditMode only until Phase 2 adds PlayMode tests; then switch testMode to `all`.
+      - uses: game-ci/unity-test-runner@32e57712352b500e17974b245a6dce9e11a73213 # v4.4.0
+        id: tests
+        with:
+          testMode: editmode
+          coverageEnabled: false
+          checkName: Unity test results
+          githubToken: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: test-results
+          path: ${{ steps.tests.outputs.artifactsPath }}
+          retention-days: 14
+
+  build:
+    name: Build ${{ matrix.targetPlatform }}
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - targetPlatform: Android # development-signed .apk
+            retention: 14
+          - targetPlatform: iOS # Xcode project; compiling it needs macOS + signing (Phase 9)
+            retention: 3
+    steps:
+      # The Unity Android/iOS editor images are large; reclaim space on the runner first.
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL /usr/local/share/boost
+          sudo docker image prune --all --force > /dev/null
+          df -h /
+
+      - uses: actions/checkout@v7
+        with:
+          lfs: false
+
+      - name: Restore Git LFS objects
+        run: git lfs ls-files -l | cut -d' ' -f1 | sort > .lfs-assets-id
+      - uses: actions/cache@v6
+        with:
+          path: .git/lfs
+          key: lfs-${{ hashFiles('.lfs-assets-id') }}
+      - run: git lfs pull
+
+      - uses: actions/cache@v6
+        with:
+          path: Library
+          key: Library-${{ matrix.targetPlatform }}-${{ hashFiles('Assets/**', 'Packages/**', 'ProjectSettings/**') }}
+          restore-keys: Library-${{ matrix.targetPlatform }}-
+
+      - uses: game-ci/unity-builder@eb1b9fba120c6e62c9fb7a7a81d6c107ce004c45 # v6.0.0
+        with:
+          targetPlatform: ${{ matrix.targetPlatform }}
+          versioning: None # keep the version from Player Settings until releases are tagged
+          androidExportType: androidPackage
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: build-${{ matrix.targetPlatform }}
+          path: build/${{ matrix.targetPlatform }}
+          retention-days: ${{ matrix.retention }}
