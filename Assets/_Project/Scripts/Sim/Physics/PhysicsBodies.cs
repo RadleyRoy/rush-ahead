@@ -44,6 +44,15 @@ namespace RushAhead.Sim
             return go;
         }
 
+        /// <summary>
+        /// Takes a loose body out of the local simulation, for a network client that only shows where the host says it is.
+        /// </summary>
+        public static void Freeze(GameObject go, bool frozen = true) => go.GetComponent<Rigidbody2D>().simulated = !frozen;
+
+        /// <summary>Places a frozen body for display. Not a physics move: frozen bodies don't collide.</summary>
+        public static void ShowAt(GameObject go, Vector2 position, float angleRad) =>
+            go.transform.SetPositionAndRotation(position, Quaternion.Euler(0f, 0f, angleRad * Mathf.Rad2Deg));
+
         /// <summary>Puts a loose body back at rest at <paramref name="position"/>.</summary>
         public static void Reset(GameObject go, Vector2 position)
         {

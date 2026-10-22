@@ -111,7 +111,8 @@ namespace RushAhead.Render
         {
             var flat = Vector3.ProjectOnPlane(airDirection, up);
             if (flat.sqrMagnitude > 1e-4f)
-                transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(flat, up), 1f - Mathf.Exp(-14f * dt));
+                // The sim already sweeps the nozzle smoothly, so follow it closely rather than adding a second, laggier filter.
+                transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(flat, up), 1f - Mathf.Exp(-25f * dt));
 
             var crouch = braced ? 0.8f : 1f;
             figure.localScale = Vector3.Lerp(figure.localScale, new Vector3(1f, crouch, 1f), 1f - Mathf.Exp(-12f * dt));

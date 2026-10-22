@@ -342,6 +342,35 @@ namespace RushAhead.Tests
         }
 
         [Test]
+        public void NozzleSwing_IsRateLimited()
+        {
+            Assert.That(CrewSectors.TurnTowards(135f, 180f, 10f, seat: 2, crewCount: 4), Is.EqualTo(145f).Within(1e-4f));
+            Assert.That(CrewSectors.TurnTowards(170f, 180f, 30f, seat: 2, crewCount: 4), Is.EqualTo(180f).Within(1e-4f), "never overshoots");
+        }
+
+        [Test]
+        public void NozzleSwing_NeverLeavesTheSlice_EvenEdgeToEdge()
+        {
+            // Two players: starboard owns -180..0. Going from its front edge to its rear edge, a shortest-arc turn
+            // could cut through the port player's slice; the swing must go through its own side instead.
+            var aim = 0f;
+            for (var step = 0; step < 40; step++)
+            {
+                aim = CrewSectors.TurnTowards(aim, -180f, 10f, seat: 1, crewCount: 2);
+                Assert.That(Mathf.Abs(Mathf.DeltaAngle(-90f, aim)), Is.LessThanOrEqualTo(90f + 1e-3f), $"step {step}: {aim} left the slice");
+            }
+
+            Assert.That(Mathf.DeltaAngle(aim, -180f), Is.EqualTo(0f).Within(1e-3f));
+        }
+
+        [Test]
+        public void ASoloNozzle_TakesTheShortWayRound()
+        {
+            var aim = CrewSectors.TurnTowards(170f, -170f, 5f, seat: 0, crewCount: 1);
+            Assert.That(Mathf.DeltaAngle(aim, 175f), Is.EqualTo(0f).Within(1e-3f), "170 to -170 is 20 degrees through 180, not 340 the other way");
+        }
+
+        [Test]
         public void ASoloPlayer_OwnsTheWholeCircle()
         {
             for (var degree = -179f; degree < 180f; degree += 7f)

@@ -33,6 +33,9 @@ namespace RushAhead.Sim
         [Min(0f)] public float angularDrag = 18f;
 
         [Header("Blowers")]
+        [Tooltip("How fast an animal can swing its blower round, in degrees per second. Turns stick flicks and " +
+                 "8-way keyboard steps into a quick sweep, so the thrust changes direction smoothly.")]
+        [Range(90f, 1440f)] public float nozzleTurnDegPerSec = 420f;
         [Tooltip("Global multiplier on every blower's thrust and burst, for feel tuning.")]
         [Min(0f)] public float thrustMultiplier = 1f;
         [Tooltip("How much of the air's push reaches bodies in the cone (air pushes others less than it pushes you).")]

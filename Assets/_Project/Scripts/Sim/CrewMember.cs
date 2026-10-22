@@ -4,7 +4,7 @@ using UnityEngine;
 namespace RushAhead.Sim
 {
     /// <summary>One animal in one seat, holding one blower.</summary>
-    public sealed class CrewMember
+    public sealed class CrewMember : ICrewState
     {
         public CrewMember(int seat, Vector2 seatOffset, BlowerDef blower)
         {
@@ -38,9 +38,11 @@ namespace RushAhead.Sim
 
         public bool Braced { get; internal set; }
         public float SecondsSinceBurst { get; internal set; } = float.MaxValue;
+        public int BurstCount { get; internal set; }
 
         public Vector2 AirDirection => BlowerMath.Direction(AimAngle);
         public bool IsBlowing => Spool > 0.05f && Blower.thrustNewtons > 0f;
+        public float AirFraction => Tank.Fraction;
 
         public void Equip(BlowerDef blower)
         {

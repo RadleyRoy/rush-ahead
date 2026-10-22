@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using RushAhead.Sim;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -23,17 +24,8 @@ namespace RushAhead.UI
         const float TapSeconds = 0.2f;
         const int SlotCount = 4;
 
-        // Seat per input slot, by crew size (-1 = unused). The two sticks always get the seats that can drive the raft
-        // forward: the rear quarters for 3 and 4 players, port and starboard for 2, and the soloist on both for 1.
-        static readonly int[][] SlotSeatsByCrew =
-        {
-            new[] { 0, 0, -1, -1 },
-            new[] { 0, 1, -1, -1 },
-            new[] { 1, 2, 0, -1 },
-            new[] { 2, 3, 0, 1 },
-        };
-
-        int[] slotSeats = SlotSeatsByCrew[3];
+        // Seat per input slot (-1 = unused). Starts as the whole 4-player crew, best drivers first.
+        int[] slotSeats = { 2, 3, 0, 1 };
 
         public readonly SeatSource[] Seats = { new(), new(), new(), new() };
         public readonly TouchStick[] Sticks = { new(), new() };
@@ -90,7 +82,19 @@ namespace RushAhead.UI
             foreach (var seat in Seats) seat.Owner = this;
         }
 
-        public void SetCrewCount(int crewCount) => slotSeats = SlotSeatsByCrew[crewCount - 1];
+        /// <summary>Offline: this device drives the whole crew, best drivers on the sticks.</summary>
+        public void SetCrewCount(int crewCount) => SetSeats(CrewSectors.DriveOrder(crewCount));
+
+        /// <summary>
+        /// The seats this device drives, best driver first: slot 0 gets the first, slot 1 the second, and so on. With a
+        /// single seat both sticks drive it. Seats owned by other players on the network are simply not listed.
+        /// </summary>
+        public void SetSeats(IReadOnlyList<int> seats)
+        {
+            slotSeats = new int[SlotCount];
+            for (var slot = 0; slot < SlotCount; slot++)
+                slotSeats[slot] = slot < seats.Count ? seats[slot] : seats.Count == 1 && slot == 1 ? seats[0] : -1;
+        }
 
         /// <summary>The seat an input slot drives, or -1 if unused at this crew size.</summary>
         public int SeatForSlot(int slot) => slotSeats[slot];
@@ -122,6 +126,7 @@ namespace RushAhead.UI
 
         public void SetScripted(int seat, Vector2 stick, bool burst = false, bool brace = false)
         {
+            if (seat < 0) return; // a slot this device doesn't drive (e.g. a spectator with no seat)
             Seats[seat].Stick = stick;
             Seats[seat].Brace = brace;
             if (burst) Seats[seat].BurstPending = true;

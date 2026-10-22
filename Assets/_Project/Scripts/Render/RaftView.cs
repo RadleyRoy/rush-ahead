@@ -28,16 +28,17 @@ namespace RushAhead.Render
         public static AnimalLook LookFor(int seat) => SeatLooks[seat % SeatLooks.Length];
         public static Color PlayerColor(int seat) => PlayerColors[seat % PlayerColors.Length];
 
-        Boat boat;
+        IBoatState boat;
         ArtPalette palette;
         Transform hull;
         AnimalView[] animals;
         AirPuffs[] puffs;
         BlowerDef[] shownBlower;
-        float[] lastSecondsSinceBurst;
+        int[] shownBursts;
         float capsize;
 
-        public static RaftView Build(Boat boat, SimConfig config, ArtPalette palette)
+        /// <param name="boat">The live boat on the host, or a raft rebuilt from snapshots on a client.</param>
+        public static RaftView Build(IBoatState boat, SimConfig config, ArtPalette palette)
         {
             var view = new GameObject($"Raft {boat.Index}").AddComponent<RaftView>();
             view.boat = boat;
@@ -71,25 +72,26 @@ namespace RushAhead.Render
 
         void BuildCrew(SimConfig config)
         {
-            var crew = boat.Crew;
-            animals = new AnimalView[crew.Length];
-            puffs = new AirPuffs[crew.Length];
-            shownBlower = new BlowerDef[crew.Length];
-            lastSecondsSinceBurst = new float[crew.Length];
+            var count = boat.CrewCount;
+            animals = new AnimalView[count];
+            puffs = new AirPuffs[count];
+            shownBlower = new BlowerDef[count];
+            shownBursts = new int[count];
 
-            for (var i = 0; i < crew.Length; i++)
+            for (var i = 0; i < count; i++)
             {
-                var animal = animals[i] = AnimalView.Build(hull, LookFor(i), FurColors[i % FurColors.Length], PlayerColor(i), crew[i].Blower, palette);
-                animal.transform.localPosition = SimSpace.HullLocal(config.SeatOffset(i, crew.Length) * 0.85f, FloorHeight);
+                var crew = boat.CrewAt(i);
+                var animal = animals[i] = AnimalView.Build(hull, LookFor(i), FurColors[i % FurColors.Length], PlayerColor(i), crew.Blower, palette);
+                animal.transform.localPosition = SimSpace.HullLocal(config.SeatOffset(i, count) * 0.85f, FloorHeight);
                 puffs[i] = AirPuffs.Attach(animal.Nozzle, palette.air);
-                lastSecondsSinceBurst[i] = float.MaxValue;
+                shownBursts[i] = crew.BurstCount;
             }
         }
 
         /// <summary>Each player's slice as a coloured wedge on the water, turning with the raft. Small gaps keep the edges readable.</summary>
         void BuildSlices(float radius)
         {
-            var count = boat.Crew.Length;
+            var count = boat.CrewCount;
             var half = CrewSectors.HalfWidthDeg(count);
             for (var seat = 0; seat < count; seat++)
             {
@@ -110,14 +112,13 @@ namespace RushAhead.Render
         void LateUpdate()
         {
             var dt = Time.deltaTime;
-            var body = boat.Body.transform; // Rigidbody2D interpolation keeps this smooth between physics ticks
-            transform.SetPositionAndRotation(SimSpace.ToWorld(body.position), SimSpace.Heading(body.eulerAngles.z * Mathf.Deg2Rad));
+            transform.SetPositionAndRotation(SimSpace.ToWorld(boat.RenderPosition), SimSpace.Heading(boat.RenderAngleRad));
 
-            var capsized = boat.State == BoatState.Capsized;
+            var capsized = boat.Capsized;
             capsize = Mathf.MoveTowards(capsize, capsized ? 1f : 0f, dt / (capsized ? 0.35f : 0.25f));
 
             // Roll (toward port) tips the top toward -X; pitch (bow down) tips it toward +Z.
-            var tilt = boat.Tilt.Tilt * Mathf.Rad2Deg;
+            var tilt = boat.Tilt * Mathf.Rad2Deg;
             var flipSide = tilt.x >= 0f ? 1f : -1f;
             var bob = 0.04f * Mathf.Sin(Time.time * 2.3f + boat.Index * 1.7f);
             hull.SetLocalPositionAndRotation(
@@ -125,10 +126,10 @@ namespace RushAhead.Render
                 Quaternion.Euler(tilt.y * (1f - capsize), 0f, tilt.x * (1f - capsize) + flipSide * 160f * capsize));
 
             var airAllowed = !capsized && capsize < 0.05f;
-            for (var i = 0; i < animals.Length; i++) UpdateCrew(i, boat.Crew[i], airAllowed, dt);
+            for (var i = 0; i < animals.Length; i++) UpdateCrew(i, boat.CrewAt(i), airAllowed, dt);
         }
 
-        void UpdateCrew(int i, CrewMember crew, bool airAllowed, float dt)
+        void UpdateCrew(int i, ICrewState crew, bool airAllowed, float dt)
         {
             if (shownBlower[i] != crew.Blower)
             {
@@ -137,12 +138,12 @@ namespace RushAhead.Render
                 puffs[i].Configure(crew.Blower.coneHalfAngleDeg, crew.Blower.range);
             }
 
-            animals[i].Pose(SimSpace.Direction(crew.AirDirection), hull.up, crew.Braced, dt);
+            animals[i].Pose(SimSpace.Direction(BlowerMath.Direction(crew.AimAngle)), hull.up, crew.Braced, dt);
             puffs[i].SetFlow(airAllowed && crew.IsBlowing ? crew.Spool : 0f);
 
-            // A burst resets the crew member's timer; spotting that drop is how the view learns about it.
-            if (airAllowed && crew.SecondsSinceBurst < lastSecondsSinceBurst[i]) puffs[i].Burst();
-            lastSecondsSinceBurst[i] = crew.SecondsSinceBurst;
+            // Bursts are counted, so a change means a burst happened, however many frames or snapshots went by.
+            if (airAllowed && crew.BurstCount != shownBursts[i]) puffs[i].Burst();
+            shownBursts[i] = crew.BurstCount;
         }
     }
 }

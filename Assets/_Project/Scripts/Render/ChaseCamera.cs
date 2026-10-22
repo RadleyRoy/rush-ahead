@@ -25,9 +25,13 @@ namespace RushAhead.Render
         [Tooltip("Below this speed the camera holds its heading, so drifting and spinning don't swing it about.")]
         public float MinTurnSpeed = 1f;
         public float FollowRate = 5f;
+        [Tooltip("How quickly the travel direction the camera steers by catches up with the raft's real velocity. " +
+                 "Lower filters out the wobble from bumps and spins; sticks are camera-relative, so this smooths the controls too.")]
+        public float HeadingSmoothing = 2.5f;
 
         float yawRad;
         Vector3 focus;
+        Vector2 smoothedVelocity;
 
         /// <summary>The camera's heading on the water, in sim space. Stick-up pushes this way.</summary>
         public Vector2 Forward => new(Mathf.Cos(yawRad), Mathf.Sin(yawRad));
@@ -44,6 +48,7 @@ namespace RushAhead.Render
         public void SnapTo(Vector2 position, float headingRad)
         {
             yawRad = headingRad;
+            smoothedVelocity = Vector2.zero;
             focus = Focus(position);
             Place();
         }
@@ -53,7 +58,9 @@ namespace RushAhead.Render
             if (TargetPosition == null) return;
             var dt = Time.deltaTime;
 
-            var velocity = TargetVelocity?.Invoke() ?? Vector2.zero;
+            var raw = TargetVelocity?.Invoke() ?? Vector2.zero;
+            smoothedVelocity = Vector2.Lerp(smoothedVelocity, raw, 1f - Mathf.Exp(-HeadingSmoothing * dt));
+            var velocity = smoothedVelocity;
             var speed = velocity.magnitude;
             if (speed > MinTurnSpeed)
             {

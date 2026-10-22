@@ -20,6 +20,7 @@ namespace RushAhead.UI
         bool tuning;
         bool help = true;
         int pendingCrewCount;
+        string joinAddress = "192.168.";
         Vector2 scroll;
         Rect tuneButton, resetButton, helpButton, panel;
         Texture2D circle;
@@ -37,7 +38,7 @@ namespace RushAhead.UI
 
         void OnGUI()
         {
-            if (Game == null || Game.Boat == null) return;
+            if (Game == null || Game.ViewedBoat == null) return;
             if (circle == null) circle = CircleTexture(64);
 
             var scale = Scale;
@@ -52,7 +53,9 @@ namespace RushAhead.UI
             resetButton = new Rect(width - 180f, 10f, 80f, 40f);
             helpButton = new Rect(width - 270f, 10f, 80f, 40f);
             if (GUI.Button(tuneButton, tuning ? "Close" : "Tune")) tuning = !tuning;
+            GUI.enabled = Game.CanEditRaft; // only the host can reset the shared raft
             if (GUI.Button(resetButton, "Reset")) Game.ResetBoat();
+            GUI.enabled = true;
             if (GUI.Button(helpButton, help ? "Hide help" : "Help")) help = !help;
 
             if (help && !tuning) DrawHelp(height);
@@ -64,11 +67,11 @@ namespace RushAhead.UI
 
         void DrawStatus()
         {
-            var boat = Game.Boat;
-            GUILayout.BeginArea(new Rect(10f, 10f, 260f, 120f), GUI.skin.box);
-            GUILayout.Label($"Speed {boat.Body.Velocity.magnitude:0.0} m/s   Capsizes {boat.CapsizeCount}");
+            var boat = Game.ViewedBoat;
+            GUILayout.BeginArea(new Rect(10f, 10f, 300f, 130f), GUI.skin.box);
+            GUILayout.Label($"Speed {boat.Velocity.magnitude:0.0} m/s   Capsizes {boat.CapsizeCount}");
 
-            GUILayout.Label(boat.State == BoatState.Capsized ? "CAPSIZED!  recovering..." : "Lean");
+            GUILayout.Label(boat.Capsized ? "CAPSIZED!  recovering..." : "Lean");
             var bar = GUILayoutUtility.GetRect(240f, 14f);
             GUI.color = new Color(0f, 0f, 0f, 0.5f);
             GUI.DrawTexture(bar, Texture2D.whiteTexture);
@@ -77,6 +80,7 @@ namespace RushAhead.UI
             GUI.color = Color.white;
 
             if (Game.Router.DirectNozzleAim) GUILayout.Label("Direct nozzle aim (expert)");
+            if (Game.NetStatus.Length > 0) GUILayout.Label(Game.NetStatus);
             GUILayout.EndArea();
         }
 
@@ -116,8 +120,17 @@ namespace RushAhead.UI
             panel = new Rect(width - PanelWidth - 10f, 60f, PanelWidth, height - 70f);
             GUILayout.BeginArea(panel, GUI.skin.box);
             scroll = GUILayout.BeginScrollView(scroll);
-            GUI.changed = false;
 
+            DrawPlayTogether();
+            if (!Game.CanEditRaft)
+            {
+                GUILayout.Label("Joined: tuning, players and blowers are set on the host's device.");
+                GUILayout.EndScrollView();
+                GUILayout.EndArea();
+                return;
+            }
+
+            GUI.changed = false;
             GUILayout.Label("Water");
             c.forwardDrag = Slider("Forward drag", c.forwardDrag, 0.5f, 20f);
             c.lateralDrag = Slider($"Lateral drag (keel, {c.lateralDrag / Mathf.Max(0.01f, c.forwardDrag):0.0}x)", c.lateralDrag, 2f, 120f);
@@ -127,6 +140,7 @@ namespace RushAhead.UI
             c.mass = Slider("Mass", c.mass, 20f, 150f, "0");
             c.inertiaMultiplier = Slider("Spin inertia x", c.inertiaMultiplier, 0.5f, 3f);
             c.thrustMultiplier = Slider("All thrust x", c.thrustMultiplier, 0.25f, 3f);
+            c.nozzleTurnDegPerSec = Slider("Blower swing (deg/s)", c.nozzleTurnDegPerSec, 90f, 1440f, "0");
             c.coneCoupling = Slider("Air pushes others", c.coneCoupling, 0f, 2f);
 
             GUILayout.Label("Lean and capsize");
@@ -182,8 +196,47 @@ namespace RushAhead.UI
             GUILayout.EndArea();
         }
 
+        enum NetAction
+        {
+            None,
+            Host,
+            Join,
+            Leave,
+        }
+
+        NetAction pendingNet;
+
+        void DrawPlayTogether()
+        {
+            GUILayout.Label("Play together (same Wi-Fi or hotspot)");
+            if (Game.Mode == NetMode.Offline)
+            {
+                if (GUILayout.Button("Host a game")) pendingNet = NetAction.Host;
+                GUILayout.BeginHorizontal();
+                joinAddress = GUILayout.TextField(joinAddress, GUILayout.MinWidth(170f));
+                if (GUILayout.Button("Join")) pendingNet = NetAction.Join;
+                GUILayout.EndHorizontal();
+            }
+            else if (GUILayout.Button(Game.Mode == NetMode.Hosting ? "Stop hosting" : "Leave game"))
+            {
+                pendingNet = NetAction.Leave;
+            }
+
+            GUILayout.Space(8f);
+        }
+
+        // Network and crew changes are applied here: doing them mid-OnGUI would change the controls between IMGUI's
+        // layout and repaint passes.
         void Update()
         {
+            switch (pendingNet)
+            {
+                case NetAction.Host: Game.StartHosting(); break;
+                case NetAction.Join: Game.Join(joinAddress); break;
+                case NetAction.Leave: Game.LeaveNetwork(); break;
+            }
+
+            pendingNet = NetAction.None;
             if (pendingCrewCount == 0) return;
             Game.SetCrewCount(pendingCrewCount);
             pendingCrewCount = 0;

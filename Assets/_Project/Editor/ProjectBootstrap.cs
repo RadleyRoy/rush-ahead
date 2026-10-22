@@ -40,6 +40,9 @@ namespace RushAhead.EditorTools
             PlayerSettings.SetScriptingBackend(NamedBuildTarget.Android, ScriptingImplementation.IL2CPP);
             PlayerSettings.Android.targetArchitectures = AndroidArchitecture.ARM64;
 
+            // LAN play opens UDP sockets; don't rely on Unity spotting that and adding the permission itself.
+            PlayerSettings.Android.forceInternetPermission = true;
+
             // Landscape only: two thumbs on a wide screen.
             PlayerSettings.defaultInterfaceOrientation = UIOrientation.AutoRotation;
             PlayerSettings.allowedAutorotateToPortrait = false;

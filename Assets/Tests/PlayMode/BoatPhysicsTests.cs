@@ -166,9 +166,9 @@ namespace RushAhead.Tests
         {
             var boat = SpawnBoat();
             boat.ResetTo(Vector2.zero, Mathf.PI / 2f); // raft now faces +y, so "behind it" is -y
-            Blow(boat, 2, -Mathf.PI / 2f);
+            Blow(boat, 2, -Mathf.PI / 2f, throttle: 0f); // aim only, so the raft doesn't turn while the nozzle swings
 
-            world.Advance(Dt);
+            Run(0.5f);
 
             Assert.That(boat.Crew[2].AimShare, Is.EqualTo(1f), "rear-left may blow astern wherever the raft points");
             Assert.That(boat.Crew[2].LocalAimDeg, Is.EqualTo(180f).Within(1e-3f).Or.EqualTo(-180f).Within(1e-3f));
@@ -178,9 +178,11 @@ namespace RushAhead.Tests
         public void Burst_GivesAnImmediateKick()
         {
             var boat = SpawnBoat();
-            Blow(boat, 2, Backward, throttle: 0f).BurstOnce = true;
-            Blow(boat, 3, Backward, throttle: 0f).BurstOnce = true;
+            var rearLeft = Blow(boat, 2, Backward, throttle: 0f);
+            var rearRight = Blow(boat, 3, Backward, throttle: 0f);
+            Run(0.3f); // let both blowers swing round to point astern before puffing
 
+            rearLeft.BurstOnce = rearRight.BurstOnce = true;
             world.Advance(Dt);
 
             var expected = 2f * leafBlower.burstImpulse / config.mass;

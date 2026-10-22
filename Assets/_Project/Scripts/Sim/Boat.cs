@@ -15,7 +15,7 @@ namespace RushAhead.Sim
     /// One shared boat. Each crew member's blower pushes at their seat, not at the centre of mass, so
     /// off-centre thrust turns the boat: four players pushing at cross purposes is the whole game.
     /// </summary>
-    public sealed class Boat
+    public sealed class Boat : IBoatState
     {
         readonly SimConfig config;
         float recoverySecondsLeft;
@@ -58,6 +58,15 @@ namespace RushAhead.Sim
         /// <summary>0 when level, 1 at the capsize threshold.</summary>
         public float TiltDanger => Mathf.Clamp01(Tilt.Tilt.magnitude / config.capsizeAngle);
 
+        // IBoatState: the transform is what Rigidbody2D interpolation smooths between physics ticks.
+        Vector2 IBoatState.RenderPosition => Body.transform.position;
+        float IBoatState.RenderAngleRad => Body.transform.eulerAngles.z * Mathf.Deg2Rad;
+        Vector2 IBoatState.Velocity => Body.Velocity;
+        Vector2 IBoatState.Tilt => Tilt.Tilt;
+        bool IBoatState.Capsized => State == BoatState.Capsized;
+        int IBoatState.CrewCount => Crew.Length;
+        ICrewState IBoatState.CrewAt(int seat) => Crew[seat];
+
         /// <summary>Applies one tick of forces. Must run before the physics engine steps.</summary>
         public void Step(float dt)
         {
@@ -74,13 +83,14 @@ namespace RushAhead.Sim
                 if (crew.Braced) bracedCount++;
 
                 // Each player may only blow inside their own slice of the raft. Asking for a direction outside it turns
-                // the nozzle to the nearest edge and keeps only the part of the push that still helps.
+                // the nozzle to the nearest edge and keeps only the part of the push that still helps. The nozzle
+                // sweeps there at a limited rate rather than snapping, so thrust changes direction smoothly.
                 var share = 1f;
                 if (input.HasAim)
                 {
                     var requestedLocal = (input.AimAngle - Body.AngleRad) * Mathf.Rad2Deg;
                     share = CrewSectors.Clamp(requestedLocal, crew.Seat, Crew.Length, out var allowedLocal);
-                    crew.LocalAimDeg = allowedLocal;
+                    crew.LocalAimDeg = CrewSectors.TurnTowards(crew.LocalAimDeg, allowedLocal, config.nozzleTurnDegPerSec * dt, crew.Seat, Crew.Length);
                     crew.AimShare = share;
                 }
 
@@ -126,6 +136,7 @@ namespace RushAhead.Sim
                 Body.PushBodiesInCone(nozzle, airDirection, spec, burstImpulse * config.coneCoupling, true, coneSign);
                 Tilt.Kick(HeelPerUnit(impulse)); // an impulse changes tilt velocity directly
                 crew.SecondsSinceBurst = 0f;
+                crew.BurstCount++;
             }
 
             return heel;
