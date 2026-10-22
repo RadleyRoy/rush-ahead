@@ -13,6 +13,7 @@ MonoBehaviour:
   m_Name: ShopVac
   m_EditorClassIdentifier: RushAhead.Content::RushAhead.Content.BlowerDef
   displayName: Shop Vac
+  blurb: 'Sucks instead of blows: pulls the raft where it points.'
   color: {r: 1, g: 0.85, b: 0.2, a: 1}
   thrustNewtons: 40
   spoolUpMs: 400

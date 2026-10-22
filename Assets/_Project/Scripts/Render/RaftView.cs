@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using RushAhead.Content;
 using RushAhead.Sim;
 using UnityEngine;
@@ -11,44 +12,61 @@ namespace RushAhead.Render
     /// </summary>
     public sealed class RaftView : MonoBehaviour
     {
-        static readonly Color[] FurColors =
-        {
-            new(0.62f, 0.42f, 0.28f), new(0.98f, 0.6f, 0.25f), new(0.96f, 0.94f, 0.9f), new(1f, 0.66f, 0.72f),
-        };
-
-        /// <summary>Distinct per player, unlike fur: used for their slice on the water and their collar.</summary>
+        /// <summary>Fixed per seat, unlike fur, which players choose: their slice on the water, their collar and their name tag.</summary>
         static readonly Color[] PlayerColors =
         {
             new(1f, 0.38f, 0.3f), new(0.3f, 0.55f, 1f), new(1f, 0.84f, 0.2f), new(0.4f, 0.9f, 0.4f),
         };
 
-        static readonly AnimalLook[] SeatLooks = { AnimalLook.Bear, AnimalLook.Cat, AnimalLook.Bunny, AnimalLook.Pig };
         const float FloorHeight = 0.16f;
 
-        public static AnimalLook LookFor(int seat) => SeatLooks[seat % SeatLooks.Length];
         public static Color PlayerColor(int seat) => PlayerColors[seat % PlayerColors.Length];
 
         IBoatState boat;
+        SimConfig config;
         ArtPalette palette;
+        CrewCatalog catalog;
         Transform hull;
         AnimalView[] animals;
         AirPuffs[] puffs;
+        Loadout[] shownLook;
         BlowerDef[] shownBlower;
         int[] shownBursts;
         float capsize;
 
         /// <param name="boat">The live boat on the host, or a raft rebuilt from snapshots on a client.</param>
-        public static RaftView Build(IBoatState boat, SimConfig config, ArtPalette palette)
+        /// <param name="looks">Each seat's chosen animal and fur; seats beyond the list get the catalog's defaults.</param>
+        public static RaftView Build(IBoatState boat, SimConfig config, ArtPalette palette, CrewCatalog catalog, IReadOnlyList<Loadout> looks)
         {
             var view = new GameObject($"Raft {boat.Index}").AddComponent<RaftView>();
             view.boat = boat;
+            view.config = config;
             view.palette = palette;
+            view.catalog = catalog;
             view.BuildRaft(config.hullRadius);
             view.BuildSlices(config.hullRadius);
-            view.BuildCrew(config);
+            view.BuildCrew(looks);
             view.LateUpdate();
             return view;
         }
+
+        /// <summary>Re-dresses any animal whose species or fur changed, leaving the rest (and where they're aiming) alone.</summary>
+        public void Restyle(IReadOnlyList<Loadout> looks)
+        {
+            for (var seat = 0; seat < animals.Length; seat++)
+            {
+                var look = LookAt(looks, seat);
+                if (look.Species == shownLook[seat].Species && look.Fur == shownLook[seat].Fur) continue;
+
+                var facing = animals[seat].transform.rotation;
+                Destroy(animals[seat].gameObject);
+                BuildAnimal(seat, look);
+                animals[seat].transform.rotation = facing;
+            }
+        }
+
+        /// <summary>World position just above a seat's animal, for its name tag.</summary>
+        public Vector3 TagPosition(int seat) => animals[seat].TagAnchor.position;
 
         void BuildRaft(float radius)
         {
@@ -70,23 +88,34 @@ namespace RushAhead.Render
             }
         }
 
-        void BuildCrew(SimConfig config)
+        void BuildCrew(IReadOnlyList<Loadout> looks)
         {
             var count = boat.CrewCount;
             animals = new AnimalView[count];
             puffs = new AirPuffs[count];
+            shownLook = new Loadout[count];
             shownBlower = new BlowerDef[count];
             shownBursts = new int[count];
 
-            for (var i = 0; i < count; i++)
+            for (var seat = 0; seat < count; seat++)
             {
-                var crew = boat.CrewAt(i);
-                var animal = animals[i] = AnimalView.Build(hull, LookFor(i), FurColors[i % FurColors.Length], PlayerColor(i), crew.Blower, palette);
-                animal.transform.localPosition = SimSpace.HullLocal(config.SeatOffset(i, count) * 0.85f, FloorHeight);
-                puffs[i] = AirPuffs.Attach(animal.Nozzle, palette.air);
-                shownBursts[i] = crew.BurstCount;
+                BuildAnimal(seat, LookAt(looks, seat));
+                shownBursts[seat] = boat.CrewAt(seat).BurstCount;
             }
         }
+
+        void BuildAnimal(int seat, Loadout look)
+        {
+            var crew = boat.CrewAt(seat);
+            var animal = animals[seat] = AnimalView.Build(hull, catalog.SpeciesOf(look).shape, catalog.FurOf(look), PlayerColor(seat), crew.Blower, palette);
+            animal.transform.localPosition = SimSpace.HullLocal(config.SeatOffset(seat, boat.CrewCount) * 0.85f, FloorHeight);
+            puffs[seat] = AirPuffs.Attach(animal.Nozzle, palette.air);
+            shownLook[seat] = look;
+            shownBlower[seat] = null; // the new figure's blower gets its colour and cone on the next frame
+        }
+
+        Loadout LookAt(IReadOnlyList<Loadout> looks, int seat) =>
+            looks != null && seat < looks.Count ? catalog.Clamp(looks[seat]) : catalog.DefaultLoadout(seat);
 
         /// <summary>Each player's slice as a coloured wedge on the water, turning with the raft. Small gaps keep the edges readable.</summary>
         void BuildSlices(float radius)

@@ -3,14 +3,6 @@ using UnityEngine;
 
 namespace RushAhead.Render
 {
-    public enum AnimalLook
-    {
-        Bear,
-        Cat,
-        Bunny,
-        Pig,
-    }
-
     /// <summary>
     /// A chunky toy-like animal built from primitives, standing on the raft and holding its blower out in
     /// front. Faces +Z; the air leaves along <see cref="Nozzle"/>'s forward. Phase 8 swaps in real models.
@@ -26,14 +18,18 @@ namespace RushAhead.Render
         /// <summary>The blower's tip. Its forward is the airflow direction.</summary>
         public Transform Nozzle { get; private set; }
 
-        public static AnimalView Build(Transform parent, AnimalLook look, Color fur, Color playerColor, BlowerDef blower, ArtPalette palette)
+        /// <summary>Just above the head (and a bunny's ears), where a name tag goes.</summary>
+        public Transform TagAnchor { get; private set; }
+
+        public static AnimalView Build(Transform parent, AnimalShape shape, Color fur, Color playerColor, BlowerDef blower, ArtPalette palette)
         {
-            var root = new GameObject($"{look}").transform;
+            var root = new GameObject($"{shape}").transform;
             root.SetParent(parent, false);
             var view = root.gameObject.AddComponent<AnimalView>();
             view.palette = palette;
             view.figure = Shapes3D.Group(root, "Figure");
-            view.BuildBody(look, palette.Tinted(palette.animal, fur), palette.Tinted(palette.animal, Color.Lerp(fur, Color.white, 0.45f)));
+            view.TagAnchor = Shapes3D.Group(view.figure, "Tag anchor", new Vector3(0f, 1.5f, 0f));
+            view.BuildBody(shape, palette.Tinted(palette.animal, fur), palette.Tinted(palette.animal, Color.Lerp(fur, Color.white, 0.45f)));
             // A collar in the player's colour ties each animal to its slice painted on the water.
             Shapes3D.Primitive(PrimitiveType.Cylinder, view.figure, new Vector3(0f, 0.76f, 0.02f), new Vector3(0.5f, 0.045f, 0.46f),
                 palette.Tinted(palette.animal, playerColor), name: "Collar");
@@ -42,10 +38,10 @@ namespace RushAhead.Render
             return view;
         }
 
-        void BuildBody(AnimalLook look, Material furMaterial, Material lightMaterial)
+        void BuildBody(AnimalShape shape, Material furMaterial, Material lightMaterial)
         {
             var f = figure;
-            var skin = look == AnimalLook.Pig ? palette.Tinted(palette.animal, Pink) : lightMaterial;
+            var skin = shape == AnimalShape.Pig ? palette.Tinted(palette.animal, Pink) : lightMaterial;
 
             Shapes3D.Primitive(PrimitiveType.Capsule, f, new Vector3(0f, 0.42f, 0f), new Vector3(0.56f, 0.38f, 0.5f), furMaterial, name: "Body");
             Shapes3D.Primitive(PrimitiveType.Sphere, f, new Vector3(0f, 0.4f, 0.17f), new Vector3(0.38f, 0.44f, 0.2f), lightMaterial, name: "Belly");
@@ -60,32 +56,56 @@ namespace RushAhead.Render
                 Shapes3D.Primitive(PrimitiveType.Sphere, head, new Vector3(0.1f * side, 0.05f, 0.255f), Vector3.one * 0.07f, palette.eyeDark, name: "Pupil");
             }
 
-            switch (look)
+            switch (shape)
             {
-                case AnimalLook.Bear:
+                case AnimalShape.Bear:
                     foreach (var side in new[] { -1f, 1f })
                         Shapes3D.Primitive(PrimitiveType.Sphere, head, new Vector3(0.18f * side, 0.2f, -0.02f), new Vector3(0.16f, 0.16f, 0.08f), furMaterial, name: "Ear");
                     Shapes3D.Primitive(PrimitiveType.Sphere, head, new Vector3(0f, -0.07f, 0.21f), new Vector3(0.2f, 0.15f, 0.16f), lightMaterial, name: "Muzzle");
                     Shapes3D.Primitive(PrimitiveType.Sphere, head, new Vector3(0f, -0.03f, 0.29f), new Vector3(0.08f, 0.06f, 0.05f), palette.eyeDark, name: "Nose");
                     break;
-                case AnimalLook.Cat:
+                case AnimalShape.Cat:
                     foreach (var side in new[] { -1f, 1f })
                         Shapes3D.Primitive(PrimitiveType.Cube, head, new Vector3(0.14f * side, 0.21f, 0f), new Vector3(0.13f, 0.13f, 0.05f), furMaterial,
                             Quaternion.Euler(0f, 0f, 45f + 12f * side), "Ear");
                     Shapes3D.Primitive(PrimitiveType.Sphere, head, new Vector3(0f, -0.05f, 0.24f), new Vector3(0.06f, 0.045f, 0.04f), palette.Tinted(palette.animal, Pink), name: "Nose");
                     break;
-                case AnimalLook.Bunny:
+                case AnimalShape.Bunny:
                     foreach (var side in new[] { -1f, 1f })
                         Shapes3D.Primitive(PrimitiveType.Capsule, head, new Vector3(0.09f * side, 0.38f, -0.02f), new Vector3(0.1f, 0.2f, 0.06f), furMaterial,
                             Quaternion.Euler(-8f, 0f, -10f * side), "Ear");
                     Shapes3D.Primitive(PrimitiveType.Sphere, head, new Vector3(0f, -0.05f, 0.24f), new Vector3(0.06f, 0.045f, 0.04f), palette.Tinted(palette.animal, Pink), name: "Nose");
                     break;
-                case AnimalLook.Pig:
+                case AnimalShape.Pig:
                     foreach (var side in new[] { -1f, 1f })
                         Shapes3D.Primitive(PrimitiveType.Sphere, head, new Vector3(0.17f * side, 0.17f, 0.04f), new Vector3(0.16f, 0.07f, 0.12f), skin,
                             Quaternion.Euler(20f, 0f, -35f * side), "Ear");
                     Shapes3D.Primitive(PrimitiveType.Cylinder, head, new Vector3(0f, -0.05f, 0.25f), new Vector3(0.17f, 0.03f, 0.13f), skin,
                         Quaternion.Euler(90f, 0f, 0f), "Snout");
+                    break;
+                case AnimalShape.Otter:
+                    // Small round ears set low and wide, a broad pale muzzle of whisker pads, and a thick tail along the floor.
+                    foreach (var side in new[] { -1f, 1f })
+                    {
+                        Shapes3D.Primitive(PrimitiveType.Sphere, head, new Vector3(0.2f * side, 0.12f, -0.02f), new Vector3(0.1f, 0.1f, 0.06f), furMaterial, name: "Ear");
+                        Shapes3D.Primitive(PrimitiveType.Sphere, head, new Vector3(0.06f * side, -0.08f, 0.21f), new Vector3(0.13f, 0.11f, 0.11f), lightMaterial, name: "Whisker pad");
+                    }
+
+                    Shapes3D.Primitive(PrimitiveType.Sphere, head, new Vector3(0f, -0.02f, 0.27f), new Vector3(0.09f, 0.06f, 0.05f), palette.eyeDark, name: "Nose");
+                    Shapes3D.Primitive(PrimitiveType.Capsule, f, new Vector3(0f, 0.15f, -0.38f), new Vector3(0.16f, 0.24f, 0.13f), furMaterial,
+                        Quaternion.Euler(-110f, 0f, 0f), "Tail");
+                    break;
+                case AnimalShape.Raccoon:
+                    // Pointed ears, the black bandit mask round the eyes, a pale muzzle and a ringed tail.
+                    foreach (var side in new[] { -1f, 1f })
+                        Shapes3D.Primitive(PrimitiveType.Cube, head, new Vector3(0.15f * side, 0.2f, -0.01f), new Vector3(0.12f, 0.12f, 0.05f), furMaterial,
+                            Quaternion.Euler(0f, 0f, 45f + 8f * side), "Ear");
+                    Shapes3D.Primitive(PrimitiveType.Sphere, head, new Vector3(0f, 0.05f, 0.18f), new Vector3(0.38f, 0.12f, 0.12f), palette.eyeDark, name: "Mask");
+                    Shapes3D.Primitive(PrimitiveType.Sphere, head, new Vector3(0f, -0.08f, 0.21f), new Vector3(0.17f, 0.12f, 0.13f), lightMaterial, name: "Muzzle");
+                    Shapes3D.Primitive(PrimitiveType.Sphere, head, new Vector3(0f, -0.04f, 0.28f), new Vector3(0.07f, 0.05f, 0.04f), palette.eyeDark, name: "Nose");
+                    for (var ring = 0; ring < 4; ring++)
+                        Shapes3D.Primitive(PrimitiveType.Sphere, f, new Vector3(0f, 0.26f - 0.04f * ring, -0.3f - 0.07f * ring), Vector3.one * (0.17f - 0.012f * ring),
+                            ring % 2 == 0 ? furMaterial : palette.eyeDark, name: "Tail ring");
                     break;
             }
 

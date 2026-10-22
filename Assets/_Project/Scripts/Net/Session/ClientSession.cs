@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using RushAhead.Content;
 using RushAhead.Sim;
 using UnityEngine;
@@ -7,40 +6,68 @@ using UnityEngine;
 namespace RushAhead.Net
 {
     /// <summary>
-    /// A joining player. Sends the controls for the seats the host gave it at 30 Hz, and draws the host's raft from
-    /// snapshots. Runs no simulation of its own: everything it shows came from the host.
+    /// A joining player. Tells the host which animal it wants to be, sends the controls for the seat it was given at
+    /// 30 Hz, and draws the host's raft from snapshots. Runs no simulation of its own: everything it shows came from the host.
     /// </summary>
     public sealed class ClientSession : IDisposable
     {
         readonly INetTransport transport;
         readonly Func<int, CrewInput> readLocalInput;
-        readonly ByteWriter writer = new(32);
+        readonly ByteWriter writer = new(64);
         readonly byte[] burstCounts = new byte[CrewSectors.MaxCrew];
+        Loadout profile;
         ushort sequence;
         float sendTimer;
 
+        /// <param name="profile">This player's animal; the host may clamp it to what it has.</param>
         /// <param name="readLocalInput">This device's controls for a seat. Called once per send, so it may consume one-shot presses.</param>
-        public ClientSession(INetTransport transport, SimConfig config, IReadOnlyList<BlowerDef> blowers, Func<int, CrewInput> readLocalInput)
+        public ClientSession(INetTransport transport, SimConfig config, CrewCatalog catalog, Loadout profile, Func<int, CrewInput> readLocalInput)
         {
             this.transport = transport;
             this.readLocalInput = readLocalInput;
+            this.profile = profile;
             Timeline = new SnapshotTimeline(config.tickRate, snapshotEveryTicks: 2);
-            Boat = new InterpolatedBoat(config, blowers);
+            Boat = new InterpolatedBoat(config, catalog.blowers);
             transport.PeerConnected += OnConnected;
             transport.PeerDisconnected += OnDisconnected;
             transport.Received += OnReceived;
         }
 
-        public event Action SeatsAssigned;
+        /// <summary>A new roster arrived: seats, looks or both changed.</summary>
+        public event Action RosterChanged;
+
         public event Action Disconnected;
 
         public SnapshotTimeline Timeline { get; }
         public InterpolatedBoat Boat { get; }
         public bool Connected { get; private set; }
-        public int CrewCount { get; private set; }
+        public RosterSeat[] Roster { get; private set; } = Array.Empty<RosterSeat>();
+        public int CrewCount => Roster.Length;
+
+        /// <summary>The seats this device drives: one, or none while the raft is full and it's watching.</summary>
         public int[] Seats { get; private set; } = Array.Empty<int>();
+
+        /// <summary>Set when the host can't be played with (another version); the caller should leave and show it.</summary>
+        public string Error { get; private set; }
+
         public int SnapshotsReceived { get; private set; }
         public float SendInterval { get; set; } = 1f / 30f;
+
+        /// <summary>Changes this player's animal; the host applies it and everyone's roster updates.</summary>
+        public void SetProfile(Loadout loadout)
+        {
+            profile = loadout;
+            if (Connected) SendProfile();
+        }
+
+        /// <summary>Asks to move to a free seat. The host refuses if someone sits there by the time it hears.</summary>
+        public void ClaimSeat(int seat)
+        {
+            if (!Connected) return;
+            writer.Reset();
+            Protocol.WriteClaimSeat(writer, seat);
+            transport.Send(Peers.Host, writer.Written, reliable: true);
+        }
 
         public void Update(float deltaSeconds)
         {
@@ -72,7 +99,18 @@ namespace RushAhead.Net
             }
         }
 
-        void OnConnected(ulong host) => Connected = true;
+        void OnConnected(ulong host)
+        {
+            Connected = true;
+            SendProfile();
+        }
+
+        void SendProfile()
+        {
+            writer.Reset();
+            Protocol.WriteProfile(writer, profile);
+            transport.Send(Peers.Host, writer.Written, reliable: true);
+        }
 
         void OnDisconnected(ulong host)
         {
@@ -86,12 +124,14 @@ namespace RushAhead.Net
             {
                 switch (Protocol.PeekType(message))
                 {
-                    case MessageType.Seats:
-                        var seats = Protocol.ReadSeats(new ByteReader(message));
-                        CrewCount = seats.CrewCount;
-                        Seats = Array.ConvertAll(seats.Seats, s => (int)s);
-                        // Burst counts keep running across re-deals: the host baselines each seat on its first packet.
-                        SeatsAssigned?.Invoke();
+                    case MessageType.Roster:
+                        Roster = Protocol.ReadRoster(new ByteReader(message));
+                        var seats = new System.Collections.Generic.List<int>();
+                        for (var seat = 0; seat < Roster.Length; seat++)
+                            if (Roster[seat].Yours) seats.Add(seat);
+                        // Burst counts keep running across seat changes: the host baselines each seat on its first packet.
+                        Seats = seats.ToArray();
+                        RosterChanged?.Invoke();
                         break;
 
                     case MessageType.Snapshot:
@@ -101,6 +141,10 @@ namespace RushAhead.Net
                         SnapshotsReceived++;
                         break;
                 }
+            }
+            catch (VersionMismatchException e)
+            {
+                Error = e.Message;
             }
             catch (ProtocolException e)
             {

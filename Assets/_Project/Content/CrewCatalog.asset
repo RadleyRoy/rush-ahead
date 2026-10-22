@@ -1,0 +1,40 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0e19d1a9eb6a5ad489252917cdc87354, type: 3}
+  m_Name: CrewCatalog
+  m_EditorClassIdentifier: RushAhead.Content::RushAhead.Content.CrewCatalog
+  species:
+  - {fileID: 11400000, guid: a5a545bb8b310a243a4817e8eb21bba9, type: 2}
+  - {fileID: 11400000, guid: 8ef1711f803bb954c8a5ee592a490ef0, type: 2}
+  - {fileID: 11400000, guid: 18b910aa417bf3f4889c6c8d7a6f7ebe, type: 2}
+  - {fileID: 11400000, guid: 1c37059423dc079469675c8592827042, type: 2}
+  - {fileID: 11400000, guid: 7510d5a998b5b2249b3ff2751f970f79, type: 2}
+  - {fileID: 11400000, guid: 4d69a74c095ad504eaefac59cb102246, type: 2}
+  blowers:
+  - {fileID: 11400000, guid: e458fa76b0dd64243b9d2b4f6265490f, type: 2}
+  - {fileID: 11400000, guid: 80a7229a01b31a542aaa0eed01615856, type: 2}
+  - {fileID: 11400000, guid: d99b51d824dd2f343bc3dc5323d210bf, type: 2}
+  - {fileID: 11400000, guid: 1340a2b8ae0017948b10b1a532dc11f8, type: 2}
+  - {fileID: 11400000, guid: e00e0023ac5f9d8428703b590b6c8600, type: 2}
+  furColors:
+  - {r: 0.62, g: 0.42, b: 0.28, a: 1}
+  - {r: 0.98, g: 0.6, b: 0.25, a: 1}
+  - {r: 0.96, g: 0.94, b: 0.9, a: 1}
+  - {r: 1, g: 0.66, b: 0.72, a: 1}
+  - {r: 0.45, g: 0.31, b: 0.21, a: 1}
+  - {r: 0.6, g: 0.6, b: 0.64, a: 1}
+  - {r: 0.27, g: 0.27, b: 0.3, a: 1}
+  - {r: 0.96, g: 0.8, b: 0.36, a: 1}
+  - {r: 0.52, g: 0.76, b: 0.97, a: 1}
+  - {r: 0.56, g: 0.88, b: 0.7, a: 1}
+  - {r: 0.76, g: 0.62, b: 0.93, a: 1}
+  - {r: 0.86, g: 0.74, b: 0.57, a: 1}

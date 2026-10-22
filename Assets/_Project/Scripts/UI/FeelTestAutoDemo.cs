@@ -18,15 +18,18 @@ namespace RushAhead.UI
 
         static readonly (float time, string name)[] Shots =
         {
-            (2.5f, "1-cruising"), (5.0f, "2-turning"), (6.3f, "3-burst"), (7.4f, "4-heeling"), (9.6f, "5-after"),
+            (2.5f, "1-cruising"), (5.0f, "2-turning"), (6.3f, "3-burst"), (7.4f, "4-heeling"), (9.6f, "5-after"), (10.3f, "6-crew"),
         };
+
+        const float OpenCrewPanelAt = 9.8f; // so the last shot shows the Crew panel
 
         FeelTestBootstrap game;
         string outputFolder;
         float elapsed;
-        float duration = 10.5f;
+        float duration = 10.8f;
         int nextShot;
         bool burstFired;
+        bool crewPanelOpened;
 
         public static void StartIfRequested(FeelTestBootstrap game)
         {
@@ -39,6 +42,7 @@ namespace RushAhead.UI
             demo.outputFolder = args[index + 1];
             Directory.CreateDirectory(demo.outputFolder);
             game.Router.Scripted = true;
+            game.AllowSearching = false; // the Crew panel opens near the end; don't make the desktop firewall ask about it
 
             var crewIndex = Array.IndexOf(args, CrewFlag);
             if (crewIndex >= 0 && crewIndex + 1 < args.Length && int.TryParse(args[crewIndex + 1], out var crew) && crew >= 1 && crew <= CrewSectors.MaxCrew)
@@ -55,6 +59,11 @@ namespace RushAhead.UI
         {
             elapsed += Time.deltaTime;
             Drive(game.Router, elapsed);
+            if (!crewPanelOpened && elapsed >= OpenCrewPanelAt)
+            {
+                crewPanelOpened = true;
+                game.GetComponent<FeelTestHud>().OpenCrewPanel();
+            }
 
             var boat = game.ViewedBoat;
             if (nextShot < Shots.Length && elapsed >= Shots[nextShot].time)
@@ -65,7 +74,7 @@ namespace RushAhead.UI
                 for (var i = 0; i < air.Length; i++) air[i] = boat.CrewAt(i).AirFraction.ToString("0.00");
                 Debug.Log($"[RushAhead] {name}: t={elapsed:0.0}s mode={game.Mode} pos={boat.RenderPosition} heading={boat.RenderAngleRad * Mathf.Rad2Deg:0}deg " +
                           $"speed={boat.Velocity.magnitude:0.00} lean={boat.Tilt.magnitude:0.000} capsized={boat.Capsized} capsizes={boat.CapsizeCount} " +
-                          $"air=[{string.Join(",", air)}] {game.NetStatus}");
+                          $"air=[{string.Join(",", air)}] {game.NetStatus} crew=[{CrewSummary()}]");
             }
 
             // A machine-readable timeline for checking network sync: the host logs the real raft at each sim tick,
@@ -76,6 +85,21 @@ namespace RushAhead.UI
                 Debug.Log(FormattableString.Invariant($"[RushAhead.net] view tick={game.PlaybackTick:0.000} x={boat.RenderPosition.x:0.0000} y={boat.RenderPosition.y:0.0000}"));
 
             if (elapsed > duration) Application.Quit();
+        }
+
+        /// <summary>Who sits where as this device sees it, e.g. "P1 Skipper(you) Bear/fur0/Leaf Blower", for checking that rosters agree.</summary>
+        string CrewSummary()
+        {
+            var seats = game.Seats;
+            var parts = new string[seats.Length];
+            for (var i = 0; i < seats.Length; i++)
+            {
+                var s = seats[i];
+                var who = !s.Human ? "spare" : s.Loadout.Name + (s.Yours ? "(you)" : s.Host ? "(host)" : "");
+                parts[i] = $"P{i + 1} {who} {game.Catalog.SpeciesOf(s.Loadout).displayName}/fur{s.Loadout.Fur}/{game.Catalog.BlowerOf(s.Loadout).displayName}";
+            }
+
+            return string.Join(" | ", parts);
         }
 
         /// <summary>

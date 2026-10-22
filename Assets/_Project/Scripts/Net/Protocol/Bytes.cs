@@ -3,9 +3,19 @@ using System;
 namespace RushAhead.Net
 {
     /// <summary>Thrown for any malformed, truncated or unsupported message. Never an out-of-range read.</summary>
-    public sealed class ProtocolException : Exception
+    public class ProtocolException : Exception
     {
         public ProtocolException(string message) : base(message) { }
+    }
+
+    /// <summary>The other side runs a build with a different wire format. Not a fault: both need the same version.</summary>
+    public sealed class VersionMismatchException : ProtocolException
+    {
+        public VersionMismatchException(byte theirs)
+            : base($"The other device runs protocol {theirs}; this one runs {Protocol.Version}. Install the same version of Rush Ahead on both.") =>
+            Theirs = theirs;
+
+        public byte Theirs { get; }
     }
 
     /// <summary>Little-endian writer into a growable buffer. Reuse one per sender; <see cref="Reset"/> between messages.</summary>
@@ -49,6 +59,13 @@ namespace RushAhead.Net
         }
 
         public void I32(int value) => U32((uint)value);
+
+        public void Raw(byte[] bytes)
+        {
+            Ensure(bytes.Length);
+            Buffer.BlockCopy(bytes, 0, buffer, Length, bytes.Length);
+            Length += bytes.Length;
+        }
 
         void Ensure(int extra)
         {
@@ -97,6 +114,15 @@ namespace RushAhead.Net
         }
 
         public int I32() => (int)U32();
+
+        public byte[] Raw(int count)
+        {
+            Need(count);
+            var bytes = new byte[count];
+            Buffer.BlockCopy(data, position, bytes, 0, count);
+            position += count;
+            return bytes;
+        }
 
         void Need(int count)
         {

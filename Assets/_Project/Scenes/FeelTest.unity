@@ -383,12 +383,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: RushAhead.UI::RushAhead.UI.FeelTestBootstrap
   config: {fileID: 11400000, guid: 4004bd7b0040932419f45aec20a83011, type: 2}
-  blowers:
-  - {fileID: 11400000, guid: e458fa76b0dd64243b9d2b4f6265490f, type: 2}
-  - {fileID: 11400000, guid: 80a7229a01b31a542aaa0eed01615856, type: 2}
-  - {fileID: 11400000, guid: d99b51d824dd2f343bc3dc5323d210bf, type: 2}
-  - {fileID: 11400000, guid: 1340a2b8ae0017948b10b1a532dc11f8, type: 2}
-  - {fileID: 11400000, guid: e00e0023ac5f9d8428703b590b6c8600, type: 2}
+  catalog: {fileID: 11400000, guid: add57eca14e67204a99be8e82d068219, type: 2}
   palette: {fileID: 11400000, guid: 92d326366186d7e48bc562b8587f30fb, type: 2}
 --- !u!4 &1770865933
 Transform:

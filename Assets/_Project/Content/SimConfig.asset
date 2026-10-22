@@ -23,6 +23,7 @@ MonoBehaviour:
   forwardDrag: 5
   lateralDrag: 40
   angularDrag: 18
+  nozzleTurnDegPerSec: 420
   thrustMultiplier: 1
   coneCoupling: 0.5
   seatRadius: 0.99

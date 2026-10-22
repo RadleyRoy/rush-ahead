@@ -13,6 +13,7 @@ MonoBehaviour:
   m_Name: HandFan
   m_EditorClassIdentifier: RushAhead.Content::RushAhead.Content.BlowerDef
   displayName: Hand Fan
+  blurb: Weak and wide, but it never runs out of air.
   color: {r: 0.9, g: 0.25, b: 0.28, a: 1}
   thrustNewtons: 18
   spoolUpMs: 90

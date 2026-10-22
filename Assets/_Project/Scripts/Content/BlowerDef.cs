@@ -19,7 +19,10 @@ namespace RushAhead.Content
     {
         public string displayName = "Leaf Blower";
 
-        [Tooltip("Body colour of the blower model; the only cosmetic field here.")]
+        [Tooltip("One line for the pick screen: what makes this blower different.")]
+        public string blurb = "";
+
+        [Tooltip("Body colour of the blower model; with the name and blurb, the only cosmetic fields here.")]
         public Color color = new(1f, 0.55f, 0.15f);
 
         [Header("Thrust")]

@@ -13,6 +13,7 @@ MonoBehaviour:
   m_Name: Bellows
   m_EditorClassIdentifier: RushAhead.Content::RushAhead.Content.BlowerDef
   displayName: Bellows
+  blurb: 'No steady air at all: big puffs only (tap to burst).'
   color: {r: 0.62, g: 0.4, b: 0.22, a: 1}
   thrustNewtons: 0
   spoolUpMs: 260

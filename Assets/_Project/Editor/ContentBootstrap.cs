@@ -23,6 +23,24 @@ namespace RushAhead.EditorTools
     {
         const string ContentFolder = "Assets/_Project/Content";
         const string BlowerFolder = ContentFolder + "/Blowers";
+        const string SpeciesFolder = ContentFolder + "/Species";
+
+        /// <summary>Curated fur swatches; the first six are the species' own colours, the rest are for dressing up.</summary>
+        static readonly Color[] FurColors =
+        {
+            new(0.62f, 0.42f, 0.28f), // bear brown
+            new(0.98f, 0.6f, 0.25f), // ginger
+            new(0.96f, 0.94f, 0.9f), // cream
+            new(1f, 0.66f, 0.72f), // pink
+            new(0.45f, 0.31f, 0.21f), // otter brown
+            new(0.6f, 0.6f, 0.64f), // raccoon grey
+            new(0.27f, 0.27f, 0.3f), // charcoal
+            new(0.96f, 0.8f, 0.36f), // golden
+            new(0.52f, 0.76f, 0.97f), // sky
+            new(0.56f, 0.88f, 0.7f), // mint
+            new(0.76f, 0.62f, 0.93f), // lilac
+            new(0.86f, 0.74f, 0.57f), // sand
+        };
         const string SceneFolder = "Assets/_Project/Scenes";
         const string FeelTestScene = SceneFolder + "/FeelTest.unity";
         const string TemplateScene = "Assets/Scenes/SampleScene.unity";
@@ -34,6 +52,7 @@ namespace RushAhead.EditorTools
 
             EnsureFolder(ContentFolder);
             EnsureFolder(BlowerFolder);
+            EnsureFolder(SpeciesFolder);
             EnsureFolder(SceneFolder);
 
             // Open the scene before loading any assets: opening a scene unloads assets nothing references yet,
@@ -44,15 +63,15 @@ namespace RushAhead.EditorTools
 
             var blowers = new[]
             {
-                Blower("LeafBlower", "Leaf Blower", new Color(1f, 0.55f, 0.15f), _ => { }), // the baseline: BlowerDef's defaults
-                Blower("HairDryer", "Hair Dryer", new Color(1f, 0.45f, 0.72f), b =>
+                Blower("LeafBlower", "Leaf Blower", "The all-rounder: strong push, slow to wind up.", new Color(1f, 0.55f, 0.15f), _ => { }), // BlowerDef's defaults
+                Blower("HairDryer", "Hair Dryer", "Quick and precise: a narrow, long jet that saves air.", new Color(1f, 0.45f, 0.72f), b =>
                 {
                     b.thrustNewtons = 30f; b.spoolUpMs = 140f; b.spoolDownMs = 120f;
                     b.coneHalfAngleDeg = 9f; b.range = 6.5f; b.falloffExp = 1.1f;
                     b.airCapacity = 140f; b.drainPerSec = 14f;
                     b.burstImpulse = 30f; b.burstCost = 20f;
                 }),
-                Blower("Bellows", "Bellows", new Color(0.62f, 0.4f, 0.22f), b =>
+                Blower("Bellows", "Bellows", "No steady air at all: big puffs only (tap to burst).", new Color(0.62f, 0.4f, 0.22f), b =>
                 {
                     // Burst-only: no continuous airflow, big puffs that recharge fast.
                     b.thrustNewtons = 0f;
@@ -60,7 +79,7 @@ namespace RushAhead.EditorTools
                     b.rechargePerSec = 30f; b.rechargeDelayMs = 200f;
                     b.burstImpulse = 110f; b.burstCost = 26f;
                 }),
-                Blower("HandFan", "Hand Fan", new Color(0.9f, 0.25f, 0.28f), b =>
+                Blower("HandFan", "Hand Fan", "Weak and wide, but it never runs out of air.", new Color(0.9f, 0.25f, 0.28f), b =>
                 {
                     // Weak, wide, instant, and never runs out.
                     b.thrustNewtons = 18f; b.spoolUpMs = 90f; b.spoolDownMs = 90f;
@@ -68,7 +87,7 @@ namespace RushAhead.EditorTools
                     b.drainPerSec = 0f;
                     b.burstImpulse = 0f;
                 }),
-                Blower("ShopVac", "Shop Vac", new Color(1f, 0.85f, 0.2f), b =>
+                Blower("ShopVac", "Shop Vac", "Sucks instead of blows: pulls the raft where it points.", new Color(1f, 0.85f, 0.2f), b =>
                 {
                     b.thrustNewtons = 40f; b.spoolUpMs = 400f; b.spoolDownMs = 200f;
                     b.coneHalfAngleDeg = 22f; b.range = 5f;
@@ -78,29 +97,58 @@ namespace RushAhead.EditorTools
                 }),
             };
 
+            // The order is part of the wire format: loadouts name species, fur and blowers by index. Only ever append.
+            var species = new[]
+            {
+                Species("Bear", AnimalShape.Bear, 0),
+                Species("Cat", AnimalShape.Cat, 1),
+                Species("Bunny", AnimalShape.Bunny, 2),
+                Species("Pig", AnimalShape.Pig, 3),
+                Species("Otter", AnimalShape.Otter, 4),
+                Species("Raccoon", AnimalShape.Raccoon, 5),
+            };
+
+            var catalog = LoadOrCreate<CrewCatalog>($"{ContentFolder}/CrewCatalog.asset");
+            catalog.species = species;
+            catalog.blowers = blowers;
+            catalog.furColors = FurColors;
+            EditorUtility.SetDirty(catalog);
+
             var config = LoadOrCreate<SimConfig>($"{ContentFolder}/SimConfig.asset");
             EditorUtility.SetDirty(config); // re-saving drops fields the code no longer has (the old fixed seat list)
-            WireFeelTestScene(scene, config, blowers, palette, sky);
+            WireFeelTestScene(scene, config, catalog, palette, sky);
             AssetDatabase.SaveAssets();
             Debug.Log("[RushAhead] Default content and FeelTest scene ready.");
         }
 
-        /// <summary>Creates a blower with its tuning, or keeps an existing one's tuning. The colour is cosmetic and always applied.</summary>
-        static BlowerDef Blower(string file, string displayName, Color color, Action<BlowerDef> configure)
+        /// <summary>Creates a blower with its tuning, or keeps an existing one's tuning. Name, blurb and colour are cosmetic and always applied.</summary>
+        static BlowerDef Blower(string file, string displayName, string blurb, Color color, Action<BlowerDef> configure)
         {
             var path = $"{BlowerFolder}/{file}.asset";
             var blower = AssetDatabase.LoadAssetAtPath<BlowerDef>(path);
             if (blower == null)
             {
                 blower = ScriptableObject.CreateInstance<BlowerDef>();
-                blower.displayName = displayName;
                 configure(blower);
                 AssetDatabase.CreateAsset(blower, path);
             }
 
+            blower.displayName = displayName;
+            blower.blurb = blurb;
             blower.color = color;
             EditorUtility.SetDirty(blower);
             return blower;
+        }
+
+        /// <summary>Species are purely cosmetic, so their fields are always applied.</summary>
+        static SpeciesDef Species(string displayName, AnimalShape shape, int defaultFur)
+        {
+            var species = LoadOrCreate<SpeciesDef>($"{SpeciesFolder}/{displayName}.asset");
+            species.displayName = displayName;
+            species.shape = shape;
+            species.defaultFur = defaultFur;
+            EditorUtility.SetDirty(species);
+            return species;
         }
 
         static T LoadOrCreate<T>(string path) where T : ScriptableObject
@@ -121,7 +169,7 @@ namespace RushAhead.EditorTools
             return EditorSceneManager.OpenScene(FeelTestScene, OpenSceneMode.Single);
         }
 
-        static void WireFeelTestScene(Scene scene, SimConfig config, BlowerDef[] blowers, ArtPalette palette, Material sky)
+        static void WireFeelTestScene(Scene scene, SimConfig config, CrewCatalog catalog, ArtPalette palette, Material sky)
         {
             var bootstrap = Object.FindAnyObjectByType<FeelTestBootstrap>();
             if (bootstrap == null) bootstrap = new GameObject("Feel Test").AddComponent<FeelTestBootstrap>();
@@ -129,9 +177,7 @@ namespace RushAhead.EditorTools
             var serialized = new SerializedObject(bootstrap);
             serialized.FindProperty("config").objectReferenceValue = config;
             serialized.FindProperty("palette").objectReferenceValue = palette;
-            var list = serialized.FindProperty("blowers");
-            list.arraySize = blowers.Length;
-            for (var i = 0; i < blowers.Length; i++) list.GetArrayElementAtIndex(i).objectReferenceValue = blowers[i];
+            serialized.FindProperty("catalog").objectReferenceValue = catalog;
             serialized.ApplyModifiedPropertiesWithoutUndo();
 
             // The chase camera positions itself every frame; the scene only needs a perspective camera and a sky.

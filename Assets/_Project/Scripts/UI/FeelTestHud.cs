@@ -1,4 +1,6 @@
-using System.Linq;
+using System;
+using System.Collections.Generic;
+using RushAhead.Net;
 using RushAhead.Render;
 using RushAhead.Sim;
 using UnityEngine;
@@ -6,24 +8,33 @@ using UnityEngine;
 namespace RushAhead.UI
 {
     /// <summary>
-    /// Feel-test overlay: status, touch sticks, controls help and a live tuning panel. IMGUI keeps it
-    /// free of scene setup, which suits a developer tool. Slider changes write straight into the
-    /// <see cref="SimConfig"/> asset; in the editor they persist, and on a phone "Copy values" puts the
-    /// tuned config on the clipboard as JSON.
+    /// Feel-test overlay: status, touch sticks, name tags, controls help, the Crew panel (play together, seats, pick
+    /// your animal) and a live tuning panel. IMGUI keeps it free of scene setup, which suits a prototype; Phase 8 brings
+    /// real menus. Slider changes write straight into the <see cref="SimConfig"/> asset; in the editor they persist,
+    /// and on a phone "Copy values" puts the tuned config on the clipboard as JSON.
     /// </summary>
-    public sealed class FeelTestHud : MonoBehaviour
+    public sealed partial class FeelTestHud : MonoBehaviour
     {
         const float PanelWidth = 340f;
 
+        enum Panel
+        {
+            None,
+            Crew,
+            Tune,
+        }
+
         public FeelTestBootstrap Game;
 
-        bool tuning;
+        // Anything that changes the game or the panels' contents waits for Update: changing it mid-OnGUI would change
+        // the controls between IMGUI's layout and repaint passes.
+        readonly List<Action> later = new();
+        Panel open;
         bool help = true;
-        int pendingCrewCount;
-        string joinAddress = "192.168.";
         Vector2 scroll;
-        Rect tuneButton, resetButton, helpButton, panel;
+        Rect crewButton, tuneButton, resetButton, helpButton, panel;
         Texture2D circle;
+        GUIStyle tagStyle;
         string toast;
         float toastUntil;
 
@@ -33,8 +44,21 @@ namespace RushAhead.UI
         public bool IsOverUi(Vector2 screenPosition)
         {
             var gui = new Vector2(screenPosition.x, Screen.height - screenPosition.y) / Scale;
-            return tuneButton.Contains(gui) || resetButton.Contains(gui) || helpButton.Contains(gui) || (tuning && panel.Contains(gui));
+            return crewButton.Contains(gui) || tuneButton.Contains(gui) || resetButton.Contains(gui) || helpButton.Contains(gui) ||
+                   (open != Panel.None && panel.Contains(gui));
         }
+
+        void Update()
+        {
+            foreach (var action in later) action();
+            later.Clear();
+            Game.SetSearching(open == Panel.Crew); // only listen for rooms while someone's looking
+            UpdateCrewPanel();
+        }
+
+        void Later(Action action) => later.Add(action);
+
+        public void OpenCrewPanel() => open = Panel.Crew;
 
         void OnGUI()
         {
@@ -46,20 +70,24 @@ namespace RushAhead.UI
             var width = Screen.width / scale;
             var height = Screen.height / scale;
 
+            DrawNameTags(scale);
             DrawSticks(scale);
             DrawStatus();
 
             tuneButton = new Rect(width - 90f, 10f, 80f, 40f);
             resetButton = new Rect(width - 180f, 10f, 80f, 40f);
             helpButton = new Rect(width - 270f, 10f, 80f, 40f);
-            if (GUI.Button(tuneButton, tuning ? "Close" : "Tune")) tuning = !tuning;
+            crewButton = new Rect(width - 360f, 10f, 80f, 40f);
+            if (GUI.Button(crewButton, open == Panel.Crew ? "Close" : "Crew")) Later(() => open = open == Panel.Crew ? Panel.None : Panel.Crew);
+            if (GUI.Button(tuneButton, open == Panel.Tune ? "Close" : "Tune")) Later(() => open = open == Panel.Tune ? Panel.None : Panel.Tune);
             GUI.enabled = Game.CanEditRaft; // only the host can reset the shared raft
-            if (GUI.Button(resetButton, "Reset")) Game.ResetBoat();
+            if (GUI.Button(resetButton, "Reset")) Later(Game.ResetBoat);
             GUI.enabled = true;
-            if (GUI.Button(helpButton, help ? "Hide help" : "Help")) help = !help;
+            if (GUI.Button(helpButton, help ? "Hide help" : "Help")) Later(() => help = !help);
 
-            if (help && !tuning) DrawHelp(height);
-            if (tuning) DrawTuning(width, height);
+            if (help && open == Panel.None) DrawHelp(height);
+            if (open == Panel.Crew) DrawCrew(width, height);
+            if (open == Panel.Tune) DrawTuning(width, height);
 
             if (Time.unscaledTime < toastUntil)
                 GUI.Box(new Rect(width * 0.5f - 150f, height - 60f, 300f, 34f), toast);
@@ -83,6 +111,36 @@ namespace RushAhead.UI
             if (Game.NetStatus.Length > 0) GUILayout.Label(Game.NetStatus);
             GUILayout.EndArea();
         }
+
+        /// <summary>When playing together, each animal carries its player's name in their colour, so everyone knows who's who.</summary>
+        void DrawNameTags(float scale)
+        {
+            var view = Game.RaftView;
+            var camera = Camera.main;
+            if (Game.Mode == NetMode.Offline || view == null || camera == null) return;
+
+            tagStyle ??= new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter, fontStyle = FontStyle.Bold, fontSize = 15 };
+            var seats = Game.Seats;
+            for (var seat = 0; seat < seats.Length && seat < Game.ViewedBoat.CrewCount; seat++)
+            {
+                if (!seats[seat].Human) continue;
+                var screen = camera.WorldToScreenPoint(view.TagPosition(seat));
+                if (screen.z <= 0f) continue;
+
+                var at = new Vector2(screen.x, Screen.height - screen.y) / scale;
+                var text = seats[seat].Yours ? "You" : DisplayName(seats[seat], seat);
+                var rect = new Rect(at.x - 80f, at.y - 12f, 160f, 24f);
+                GUI.color = new Color(0f, 0f, 0f, 0.6f);
+                GUI.Label(new Rect(rect.x + 1.5f, rect.y + 1.5f, rect.width, rect.height), text, tagStyle);
+                GUI.color = RaftView.PlayerColor(seat);
+                GUI.Label(rect, text, tagStyle);
+            }
+
+            GUI.color = Color.white;
+        }
+
+        static string DisplayName(RosterSeat seat, int index) =>
+            string.IsNullOrEmpty(seat.Loadout.Name) ? $"P{index + 1}" : seat.Loadout.Name;
 
         void DrawSticks(float scale)
         {
@@ -110,7 +168,7 @@ namespace RushAhead.UI
                 "Touch: drag on the left or right half to drive the two main seats. Quick tap = burst.\n" +
                 "Keyboard: WASD (+L Shift burst, L Ctrl brace) and Arrows (+R Shift, R Ctrl) = main seats;\n" +
                 "   IJKL (+U, O) and Numpad 8456 (+0, .) = the rest. Gamepads: one pad = both sticks; more = one seat each.\n" +
-                "Holding the trigger drains air and blocks recharging. Let go to refill. Tune > Players: 1 to 4.";
+                "Crew: play together over Wi-Fi, choose seats, and pick your animal, colour and blower.";
             GUI.Box(new Rect(10f, height - 130f, 640f, 120f), text, new GUIStyle(GUI.skin.box) { alignment = TextAnchor.UpperLeft, wordWrap = true });
         }
 
@@ -121,10 +179,9 @@ namespace RushAhead.UI
             GUILayout.BeginArea(panel, GUI.skin.box);
             scroll = GUILayout.BeginScrollView(scroll);
 
-            DrawPlayTogether();
             if (!Game.CanEditRaft)
             {
-                GUILayout.Label("Joined: tuning, players and blowers are set on the host's device.");
+                GUILayout.Label("Joined: the raft is tuned on the host's device.");
                 GUILayout.EndScrollView();
                 GUILayout.EndArea();
                 return;
@@ -157,23 +214,6 @@ namespace RushAhead.UI
 #endif
 
             GUILayout.Space(8f);
-            var crewCount = Game.Boat.Crew.Length;
-            GUILayout.Label($"Players: {crewCount} (each owns {360 / crewCount} degrees)");
-            GUILayout.BeginHorizontal();
-            for (var count = 1; count <= CrewSectors.MaxCrew; count++)
-                if (GUILayout.Toggle(count == crewCount, $" {count}", GUI.skin.button) && count != crewCount)
-                    pendingCrewCount = count; // applied in Update: changing it mid-OnGUI would break IMGUI's two-pass layout
-            GUILayout.EndHorizontal();
-
-            GUILayout.Label("Blowers (tap to change)");
-            foreach (var crew in Game.Boat.Crew)
-            {
-                if (!GUILayout.Button($"P{crew.Seat + 1} ({SeatName(crew.Seat, crewCount)}): {crew.Blower.displayName}")) continue;
-                var blowers = Game.Blowers.ToList();
-                crew.Equip(blowers[(blowers.IndexOf(crew.Blower) + 1) % blowers.Count]);
-            }
-
-            GUILayout.Space(8f);
             Game.Router.DirectNozzleAim = GUILayout.Toggle(Game.Router.DirectNozzleAim, " Direct nozzle aim (expert)");
 
             GUILayout.BeginHorizontal();
@@ -196,68 +236,7 @@ namespace RushAhead.UI
             GUILayout.EndArea();
         }
 
-        enum NetAction
-        {
-            None,
-            Host,
-            Join,
-            Leave,
-        }
-
-        NetAction pendingNet;
-
-        void DrawPlayTogether()
-        {
-            GUILayout.Label("Play together (same Wi-Fi or hotspot)");
-            if (Game.Mode == NetMode.Offline)
-            {
-                if (GUILayout.Button("Host a game")) pendingNet = NetAction.Host;
-                GUILayout.BeginHorizontal();
-                joinAddress = GUILayout.TextField(joinAddress, GUILayout.MinWidth(170f));
-                if (GUILayout.Button("Join")) pendingNet = NetAction.Join;
-                GUILayout.EndHorizontal();
-            }
-            else if (GUILayout.Button(Game.Mode == NetMode.Hosting ? "Stop hosting" : "Leave game"))
-            {
-                pendingNet = NetAction.Leave;
-            }
-
-            GUILayout.Space(8f);
-        }
-
-        // Network and crew changes are applied here: doing them mid-OnGUI would change the controls between IMGUI's
-        // layout and repaint passes.
-        void Update()
-        {
-            switch (pendingNet)
-            {
-                case NetAction.Host: Game.StartHosting(); break;
-                case NetAction.Join: Game.Join(joinAddress); break;
-                case NetAction.Leave: Game.LeaveNetwork(); break;
-            }
-
-            pendingNet = NetAction.None;
-            if (pendingCrewCount == 0) return;
-            Game.SetCrewCount(pendingCrewCount);
-            pendingCrewCount = 0;
-        }
-
-        static string SeatName(int seat, int crewCount) =>
-            $"{RaftView.LookFor(seat).ToString().ToLowerInvariant()}, {SliceName(CrewSectors.CentreDeg(seat, crewCount))}";
-
-        static string SliceName(float centreDeg) => Mathf.RoundToInt(centreDeg) switch
-        {
-            0 => "front",
-            45 => "front-left",
-            -45 => "front-right",
-            90 => "left",
-            -90 => "right",
-            120 or 135 => "rear-left",
-            -120 or -135 => "rear-right",
-            _ => "all round",
-        };
-
-        /// <summary>A soft-edged white disc for drawing the touch sticks.</summary>
+        /// <summary>A soft-edged white disc for drawing the touch sticks and colour chips.</summary>
         static Texture2D CircleTexture(int size)
         {
             var texture = new Texture2D(size, size, TextureFormat.RGBA32, false) { filterMode = FilterMode.Bilinear, wrapMode = TextureWrapMode.Clamp };

@@ -1,19 +1,27 @@
 using System;
 using System.Collections.Generic;
+using System.Text;
+using RushAhead.Content;
 using UnityEngine;
 
 namespace RushAhead.Net
 {
     public enum MessageType : byte
     {
-        /// <summary>Host to one client, reliable: which seats are theirs and how big the crew is.</summary>
-        Seats = 0x01,
+        /// <summary>Host to one client, reliable, on every change: each seat's animal and which seat is theirs.</summary>
+        Roster = 0x02,
 
         /// <summary>Host to every client, unreliable, 30 Hz: the whole visible world.</summary>
         Snapshot = 0x10,
 
         /// <summary>Client to host, unreliable, 30 Hz: one seat's controls.</summary>
         Input = 0x20,
+
+        /// <summary>Client to host, reliable, on joining and on every change: the animal they want to be.</summary>
+        Profile = 0x21,
+
+        /// <summary>Client to host, reliable: move me to this free seat.</summary>
+        ClaimSeat = 0x22,
     }
 
     /// <summary>
@@ -31,10 +39,34 @@ namespace RushAhead.Net
         public byte BurstCount;
     }
 
-    public struct SeatsMessage
+    /// <summary>One seat as a particular player sees it.</summary>
+    public struct RosterSeat
     {
-        public byte CrewCount;
-        public byte[] Seats;
+        public Loadout Loadout;
+
+        /// <summary>A person sits here; otherwise it's a spare, driven by the host device's other controls.</summary>
+        public bool Human;
+
+        /// <summary>The host's own player.</summary>
+        public bool Host;
+
+        /// <summary>The player this roster was sent to.</summary>
+        public bool Yours;
+    }
+
+    /// <summary>What a host broadcasts on the LAN about once a second, so joiners can find it without typing an address.</summary>
+    public struct RoomAdvert
+    {
+        /// <summary>Random per hosting session: tells two rooms apart, and makes one room heard two ways show once.</summary>
+        public uint RoomId;
+        public byte Version;
+        public ushort GamePort;
+        public byte Players;
+        public byte Seats;
+        public string HostName;
+
+        public bool Compatible => Version == Protocol.Version;
+        public bool Full => Players >= Seats;
     }
 
     public struct CrewSnapshot
@@ -76,12 +108,14 @@ namespace RushAhead.Net
     public static class Protocol
     {
         /// <summary>Bump on any wire-format change. Mismatched peers refuse each other.</summary>
-        public const byte Version = 1;
+        public const byte Version = 2;
 
         const byte FlagHasAim = 1, FlagBrace = 2;
         const byte BoatCapsized = 1;
         const byte CrewBraced = 1;
+        const byte SeatHuman = 1, SeatHost = 2, SeatYours = 4;
         const int MaxBoats = 8, MaxCrew = 4, MaxProps = 64;
+        static readonly byte[] AdvertMagic = { (byte)'R', (byte)'U', (byte)'S', (byte)'H' };
 
         public static MessageType PeekType(ArraySegment<byte> message)
         {
@@ -117,30 +151,141 @@ namespace RushAhead.Net
             return m;
         }
 
-        public static void Write(ByteWriter w, in SeatsMessage m)
+        /// <summary>A roster for one player: every seat in seat order, so the crew size is its length.</summary>
+        public static void Write(ByteWriter w, IReadOnlyList<RosterSeat> seats)
         {
-            w.U8((byte)MessageType.Seats);
+            w.U8((byte)MessageType.Roster);
             w.U8(Version);
-            w.U8(m.CrewCount);
-            w.U8((byte)m.Seats.Length);
-            foreach (var seat in m.Seats) w.U8(seat);
+            w.U8((byte)seats.Count);
+            foreach (var seat in seats)
+            {
+                w.U8((byte)((seat.Human ? SeatHuman : 0) | (seat.Host ? SeatHost : 0) | (seat.Yours ? SeatYours : 0)));
+                Write(w, seat.Loadout);
+            }
         }
 
-        public static SeatsMessage ReadSeats(ByteReader r)
+        public static RosterSeat[] ReadRoster(ByteReader r)
         {
-            Expect(r, MessageType.Seats);
+            Expect(r, MessageType.Roster);
             var version = r.U8();
-            if (version != Version) throw new ProtocolException($"Host speaks protocol {version}; this build speaks {Version}. Update both to the same version.");
-            var m = new SeatsMessage { CrewCount = r.U8() };
-            if (m.CrewCount is < 1 or > MaxCrew) throw new ProtocolException($"Bad crew size {m.CrewCount}.");
-            m.Seats = new byte[Bounded(r.U8(), MaxCrew, "seat count")];
-            for (var i = 0; i < m.Seats.Length; i++)
+            if (version != Version) throw new VersionMismatchException(version);
+            var count = r.U8();
+            if (count is < 1 or > MaxCrew) throw new ProtocolException($"Bad crew size {count}.");
+
+            var seats = new RosterSeat[count];
+            for (var i = 0; i < count; i++)
             {
-                m.Seats[i] = r.U8();
-                if (m.Seats[i] >= m.CrewCount) throw new ProtocolException($"Seat {m.Seats[i]} doesn't exist in a crew of {m.CrewCount}.");
+                var flags = r.U8();
+                seats[i] = new RosterSeat
+                {
+                    Human = (flags & SeatHuman) != 0,
+                    Host = (flags & SeatHost) != 0,
+                    Yours = (flags & SeatYours) != 0,
+                    Loadout = ReadLoadout(r),
+                };
             }
 
-            return m;
+            ExpectEnd(r, "roster");
+            return seats;
+        }
+
+        public static void WriteProfile(ByteWriter w, in Loadout loadout)
+        {
+            w.U8((byte)MessageType.Profile);
+            w.U8(Version);
+            Write(w, loadout);
+        }
+
+        public static Loadout ReadProfile(ByteReader r)
+        {
+            Expect(r, MessageType.Profile);
+            var version = r.U8();
+            if (version != Version) throw new VersionMismatchException(version);
+            var loadout = ReadLoadout(r);
+            ExpectEnd(r, "profile");
+            return loadout;
+        }
+
+        public static void WriteClaimSeat(ByteWriter w, int seat)
+        {
+            w.U8((byte)MessageType.ClaimSeat);
+            w.U8((byte)seat);
+        }
+
+        public static int ReadClaimSeat(ByteReader r)
+        {
+            Expect(r, MessageType.ClaimSeat);
+            var seat = r.U8();
+            ExpectEnd(r, "seat claim");
+            return seat;
+        }
+
+        public static void Write(ByteWriter w, in RoomAdvert advert)
+        {
+            w.Raw(AdvertMagic);
+            w.U8(advert.Version);
+            w.U32(advert.RoomId);
+            w.U16(advert.GamePort);
+            w.U8(advert.Players);
+            w.U8(advert.Seats);
+            WriteName(w, advert.HostName);
+        }
+
+        /// <summary>
+        /// Anything can turn up on the discovery port, so this never throws: false for whatever isn't one of our adverts.
+        /// An advert from another version reads as far as its version, so it can still be listed as needing an update.
+        /// </summary>
+        public static bool TryReadAdvert(ArraySegment<byte> datagram, out RoomAdvert advert)
+        {
+            advert = default;
+            try
+            {
+                var r = new ByteReader(datagram);
+                foreach (var b in AdvertMagic)
+                    if (r.U8() != b) return false;
+
+                advert.Version = r.U8();
+                if (advert.Version != Version) return true; // the rest may be laid out differently
+                advert.RoomId = r.U32();
+                advert.GamePort = r.U16();
+                advert.Players = r.U8();
+                advert.Seats = r.U8();
+                advert.HostName = ReadName(r);
+                return advert.GamePort != 0 && r.Remaining == 0;
+            }
+            catch (ProtocolException)
+            {
+                return false;
+            }
+        }
+
+        static void Write(ByteWriter w, in Loadout loadout)
+        {
+            w.U8(loadout.Species);
+            w.U8(loadout.Fur);
+            w.U8(loadout.Blower);
+            WriteName(w, loadout.Name);
+        }
+
+        static Loadout ReadLoadout(ByteReader r) => new()
+        {
+            Species = r.U8(),
+            Fur = r.U8(),
+            Blower = r.U8(),
+            Name = ReadName(r),
+        };
+
+        static void WriteName(ByteWriter w, string name)
+        {
+            var bytes = Encoding.UTF8.GetBytes(Loadout.CleanName(name));
+            w.U8((byte)bytes.Length);
+            w.Raw(bytes);
+        }
+
+        static string ReadName(ByteReader r)
+        {
+            var length = Bounded(r.U8(), Loadout.MaxNameBytes, "name length");
+            return Loadout.CleanName(Encoding.UTF8.GetString(r.Raw(length))); // malformed UTF-8 decodes to replacement characters
         }
 
         public static void Write(ByteWriter w, Snapshot s)
@@ -225,13 +370,18 @@ namespace RushAhead.Net
                     AngleRad = Quantize.Angle(r.U16()),
                 });
 
-            if (r.Remaining != 0) throw new ProtocolException($"{r.Remaining} unexpected trailing byte(s) in a snapshot.");
+            ExpectEnd(r, "snapshot");
         }
 
         static void Expect(ByteReader r, MessageType type)
         {
             var actual = (MessageType)r.U8();
             if (actual != type) throw new ProtocolException($"Expected a {type} message, got 0x{(byte)actual:X2}.");
+        }
+
+        static void ExpectEnd(ByteReader r, string what)
+        {
+            if (r.Remaining != 0) throw new ProtocolException($"{r.Remaining} unexpected trailing byte(s) in a {what}.");
         }
 
         static int Bounded(byte count, int max, string what) =>

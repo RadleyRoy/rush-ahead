@@ -1,63 +1,53 @@
 using System;
 using System.Collections.Generic;
-using RushAhead.Content;
 using RushAhead.Sim;
 using UnityEngine;
 
 namespace RushAhead.Net
 {
     /// <summary>
-    /// The authoritative side. Runs the only simulation, takes each client's inputs for the seats they own, and
-    /// broadcasts snapshots. Clients get seats in drive order as they join, after the host's own first seat; the host's
-    /// local controls drive every seat nobody else has.
+    /// The authoritative side. Runs the only simulation, seats joiners through the <see cref="CrewRoster"/>, takes each
+    /// client's inputs for the seat they own, keeps every client's roster current, and broadcasts snapshots. The host's
+    /// own controls drive its player's seat and every spare.
     /// </summary>
     public sealed class HostSession : IDisposable
     {
         readonly INetTransport transport;
-        readonly IReadOnlyList<BlowerDef> blowers;
         readonly IReadOnlyList<Rigidbody2D> props;
         readonly List<ulong> clients = new();
-        readonly Dictionary<ulong, List<int>> seatsOf = new();
+        readonly Dictionary<(ulong client, int seat), RemoteSeatInput> remote = new();
         readonly ByteWriter writer = new(256);
         readonly Snapshot snapshot = new();
-        RemoteSeatInput[] remote = Array.Empty<RemoteSeatInput>();
 
-        public HostSession(INetTransport transport, IReadOnlyList<BlowerDef> blowers, IReadOnlyList<Rigidbody2D> props)
+        public HostSession(INetTransport transport, CrewRoster roster, IReadOnlyList<Rigidbody2D> props)
         {
             this.transport = transport;
-            this.blowers = blowers;
             this.props = props;
+            Roster = roster;
             transport.PeerConnected += OnClientJoined;
             transport.PeerDisconnected += OnClientLeft;
             transport.Received += OnReceived;
+            roster.Changed += OnRosterChanged;
         }
 
-        /// <summary>Raised when seats move between host and clients; the host should re-wire its local controls.</summary>
-        public event Action SeatsChanged;
-
+        public CrewRoster Roster { get; }
         public Boat Boat { get; private set; }
         public int SnapshotEveryTicks { get; set; } = 2; // 30 Hz at the 60 Hz tick
         public IReadOnlyList<ulong> Clients => clients;
 
-        /// <summary>Starts serving <paramref name="boat"/>, e.g. after the crew size changes. Seats are re-dealt to clients in join order.</summary>
+        /// <summary>Starts serving <paramref name="boat"/>, a raft spawned to match the roster's crew size.</summary>
         public void UseBoat(Boat boat)
         {
             Boat = boat;
-            Reassign();
+            remote.Clear(); // seat numbers mean different places on a raft of another size
+            OnRosterChanged();
         }
 
-        public bool IsRemote(int seat) => seat < remote.Length && remote[seat] != null;
-
-        /// <summary>The seats the host's own controls drive, best drivers first.</summary>
-        public int[] LocalSeats()
+        public bool IsRemote(int seat)
         {
-            var local = new List<int>();
-            foreach (var seat in CrewSectors.DriveOrder(Boat.Crew.Length))
-                if (!IsRemote(seat)) local.Add(seat);
-            return local.ToArray();
+            var owner = Roster.OwnerOf(seat);
+            return owner != Peers.Host && owner != CrewRoster.Nobody;
         }
-
-        public IReadOnlyList<int> SeatsOf(ulong client) => seatsOf.TryGetValue(client, out var seats) ? seats : Array.Empty<int>();
 
         /// <summary>Call after every simulation tick; broadcasts a snapshot every <see cref="SnapshotEveryTicks"/> ticks.</summary>
         public void OnTick(int tick)
@@ -74,48 +64,49 @@ namespace RushAhead.Net
         {
             if (clients.Contains(client)) return;
             clients.Add(client);
-            if (Boat != null) Reassign();
+            Roster.AddHuman(client); // they wear a default look until their profile arrives, a moment later
         }
 
         void OnClientLeft(ulong client)
         {
             if (!clients.Remove(client)) return;
-            if (Boat != null) Reassign(); // their seat comes back to the host
+            Roster.RemoveHuman(client); // their seat becomes a spare for the host's controls; nobody else moves
         }
 
-        void Reassign()
+        void OnRosterChanged()
         {
-            var crew = Boat.Crew.Length;
-            remote = new RemoteSeatInput[crew];
-            seatsOf.Clear();
+            if (Boat == null || Boat.Crew.Length != Roster.CrewCount) return; // a new raft is on its way; UseBoat calls back
 
-            // The host keeps the best driving seat; everyone else gets the next one, until the raft is full.
-            var order = CrewSectors.DriveOrder(crew);
-            var next = 1;
+            Roster.ApplyBlowers(Boat);
+
+            // Point every client-owned seat at that client's input. An input source lives as long as its client keeps
+            // the seat, so a re-sent roster never re-baselines (and can't drop) a burst in flight.
+            var live = new HashSet<(ulong, int)>();
             foreach (var client in clients)
             {
-                var seats = new List<int>();
-                if (next < order.Length)
-                {
-                    var seat = order[next++];
-                    seats.Add(seat);
-                    remote[seat] = new RemoteSeatInput();
-                    Boat.Crew[seat].Input = remote[seat];
-                }
-
-                seatsOf[client] = seats; // a full raft leaves late joiners watching
-                SendSeats(client, crew, seats);
+                var seat = Roster.SeatOf(client);
+                if (seat < 0) continue;
+                live.Add((client, seat));
+                if (!remote.TryGetValue((client, seat), out var input)) remote[(client, seat)] = input = new RemoteSeatInput();
+                Boat.Crew[seat].Input = input;
             }
 
-            SeatsChanged?.Invoke();
+            var stale = new List<(ulong, int)>();
+            foreach (var key in remote.Keys)
+                if (!live.Contains(key)) stale.Add(key);
+            foreach (var key in stale) remote.Remove(key);
+
+            // A seat a client gave up mustn't keep replaying their last input; the host's own controls pick it up.
+            foreach (var crew in Boat.Crew)
+                if (crew.Input is RemoteSeatInput && !IsRemote(crew.Seat)) crew.Input = null;
+
+            foreach (var client in clients) SendRoster(client);
         }
 
-        void SendSeats(ulong client, int crew, List<int> seats)
+        void SendRoster(ulong client)
         {
-            var message = new SeatsMessage { CrewCount = (byte)crew, Seats = new byte[seats.Count] };
-            for (var i = 0; i < seats.Count; i++) message.Seats[i] = (byte)seats[i];
             writer.Reset();
-            Protocol.Write(writer, message);
+            Protocol.Write(writer, Roster.Describe(client));
             transport.Send(client, writer.Written, reliable: true);
         }
 
@@ -123,10 +114,24 @@ namespace RushAhead.Net
         {
             try
             {
-                if (Protocol.PeekType(message) != MessageType.Input) return;
-                var input = Protocol.ReadInput(new ByteReader(message));
-                if (!seatsOf.TryGetValue(from, out var seats) || !seats.Contains(input.Seat)) return; // only your own seats
-                remote[input.Seat].Receive(input);
+                var reader = new ByteReader(message);
+                switch (Protocol.PeekType(message))
+                {
+                    case MessageType.Input:
+                        var input = Protocol.ReadInput(reader);
+                        if (Roster.SeatOf(from) == input.Seat && remote.TryGetValue((from, input.Seat), out var seat)) // only your own seat
+                            seat.Receive(input);
+                        break;
+
+                    case MessageType.Profile:
+                        Roster.SetProfile(from, Protocol.ReadProfile(reader));
+                        break;
+
+                    case MessageType.ClaimSeat:
+                        var wanted = Protocol.ReadClaimSeat(reader);
+                        if (!Roster.Claim(from, wanted)) SendRoster(from); // refused: remind them where they actually sit
+                        break;
+                }
             }
             catch (ProtocolException e)
             {
@@ -150,7 +155,6 @@ namespace RushAhead.Net
             b.Crew.Clear();
             foreach (var crew in Boat.Crew)
             {
-                var blowerIndex = IndexOf(crew.Blower);
                 b.Crew.Add(new CrewSnapshot
                 {
                     LocalAimDeg = crew.LocalAimDeg,
@@ -158,7 +162,7 @@ namespace RushAhead.Net
                     Air = crew.Tank.Fraction,
                     Braced = crew.Braced,
                     BurstCount = (byte)crew.BurstCount,
-                    BlowerIndex = (byte)Mathf.Max(0, blowerIndex),
+                    BlowerIndex = (byte)Mathf.Max(0, Roster.Catalog.IndexOf(crew.Blower)),
                 });
             }
 
@@ -167,18 +171,14 @@ namespace RushAhead.Net
                 snapshot.Props.Add(new PropSnapshot { Position = prop.position, AngleRad = prop.rotation * Mathf.Deg2Rad });
         }
 
-        int IndexOf(BlowerDef blower)
-        {
-            for (var i = 0; i < blowers.Count; i++)
-                if (blowers[i] == blower) return i;
-            return -1;
-        }
-
         public void Dispose()
         {
             transport.PeerConnected -= OnClientJoined;
             transport.PeerDisconnected -= OnClientLeft;
             transport.Received -= OnReceived;
+            Roster.Changed -= OnRosterChanged;
+            foreach (var client in clients) Roster.RemoveHuman(client); // back to a one-device raft
+            clients.Clear();
         }
     }
 }

@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using NUnit.Framework;
+using RushAhead.Content;
 using RushAhead.Net;
 using RushAhead.Sim;
 using UnityEngine;
@@ -91,30 +92,99 @@ namespace RushAhead.Tests
             Assert.That(bytes.Length, Is.LessThan(100), "a 4-crew snapshot with two props should stay well under 100 bytes");
         }
 
-        [Test]
-        public void Seats_RoundTrip_AndRejectAnotherProtocolVersion()
+        static RosterSeat[] SampleRoster() => new[]
         {
-            var bytes = Encode(w => Protocol.Write(w, new SeatsMessage { CrewCount = 4, Seats = new byte[] { 3 } }));
-            var read = Protocol.ReadSeats(new ByteReader(new ArraySegment<byte>(bytes)));
-            Assert.That(read.CrewCount, Is.EqualTo(4));
-            Assert.That(read.Seats, Is.EqualTo(new byte[] { 3 }));
+            new RosterSeat { Human = true, Host = true, Loadout = new Loadout { Species = 0, Fur = 0, Blower = 0, Name = "Skipper" } },
+            new RosterSeat { Human = true, Yours = true, Loadout = new Loadout { Species = 4, Fur = 9, Blower = 1, Name = "Ötter" } },
+            new RosterSeat { Loadout = new Loadout { Species = 2, Fur = 2, Blower = 3, Name = "" } },
+        };
+
+        static readonly Loadout SampleProfile = new() { Species = 5, Fur = 7, Blower = 4, Name = "Radley" };
+
+        static readonly RoomAdvert SampleAdvert = new()
+        {
+            RoomId = 0xDEADBEEF, Version = Protocol.Version, GamePort = 7777, Players = 2, Seats = 4, HostName = "Skipper",
+        };
+
+        [Test]
+        public void Roster_RoundTrips_AndRejectsAnotherProtocolVersion()
+        {
+            var bytes = Encode(w => Protocol.Write(w, SampleRoster()));
+            var read = Protocol.ReadRoster(new ByteReader(new ArraySegment<byte>(bytes)));
+            Assert.That(read, Is.EqualTo(SampleRoster()));
 
             bytes[1] = Protocol.Version + 1;
-            Assert.Throws<ProtocolException>(() => Protocol.ReadSeats(new ByteReader(new ArraySegment<byte>(bytes))));
+            var e = Assert.Throws<VersionMismatchException>(() => Protocol.ReadRoster(new ByteReader(new ArraySegment<byte>(bytes))));
+            Assert.That(e.Message, Does.Contain("same version"), "the player is told what to do about it");
+        }
+
+        [Test]
+        public void ProfileAndSeatClaim_RoundTrip()
+        {
+            var profile = Encode(w => Protocol.WriteProfile(w, SampleProfile));
+            Assert.That(Protocol.ReadProfile(new ByteReader(new ArraySegment<byte>(profile))), Is.EqualTo(SampleProfile));
+
+            var claim = Encode(w => Protocol.WriteClaimSeat(w, 3));
+            Assert.That(Protocol.ReadClaimSeat(new ByteReader(new ArraySegment<byte>(claim))), Is.EqualTo(3));
+        }
+
+        [Test]
+        public void Names_AreCleanedOnTheWay_AndAnOverlongOneIsRefused()
+        {
+            var messy = new Loadout { Name = "  Bob\n\tthe\u0007Great Skipper of the Lagoon  " };
+            var bytes = Encode(w => Protocol.WriteProfile(w, messy));
+            var read = Protocol.ReadProfile(new ByteReader(new ArraySegment<byte>(bytes)));
+            Assert.That(read.Name, Is.EqualTo("BobtheGreat"), "control characters dropped, trimmed, at most 12 characters");
+
+            // A hand-made profile claiming a 200-byte name must not be believed.
+            var hostile = new byte[] { (byte)MessageType.Profile, Protocol.Version, 0, 0, 0, 200 }.Concat(new byte[200]).ToArray();
+            Assert.Throws<ProtocolException>(() => Protocol.ReadProfile(new ByteReader(new ArraySegment<byte>(hostile))));
+        }
+
+        [Test]
+        public void Advert_RoundTrips_AndIgnoresStrangers()
+        {
+            var bytes = Encode(w => Protocol.Write(w, SampleAdvert));
+            Assert.That(Protocol.TryReadAdvert(new ArraySegment<byte>(bytes), out var read), Is.True);
+            Assert.That(read.RoomId, Is.EqualTo(0xDEADBEEF));
+            Assert.That(read.GamePort, Is.EqualTo(7777));
+            Assert.That(read.Players, Is.EqualTo(2));
+            Assert.That(read.Seats, Is.EqualTo(4));
+            Assert.That(read.HostName, Is.EqualTo("Skipper"));
+            Assert.That(read.Compatible, Is.True);
+
+            // Other apps' traffic on the same port, truncations and trailing junk are all just "not an advert".
+            Assert.That(Protocol.TryReadAdvert(new ArraySegment<byte>(System.Text.Encoding.ASCII.GetBytes("M-SEARCH * HTTP/1.1")), out _), Is.False);
+            for (var length = 0; length < bytes.Length; length++)
+                Assert.That(Protocol.TryReadAdvert(new ArraySegment<byte>(bytes, 0, length), out _), Is.False, $"truncated to {length}");
+            Assert.That(Protocol.TryReadAdvert(new ArraySegment<byte>(bytes.Concat(new byte[] { 1 }).ToArray()), out _), Is.False);
+
+            // A room from another version is still recognised, so it can be listed as needing an update.
+            var newer = (byte[])bytes.Clone();
+            newer[4] = Protocol.Version + 1;
+            Assert.That(Protocol.TryReadAdvert(new ArraySegment<byte>(newer), out var other), Is.True);
+            Assert.That(other.Compatible, Is.False);
         }
 
         // Committed wire bytes: if these change, the protocol changed. Bump Protocol.Version and re-record.
         const string InputGolden = "2002feff0080bf0107";
         const string SnapshotGolden = "10d20400000180e9ffff40030000ee32800240ff00ffec0185ff00020400a000ff00000000e040cc010301002080990006020060bf660009030200f1ffff4dfdffff5f14cdf2ffff33feffffb8cb";
+        const string RosterGolden = "0202030300000007536b69707065720504090106c396747465720002020300";
+        const string ProfileGolden = "2102050704065261646c6579";
+        const string AdvertGolden = "5255534802efbeadde611e020407536b6970706572";
 
         [Test]
         public void WireFormat_MatchesTheCommittedBytes()
         {
             var input = Hex(Encode(w => Protocol.Write(w, SampleInput)));
             var snapshot = Hex(Encode(w => Protocol.Write(w, SampleSnapshot())));
-            var recording = $"InputGolden = \"{input}\";\nSnapshotGolden = \"{snapshot}\";";
-            Assert.That(input == InputGolden && snapshot == SnapshotGolden, Is.True,
-                $"Wire bytes changed. If deliberate, bump Protocol.Version and re-record:\n{recording}");
+            var roster = Hex(Encode(w => Protocol.Write(w, SampleRoster())));
+            var profile = Hex(Encode(w => Protocol.WriteProfile(w, SampleProfile)));
+            var advert = Hex(Encode(w => Protocol.Write(w, SampleAdvert)));
+            var recording = $"InputGolden = \"{input}\";\nSnapshotGolden = \"{snapshot}\";\nRosterGolden = \"{roster}\";\n" +
+                            $"ProfileGolden = \"{profile}\";\nAdvertGolden = \"{advert}\";";
+            Assert.That(input == InputGolden && snapshot == SnapshotGolden && roster == RosterGolden && profile == ProfileGolden && advert == AdvertGolden,
+                Is.True, $"Wire bytes changed. If deliberate, bump Protocol.Version and re-record:\n{recording}");
         }
 
         [Test]
@@ -136,15 +206,19 @@ namespace RushAhead.Tests
             {
                 var bytes = new byte[random.Next(0, 120)];
                 random.NextBytes(bytes);
-                if (bytes.Length > 0) bytes[0] = (byte)(random.Next(3) switch { 0 => 0x01, 1 => 0x10, _ => 0x20 }); // aim at real decoders
+                if (bytes.Length > 0) bytes[0] = (byte)(random.Next(5) switch { 0 => 0x02, 1 => 0x10, 2 => 0x20, 3 => 0x21, _ => 0x22 }); // aim at real decoders
+                if (bytes.Length > 1 && random.Next(2) == 0) bytes[1] = Protocol.Version; // and get past the version check half the time
                 var message = new ArraySegment<byte>(bytes);
+                Protocol.TryReadAdvert(message, out _); // must never throw at all
                 try
                 {
                     switch (bytes.Length == 0 ? 0 : bytes[0])
                     {
-                        case 0x01: Protocol.ReadSeats(new ByteReader(message)); break;
+                        case 0x02: Protocol.ReadRoster(new ByteReader(message)); break;
                         case 0x10: Protocol.ReadSnapshot(new ByteReader(message), new Snapshot()); break;
                         case 0x20: Protocol.ReadInput(new ByteReader(message)); break;
+                        case 0x21: Protocol.ReadProfile(new ByteReader(message)); break;
+                        case 0x22: Protocol.ReadClaimSeat(new ByteReader(message)); break;
                         default: Protocol.PeekType(message); break;
                     }
                 }
