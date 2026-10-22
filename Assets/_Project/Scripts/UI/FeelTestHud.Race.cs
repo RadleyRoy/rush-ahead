@@ -26,6 +26,15 @@ namespace RushAhead.UI
             GUI.Label(new Rect(bar.x, bar.y + 2f, bar.width, 30f), $"{run.Course.displayName}   {FormatTime(run.Seconds)}", clock);
             var gates = run.Course.gates.Length;
             var progress = run.Finished ? "Finished!" : run.GatesPassed >= gates - 1 ? "Head for the finish!" : $"Checkpoint {run.GatesPassed + 1} of {gates - 1} next";
+            if (run.TeamRace)
+            {
+                // Red and Blue side by side: checkpoints passed (or the finishing time).
+                var mine = FeelTestBootstrap.TeamName(run.MyRaft);
+                var theirs = FeelTestBootstrap.TeamName(1 - run.MyRaft);
+                string Standing(bool finished, float seconds, int passed) => finished ? FormatTime(seconds) : $"{passed}/{gates}";
+                progress = $"{mine} {Standing(run.Finished, run.Seconds, run.GatesPassed)}   vs   {theirs} {Standing(run.RivalFinished, run.RivalSeconds, run.RivalGatesPassed)}";
+            }
+
             GUI.Label(new Rect(bar.x, bar.y + 32f, bar.width, 24f), progress, centredSmall);
 
             // 3, 2, 1, GO!
@@ -38,9 +47,21 @@ namespace RushAhead.UI
         void DrawResults(RaceInfo run, float width, float height)
         {
             var course = run.Course;
-            resultsCard = new Rect(width * 0.5f - 190f, height * 0.5f - 130f, 380f, 270f);
+            resultsCard = new Rect(width * 0.5f - 190f, height * 0.5f - 130f, 380f, run.TeamRace ? 300f : 270f);
             GUILayout.BeginArea(resultsCard, GUI.skin.box);
-            GUILayout.Label($"{course.displayName}: finished!", clock);
+            if (run.TeamRace)
+            {
+                var headline = run.Winner < 0 ? "Finished! Waiting for the other raft..."
+                    : run.Winner == run.MyRaft ? $"{FeelTestBootstrap.TeamName(run.Winner)} raft wins! That's you!"
+                    : $"{FeelTestBootstrap.TeamName(run.Winner)} raft wins!";
+                GUILayout.Label(headline, clock);
+                var theirs = run.RivalFinished ? FormatTime(run.RivalSeconds) : "still racing";
+                GUILayout.Label($"{FeelTestBootstrap.TeamName(run.MyRaft)} {FormatTime(run.Seconds)}   {FeelTestBootstrap.TeamName(1 - run.MyRaft)} {theirs}", centredSmall);
+            }
+            else
+            {
+                GUILayout.Label($"{course.displayName}: finished!", clock);
+            }
             GUILayout.Label(FormatTime(run.Seconds), big, GUILayout.Height(70f));
 
             // Stars, drawn rather than typed: not every phone font has a star in it.

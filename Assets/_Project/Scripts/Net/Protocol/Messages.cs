@@ -71,6 +71,9 @@ namespace RushAhead.Net
     {
         public CrewOrder Order;
 
+        /// <summary>From the host: which raft's AI crew this is. A client's request goes to its own raft regardless.</summary>
+        public byte Raft;
+
         /// <summary>Where to push, for <see cref="CrewOrder.PushHere"/>.</summary>
         public Vector2 Point;
     }
@@ -144,13 +147,13 @@ namespace RushAhead.Net
     public static class Protocol
     {
         /// <summary>Bump on any wire-format change. Mismatched peers refuse each other.</summary>
-        public const byte Version = 4;
+        public const byte Version = 5;
 
         const byte FlagHasAim = 1, FlagBrace = 2;
         const byte BoatCapsized = 1;
         const byte CrewBraced = 1;
         const byte SeatHuman = 1, SeatHost = 2, SeatYours = 4, SeatAi = 8, SeatKept = 16;
-        const int MaxBoats = 8, MaxCrew = 4, MaxProps = 64;
+        const int MaxBoats = 8, MaxCrew = 4, MaxRafts = 2, MaxProps = 64;
         static readonly byte[] AdvertMagic = { (byte)'R', (byte)'U', (byte)'S', (byte)'H' };
 
         public static MessageType PeekType(ArraySegment<byte> message)
@@ -187,12 +190,13 @@ namespace RushAhead.Net
             return m;
         }
 
-        /// <summary>A roster for one player: every seat in seat order, so the crew size is its length.</summary>
-        public static void Write(ByteWriter w, IReadOnlyList<RosterSeat> seats)
+        /// <summary>A roster for one player: every seat on every raft, raft by raft (the crew size is seats / rafts).</summary>
+        public static void Write(ByteWriter w, IReadOnlyList<RosterSeat> seats, int rafts = 1)
         {
             w.U8((byte)MessageType.Roster);
             w.U8(Version);
-            w.U8((byte)seats.Count);
+            w.U8((byte)rafts);
+            w.U8((byte)(seats.Count / rafts));
             foreach (var seat in seats)
             {
                 w.U8((byte)((seat.Human ? SeatHuman : 0) | (seat.Host ? SeatHost : 0) | (seat.Yours ? SeatYours : 0) |
@@ -201,14 +205,19 @@ namespace RushAhead.Net
             }
         }
 
-        public static RosterSeat[] ReadRoster(ByteReader r)
+        public static RosterSeat[] ReadRoster(ByteReader r) => ReadRoster(r, out _);
+
+        public static RosterSeat[] ReadRoster(ByteReader r, out int rafts)
         {
             Expect(r, MessageType.Roster);
             var version = r.U8();
             if (version != Version) throw new VersionMismatchException(version);
-            var count = r.U8();
-            if (count is < 1 or > MaxCrew) throw new ProtocolException($"Bad crew size {count}.");
+            rafts = r.U8();
+            if (rafts is < 1 or > MaxRafts) throw new ProtocolException($"Bad raft count {rafts}.");
+            var crew = r.U8();
+            if (crew is < 1 or > MaxCrew) throw new ProtocolException($"Bad crew size {crew}.");
 
+            var count = crew * rafts;
             var seats = new RosterSeat[count];
             for (var i = 0; i < count; i++)
             {
@@ -268,6 +277,7 @@ namespace RushAhead.Net
         {
             w.U8((byte)MessageType.Order);
             w.U8((byte)m.Order);
+            w.U8(m.Raft);
             w.I32(Quantize.Position(m.Point.x));
             w.I32(Quantize.Position(m.Point.y));
         }
@@ -277,7 +287,9 @@ namespace RushAhead.Net
             Expect(r, MessageType.Order);
             var order = r.U8();
             if (order > (byte)CrewOrder.PushHere) throw new ProtocolException($"Unknown crew order {order}.");
-            var m = new OrderMessage { Order = (CrewOrder)order, Point = new Vector2(Quantize.Position(r.I32()), Quantize.Position(r.I32())) };
+            var raft = r.U8();
+            if (raft >= MaxRafts) throw new ProtocolException($"No raft {raft}.");
+            var m = new OrderMessage { Order = (CrewOrder)order, Raft = raft, Point = new Vector2(Quantize.Position(r.I32()), Quantize.Position(r.I32())) };
             ExpectEnd(r, "order");
             return m;
         }

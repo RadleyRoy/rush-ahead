@@ -18,15 +18,17 @@ namespace RushAhead.Net
         readonly IReadOnlyList<BlowerDef> blowers;
         readonly InterpolatedCrew[] crew = new InterpolatedCrew[CrewSectors.MaxCrew];
 
-        public InterpolatedBoat(SimConfig config, IReadOnlyList<BlowerDef> blowers)
+        /// <param name="index">Which raft in the snapshots this shows: 0, or 1 for the second raft in a Team Race.</param>
+        public InterpolatedBoat(SimConfig config, IReadOnlyList<BlowerDef> blowers, int index = 0)
         {
             this.config = config;
             this.blowers = blowers;
+            Index = index;
             for (var i = 0; i < crew.Length; i++) crew[i] = new InterpolatedCrew { Seat = i, Blower = blowers[0] };
         }
 
         public bool HasData { get; private set; }
-        public int Index => 0;
+        public int Index { get; }
         public Vector2 RenderPosition { get; private set; }
         public float RenderAngleRad { get; private set; }
         public Vector2 Velocity { get; private set; }
@@ -48,9 +50,14 @@ namespace RushAhead.Net
             // Right after joining, playback starts behind the first snapshot received; wait the few frames until it
             // reaches it rather than showing a pose that's slightly ahead of where the raft should be.
             if (!timeline.Ready) return;
-            if (!timeline.Sample(out var from, out var to, out var t, out var overshoot) || from.Boats.Count == 0) return;
-            var a = from.Boats[0];
-            var b = to.Boats.Count > 0 ? to.Boats[0] : a;
+            if (!timeline.Sample(out var from, out var to, out var t, out var overshoot) || from.Boats.Count <= Index)
+            {
+                HasData = false; // no such raft (any more): Co-op has only the first
+                return;
+            }
+
+            var a = from.Boats[Index];
+            var b = to.Boats.Count > Index ? to.Boats[Index] : a;
 
             var span = (to.Tick - from.Tick) / timeline.TickRate;
             var position = span > 0f ? Hermite(a.Position, a.Velocity * span, b.Position, b.Velocity * span, t) : a.Position;

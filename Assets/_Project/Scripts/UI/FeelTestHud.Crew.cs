@@ -139,15 +139,23 @@ namespace RushAhead.UI
         void DrawSeats()
         {
             var seats = Game.Seats;
-            GUILayout.Label("Raft", header);
+            var crew = Mathf.Max(1, Game.CrewCount);
+            GUILayout.Label(Game.TeamRace ? "Rafts" : "Raft", header);
             if (Game.CanEditRaft)
             {
                 GUILayout.BeginHorizontal();
-                GUILayout.Label("Players", GUILayout.Width(60f));
+                GUILayout.Label("Mode", GUILayout.Width(60f));
+                if (GUILayout.Toggle(!Game.TeamRace, "Co-op", GUI.skin.button) && Game.TeamRace) Later(() => Game.SetTeamRace(false));
+                if (GUILayout.Toggle(Game.TeamRace, "Team Race", GUI.skin.button) && !Game.TeamRace) Later(() => Game.SetTeamRace(true));
+                GUILayout.EndHorizontal();
+                GUILayout.Label(Game.TeamRace ? "Two rafts, Red against Blue, up to 8 players. AI fills every empty seat." : "Everyone on one raft, up to 4 players.", small);
+
+                GUILayout.BeginHorizontal();
+                GUILayout.Label(Game.TeamRace ? "Per raft" : "Players", GUILayout.Width(60f));
                 for (var count = 1; count <= CrewSectors.MaxCrew; count++)
                 {
                     var chosen = count;
-                    if (GUILayout.Toggle(count == seats.Length, $" {count}", GUI.skin.button) && count != seats.Length) Later(() => Game.SetCrewCount(chosen));
+                    if (GUILayout.Toggle(count == crew, $" {count}", GUI.skin.button) && count != crew) Later(() => Game.SetCrewCount(chosen));
                 }
 
                 GUILayout.EndHorizontal();
@@ -158,16 +166,24 @@ namespace RushAhead.UI
             {
                 var s = seats[seat];
                 var pick = seat;
+                var inRaft = seat % crew;
+                if (Game.TeamRace && inRaft == 0)
+                {
+                    GUI.color = seat / crew == 0 ? new Color(1f, 0.6f, 0.55f) : new Color(0.6f, 0.78f, 1f);
+                    GUILayout.Label($"{FeelTestBootstrap.TeamName(seat / crew)} raft{(seat / crew == Game.MyRaft && MySeat(seats) >= 0 ? " (yours)" : "")}", header);
+                    GUI.color = Color.white;
+                }
+
                 GUILayout.BeginHorizontal();
 
                 var chip = GUILayoutUtility.GetRect(16f, 16f, GUILayout.Width(16f), GUILayout.Height(16f));
-                GUI.color = RaftView.PlayerColor(seat);
+                GUI.color = RaftView.PlayerColor(inRaft);
                 GUI.DrawTexture(chip, circle);
                 GUI.color = Color.white;
 
                 var who = s.Kept ? $"kept for {s.Loadout.Name}, AI holding it" : s.Ai ? "AI crewmate" : !s.Human ? "spare"
-                    : s.Yours ? $"{DisplayName(s, seat)} (you)" : s.Host ? $"{DisplayName(s, seat)} (host)" : DisplayName(s, seat);
-                GUILayout.Label($"P{seat + 1}  {who}, {SliceName(seat, seats.Length)}\n" +
+                    : s.Yours ? $"{DisplayName(s, inRaft)} (you)" : s.Host ? $"{DisplayName(s, inRaft)} (host)" : DisplayName(s, inRaft);
+                GUILayout.Label($"P{inRaft + 1}  {who}, {SliceName(inRaft, crew)}\n" +
                                 $"{Catalog.SpeciesOf(s.Loadout).displayName} with the {Catalog.BlowerOf(s.Loadout).displayName}", small, GUILayout.MinWidth(200f));
 
                 if (Game.CanDress(seat) && GUILayout.Toggle(dressed == seat, "Dress", GUI.skin.button, GUILayout.Width(56f)) && dressed != seat)

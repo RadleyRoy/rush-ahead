@@ -22,18 +22,25 @@ namespace RushAhead.Sim
         public const float RespawnImmunitySeconds = 2f;
 
         readonly int tickRate;
+        readonly int lane, lanes;
         Vector2 lastPosition;
 
-        /// <summary>Puts the raft on the start line with full tanks and begins the countdown from <paramref name="nowTick"/>.</summary>
-        public Race(Course course, Boat boat, int nowTick, int tickRate)
+        /// <summary>
+        /// Puts the raft on the start line with full tanks and begins the countdown from <paramref name="nowTick"/>.
+        /// In a Team Race each raft gets its own <see cref="Race"/> with the same start tick and its own lane.
+        /// </summary>
+        public Race(Course course, Boat boat, int nowTick, int tickRate, int lane = 0, int lanes = 1)
         {
             Course = course;
             Boat = boat;
             this.tickRate = tickRate;
+            this.lane = lane;
+            this.lanes = lanes;
             StartTick = nowTick + Mathf.RoundToInt(CountdownSeconds * tickRate);
 
-            course.ResetBarrels();
-            boat.ResetTo(course.SpawnPosition, course.SpawnAngleRad);
+            if (lane == 0) course.ResetBarrels(); // once per race, not once per raft
+            var (start, heading) = course.RespawnPose(0, lane, lanes);
+            boat.ResetTo(start, heading);
             boat.ControlsLocked = true;
             boat.GatesPassed = 0;
             boat.FinishTick = 0;
@@ -89,7 +96,7 @@ namespace RushAhead.Sim
         {
             if (Phase != RacePhase.Racing) return; // before the start or after the finish it just rights itself where it is
 
-            var (position, angle) = Course.RespawnPose(boat.GatesPassed);
+            var (position, angle) = Course.RespawnPose(boat.GatesPassed, lane, lanes);
             boat.ResetTo(position, angle);
             boat.CapsizeImmunitySeconds = RespawnImmunitySeconds;
             lastPosition = position;

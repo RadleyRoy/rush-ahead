@@ -38,6 +38,7 @@ namespace RushAhead.UI
     ///   -rushahead-port &lt;port&gt;             default 7777
     ///   -rushahead-name / -animal / -fur / -blower   this run's player look (not saved)
     ///   -rushahead-course &lt;n&gt;              start on course n (1 is the first course; 0 is the lagoon)
+    ///   -rushahead-mode team                 Team Race: two rafts, Red against Blue
     ///   -rushahead-ai off|clumsy|keen|ace    AI crewmates in the spare seats for this run (not saved)
     ///   -rushahead-ai-all [skill]            AI drives every seat, the host's too (default: the steady autopilot)
     ///   -rushahead-autopilot                 the same as -rushahead-ai-all steady
@@ -59,21 +60,30 @@ namespace RushAhead.UI
         readonly List<GameObject> barrels = new();
         readonly List<Rigidbody2D> barrelBodies = new();
         SimRunner runner;
-        RaftView raftView;
         ChaseCamera chase;
         CrewRoster roster;
+
+        /// <summary>One raft this device simulates (offline or hosting): its boat, view, AI crew and race.</summary>
+        sealed class Raft
+        {
+            public Boat Boat;
+            public RaftView View;
+            public AiCrew Ai;
+            public Race Race;
+            public OrderMessage ShownOrder;
+        }
+
+        readonly List<Raft> rafts = new();
+        readonly List<RaftView> joinedViews = new(); // joined: a view over each of the host's rafts
+        readonly List<int> joinedViewCrew = new();
+        int raftCount = 1;
 
         // The venue: 0 is the practice lagoon, n is courses[n - 1]. Barrels are listed in an order every device agrees on.
         int venue;
         GameObject lagoon;
         Course course;
         CourseView courseView;
-        Race race;
-        AiCrew ai;
         AiSkill? aiDrivesEverything; // set: the AI has every seat, the host's too (demos and testing)
-        OrderMessage shownOrder;
-        Vector2 spawn = Spawn;
-        float spawnAngle;
         int clientRaceStart;
         int shownTeleports = -1;
         (int venue, int start) recordedRun = (-1, -1);
@@ -90,7 +100,6 @@ namespace RushAhead.UI
         ushort port = NgoTransport.DefaultPort;
         string hostAddress;
         int crewCount = CrewSectors.MaxCrew;
-        int clientViewCrew;
         bool hostLost;
         bool everConnected;
 
@@ -112,19 +121,49 @@ namespace RushAhead.UI
 
         public IReadOnlyList<AiProfile> AiProfiles => aiProfiles;
 
-        /// <summary>Whether any seat on the raft on screen is an AI crewmate, so orders make sense.</summary>
+        /// <summary>Whether any seat on this player's raft is an AI crewmate, so orders make sense.</summary>
         public bool HasAiCrew
         {
             get
             {
-                foreach (var seat in Seats)
-                    if (seat.Ai) return true;
+                var crew = CrewCount;
+                for (var seat = 0; seat < Seats.Length; seat++)
+                    if (Seats[seat].Ai && crew > 0 && seat / crew == MyRaft) return true;
                 return false;
             }
         }
 
-        /// <summary>The AI crew's current order and its push-here point, as this device last heard.</summary>
-        public OrderMessage CurrentOrder => Mode == NetMode.Joined ? client.Order : ai != null ? new OrderMessage { Order = ai.Order, Point = ai.PushPoint } : default;
+        /// <summary>This player's raft's AI order and its push-here point, as this device last heard.</summary>
+        public OrderMessage CurrentOrder
+        {
+            get
+            {
+                if (Mode == NetMode.Joined) return client.Order;
+                var ai = MyRaft < rafts.Count ? rafts[MyRaft].Ai : null;
+                return ai != null ? new OrderMessage { Order = ai.Order, Point = ai.PushPoint, Raft = (byte)MyRaft } : default;
+            }
+        }
+
+        /// <summary>One raft (Co-op) or two (Team Race).</summary>
+        public int Rafts => Mode == NetMode.Joined ? client.Rafts : raftCount;
+
+        public bool TeamRace => Rafts > 1;
+
+        /// <summary>Animals per raft.</summary>
+        public int CrewCount => Mode == NetMode.Joined ? client.CrewCount : roster.CrewCount;
+
+        /// <summary>The raft this player is on (the first while watching).</summary>
+        public int MyRaft => Mode == NetMode.Joined ? client.MyRaft : Mathf.Max(0, roster.RaftOfHuman(Peers.Host));
+
+        /// <summary>A raft's state as drawn here: live offline or hosting, rebuilt from snapshots when joined.</summary>
+        public IBoatState RaftState(int raft) =>
+            Mode == NetMode.Joined ? (raft < client.Boats.Count ? client.Boats[raft] : null) : raft < rafts.Count ? rafts[raft].Boat : null;
+
+        /// <summary>A raft's view, for name tags; null while it's still being built.</summary>
+        public RaftView ViewOf(int raft) =>
+            Mode == NetMode.Joined ? (raft < joinedViews.Count ? joinedViews[raft] : null) : raft < rafts.Count ? rafts[raft].View : null;
+
+        public static string TeamName(int raft) => raft == 0 ? "Red" : "Blue";
         public CrewInputRouter Router { get; private set; }
 
         /// <summary>The start page while it's up; null once it has faded away.</summary>
@@ -146,13 +185,13 @@ namespace RushAhead.UI
         /// <summary>The crew as this device sees it: every seat's look, and which are people, the host and this player.</summary>
         public RosterSeat[] Seats { get; private set; } = Array.Empty<RosterSeat>();
 
-        /// <summary>The live raft. Null while joined to someone else's game: the host owns the only one.</summary>
-        public Boat Boat { get; private set; }
+        /// <summary>This player's live raft. Null while joined to someone else's game: the host owns the only ones.</summary>
+        public Boat Boat => MyRaft < rafts.Count ? rafts[MyRaft].Boat : null;
 
-        /// <summary>What's on screen: the live raft offline or hosting, the host's raft rebuilt from snapshots when joined.</summary>
-        public IBoatState ViewedBoat => Mode == NetMode.Joined ? client.Boat : Boat;
+        /// <summary>What's on screen: this player's raft, live offline or hosting, rebuilt from snapshots when joined.</summary>
+        public IBoatState ViewedBoat => Mode == NetMode.Joined ? client.Boats[client.MyRaft] : Boat;
 
-        public RaftView RaftView => raftView;
+        public RaftView RaftView => ViewOf(MyRaft);
 
         /// <summary>Crew size and resets are the host's to change.</summary>
         public bool CanEditRaft => Mode != NetMode.Joined;
@@ -215,17 +254,19 @@ namespace RushAhead.UI
             roster.Now = Time.realtimeSinceStartupAsDouble;
 
             // Brace and Push here wear off by themselves: keep joined players' order buttons honest when they do.
-            if (ai != null && (ai.Order != shownOrder.Order || ai.PushPoint != shownOrder.Point))
+            for (var i = 0; i < rafts.Count; i++)
             {
-                shownOrder = new OrderMessage { Order = ai.Order, Point = ai.PushPoint };
-                host?.SetOrder(shownOrder);
+                var ai = rafts[i].Ai;
+                if (ai == null || (ai.Order == rafts[i].ShownOrder.Order && ai.PushPoint == rafts[i].ShownOrder.Point)) continue;
+                rafts[i].ShownOrder = new OrderMessage { Order = ai.Order, Point = ai.PushPoint, Raft = (byte)i };
+                host?.SetOrder(rafts[i].ShownOrder);
             }
 
             if (Mode == NetMode.Hosting && beacon != null)
             {
                 NetStatus = $"Hosting on {LocalAddress()}:{port}. {host.Clients.Count} joined.";
                 beacon.Advert.Players = (byte)SeatedPlayers();
-                beacon.Advert.Seats = (byte)roster.CrewCount;
+                beacon.Advert.Seats = (byte)roster.SeatCount;
                 beacon.Advert.HostName = Local.Profile.Name;
                 beacon.Update(Time.unscaledDeltaTime);
             }
@@ -246,7 +287,8 @@ namespace RushAhead.UI
             ShowHostsBarrels();
             RebuildJoinedViewIfNeeded();
             NetStatus = !client.Connected ? $"Connecting to {(onlineRoom != null ? "the online game" : hostAddress)}..."
-                : client.Seats.Length == 0 ? "Joined. The raft is full, so you're watching."
+                : client.Seats.Length == 0 ? "Joined. The rafts are full, so you're watching."
+                : client.Rafts > 1 ? $"Joined the {TeamName(client.MyRaft)} raft as P{client.Seats[0] % client.CrewCount + 1}."
                 : $"Joined as P{client.Seats[0] + 1}.";
         }
 
@@ -256,22 +298,59 @@ namespace RushAhead.UI
             StopSearching();
         }
 
-        /// <summary>A fresh raft with 1 to 4 players at the start. Players are re-seated in the order they joined.</summary>
-        public void SetCrewCount(int count)
+        /// <summary>Fresh rafts with 1 to 4 animals each at the start. Players are re-seated in the order they joined.</summary>
+        public void SetCrewCount(int count) => SetLayout(count, raftCount);
+
+        /// <summary>Co-op (one raft) or Team Race (two rafts, Red against Blue, up to 8 players).</summary>
+        public void SetTeamRace(bool on) => SetLayout(crewCount, on ? 2 : 1);
+
+        void SetLayout(int count, int raftsWanted)
         {
             if (!CanEditRaft) return;
             crewCount = count;
-            if (Boat != null) runner.World.Despawn(Boat);
-            Boat = null;
-            if (raftView != null) Destroy(raftView.gameObject);
+            raftCount = raftsWanted;
+            DespawnRafts();
 
-            roster.SetCrewCount(count);
-            Boat = runner.World.SpawnBoat(spawn, spawnAngle, roster.Blowers());
-            raftView = RaftView.Build(Boat, config, palette, catalog, Looks(roster.Describe(Peers.Host)));
-            ai = NewAiCrew();
-            host?.UseBoat(Boat);
+            roster.SetLayout(count, raftsWanted);
+            for (var raft = 0; raft < raftsWanted; raft++)
+            {
+                var (position, heading) = SpawnPose(raft);
+                var boat = runner.World.SpawnBoat(position, heading, roster.Blowers(raft));
+                rafts.Add(new Raft
+                {
+                    Boat = boat,
+                    View = RaftView.Build(boat, config, palette, catalog, LooksOf(roster.Describe(Peers.Host), raft, count), TeamColour(raft)),
+                    Ai = NewAiCrew(boat),
+                });
+            }
+
+            host?.UseBoats(Boats());
             OnRosterChanged();
             StartRun();
+        }
+
+        void DespawnRafts()
+        {
+            foreach (var raft in rafts)
+            {
+                raft.Race?.Dispose();
+                runner.World.Despawn(raft.Boat);
+                if (raft.View != null) Destroy(raft.View.gameObject);
+            }
+
+            rafts.Clear();
+        }
+
+        List<Boat> Boats() => rafts.ConvertAll(r => r.Boat);
+
+        /// <summary>The tube colour that tells the teams apart; Co-op keeps the classic peach.</summary>
+        Color? TeamColour(int raft) => raftCount < 2 ? null : raft == 0 ? new Color(1f, 0.5f, 0.45f) : new Color(0.5f, 0.72f, 1f);
+
+        /// <summary>Where a raft starts in this venue: the middle for one raft, side by side for two.</summary>
+        (Vector2 position, float heading) SpawnPose(int raft)
+        {
+            if (course != null) return course.RespawnPose(0, raft, raftCount);
+            return (Spawn + (raftCount > 1 ? new Vector2(0f, raft == 0 ? 3f : -3f) : Vector2.zero), 0f);
         }
 
         /// <summary>AI crewmates off (-1) or at a skill (0 Clumsy, 1 Keen, 2 Ace). Saved on this device; the host's setting rules.</summary>
@@ -280,30 +359,46 @@ namespace RushAhead.UI
             if (!CanEditRaft) return;
             Local.AiSetting = Mathf.Clamp(setting, -1, 2);
             Local.Save();
-            ai = NewAiCrew();
-            ai.River = course?.River;
+            for (var i = 0; i < rafts.Count; i++)
+            {
+                rafts[i].Ai = NewAiCrew(rafts[i].Boat);
+                PointAiAtCourse(i);
+            }
+
             roster.SparesAreAi = Local.AiSetting >= 0; // raises Changed if it flipped, which rewires the seats
             WireSeats();
             Seats = roster.Describe(Peers.Host);
         }
 
-        /// <summary>Tells the AI crew what to do. Joined, the request goes to the host, whose AI it is.</summary>
+        /// <summary>Tells this player's raft's AI crew what to do. Joined, the request goes to the host, whose AI it is.</summary>
         public void GiveOrder(CrewOrder order, Vector2 point = default)
         {
             if (Mode == NetMode.Joined) client.RequestOrder(order, point);
-            else ApplyOrder(new OrderMessage { Order = order, Point = point });
+            else ApplyOrder(new OrderMessage { Order = order, Point = point, Raft = (byte)MyRaft });
         }
 
-        void ApplyOrder(OrderMessage order) => ai?.Give(order.Order, order.Point);
-
-        AiCrew NewAiCrew()
+        void ApplyOrder(OrderMessage order)
         {
-            if (Boat == null) return null;
+            if (order.Raft < rafts.Count) rafts[order.Raft].Ai?.Give(order.Order, order.Point);
+        }
+
+        void PointAiAtCourse(int raft)
+        {
+            var ai = rafts[raft].Ai;
+            if (ai == null) return;
+            ai.River = course?.River;
+            ai.Lane = raft;
+            ai.Lanes = rafts.Count;
+        }
+
+        AiCrew NewAiCrew(Boat boat)
+        {
+            if (boat == null) return null;
             var skill = aiDrivesEverything ?? (AiSkill)Mathf.Max(0, Local.AiSetting);
             var profile = skill != AiSkill.Steady && aiProfiles != null && (int)skill < aiProfiles.Length && aiProfiles[(int)skill] != null
                 ? aiProfiles[(int)skill]
                 : AiProfile.Preset(skill);
-            return new AiCrew(Boat, profile, config.tickRate, seed: Environment.TickCount);
+            return new AiCrew(boat, profile, config.tickRate, seed: Environment.TickCount + boat.Index);
         }
 
         /// <summary>Back to the start: on a course, a fresh race with a countdown; in the lagoon, a standing start.</summary>
@@ -319,33 +414,42 @@ namespace RushAhead.UI
 
         void StartRun()
         {
-            if (!CanEditRaft || Boat == null) return;
-            race?.Dispose();
-            race = null;
-            if (course != null)
+            if (!CanEditRaft || rafts.Count == 0) return;
+            var now = runner.World.Tick;
+            for (var i = 0; i < rafts.Count; i++)
             {
-                race = new Race(course, Boat, runner.World.Tick, config.tickRate);
+                var raft = rafts[i];
+                raft.Race?.Dispose();
+                raft.Race = null;
+                if (course != null)
+                {
+                    raft.Race = new Race(course, raft.Boat, now, config.tickRate, i, rafts.Count); // every raft starts on the same tick
+                }
+                else
+                {
+                    var (position, heading) = SpawnPose(i);
+                    raft.Boat.ResetTo(position, heading);
+                }
+
+                PointAiAtCourse(i);
+                raft.Ai?.Give(CrewOrder.Go);
             }
-            else
-            {
-                Boat.ResetTo(spawn, spawnAngle);
+
+            if (course == null)
                 for (var i = 0; i < barrels.Count; i++) PhysicsBodies.Reset(barrels[i], BarrelSpot(i));
-            }
-
-            if (ai != null)
-            {
-                ai.River = course?.River;
-                ai.Give(CrewOrder.Go);
-            }
-
             WireSeats();
-            host?.SetRace(venue, race?.StartTick ?? 0);
+            host?.SetRace(venue, StartTick);
         }
+
+        int StartTick => rafts.Count > 0 && rafts[0].Race != null ? rafts[0].Race.StartTick : 0;
 
         void StepRace(int tick)
         {
-            ai?.Update(config.TickDt); // decides the AI crew's controls for the coming ticks
-            race?.Step(tick);
+            foreach (var raft in rafts)
+            {
+                raft.Ai?.Update(config.TickDt); // decides the AI crew's controls for the coming ticks
+                raft.Race?.Step(tick);
+            }
         }
 
         /// <summary>Whether this device chooses a seat's look: its own player's seat, and on its own raft the spares too.</summary>
@@ -477,8 +581,8 @@ namespace RushAhead.UI
             host.OrderRequested += ApplyOrder; // any player can order the AI crew about
             runner.Ticked += host.OnTick;
             Mode = NetMode.Hosting;
-            host.UseBoat(Boat);
-            host.SetRace(venue, race?.StartTick ?? 0);
+            host.UseBoats(Boats());
+            host.SetRace(venue, StartTick);
         }
 
         public void Join(DiscoveredRoom room)
@@ -510,24 +614,19 @@ namespace RushAhead.UI
             transport = connecting;
             StopSearching();
 
-            // The host runs the only simulation: drop our raft and race, and stop simulating our barrels.
-            race?.Dispose();
-            race = null;
-            ai = null;
-            runner.World.Despawn(Boat);
-            Boat = null;
-            Destroy(raftView.gameObject);
-            raftView = null;
+            // The host runs the only simulation: drop our rafts and races, and stop simulating our barrels.
+            DespawnRafts();
             foreach (var barrel in barrels) PhysicsBodies.Freeze(barrel);
 
-            client = new ClientSession(transport, config, catalog, Local.Profile, Local.DeviceId, seat => Router.Seats[seat].ReadInput());
+            // Seats are numbered across rafts; this device's controls are numbered within its own raft.
+            client = new ClientSession(transport, config, catalog, Local.Profile, Local.DeviceId,
+                seat => Router.Seats[seat % Mathf.Max(1, client.CrewCount)].ReadInput());
             client.RosterChanged += OnClientRoster;
             client.RaceChanged += OnClientRace;
             client.Disconnected += () => hostLost = true; // handled next frame, outside the transport's own callback
             Router.SetSeats(Array.Empty<int>()); // nothing to drive until the host deals us a seat
             Seats = Array.Empty<RosterSeat>();
             everConnected = false;
-            clientViewCrew = 0;
             Mode = NetMode.Joined;
         }
 
@@ -556,6 +655,10 @@ namespace RushAhead.UI
 
             client?.Dispose();
             client = null;
+            foreach (var view in joinedViews)
+                if (view != null) Destroy(view.gameObject);
+            joinedViews.Clear();
+            joinedViewCrew.Clear();
             beacon?.Dispose();
             beacon = null;
             transport?.Shutdown();
@@ -573,50 +676,73 @@ namespace RushAhead.UI
         /// <summary>Offline or hosting: blowers, controls and looks follow the roster.</summary>
         void OnRosterChanged()
         {
-            if (Mode == NetMode.Joined || Boat == null || Boat.Crew.Length != roster.CrewCount) return; // a new raft is on its way
-            roster.ApplyBlowers(Boat);
+            if (Mode == NetMode.Joined || rafts.Count != roster.RaftCount) return; // new rafts are on their way
+            foreach (var raft in rafts)
+                if (raft.Boat.Crew.Length != roster.CrewCount) return;
+
+            for (var i = 0; i < rafts.Count; i++) roster.ApplyBlowers(rafts[i].Boat, i);
             WireSeats();
             Seats = roster.Describe(Peers.Host);
-            if (raftView != null) raftView.Restyle(Looks(Seats));
+            for (var i = 0; i < rafts.Count; i++)
+                if (rafts[i].View != null) rafts[i].View.Restyle(LooksOf(Seats, i, roster.CrewCount));
         }
 
         void OnClientRoster()
         {
-            Router.SetSeats(client.Seats);
+            var crew = Mathf.Max(1, client.CrewCount);
+            Router.SetSeats(Array.ConvertAll(client.Seats, seat => seat % crew)); // this device's controls know only its own raft
             Seats = client.Roster;
-            if (raftView != null) raftView.Restyle(Looks(Seats));
+            for (var i = 0; i < joinedViews.Count; i++)
+                if (joinedViews[i] != null) joinedViews[i].Restyle(LooksOf(Seats, i, crew));
         }
 
-        /// <summary>Hands every seat this device simulates to its driver: this device's controls, or the AI crew.</summary>
+        /// <summary>
+        /// Hands every seat this device simulates to its driver: this device's controls (its player's seat, plus the
+        /// spares in Co-op with AI off), or each raft's AI crew. Seats held by joined players are wired by the host session.
+        /// </summary>
         void WireSeats()
         {
-            if (Boat == null) return;
-            int[] local, aiSeats;
+            if (rafts.Count == 0) return;
             if (aiDrivesEverything.HasValue)
             {
-                local = Array.Empty<int>();
-                aiSeats = CrewSectors.DriveOrder(Boat.Crew.Length);
-            }
-            else
-            {
-                local = roster.LocalSeats();
-                aiSeats = roster.AiSeats();
+                Router.SetSeats(Array.Empty<int>());
+                foreach (var raft in rafts) raft.Ai?.Drive(CrewSectors.DriveOrder(raft.Boat.Crew.Length));
+                return;
             }
 
-            Router.SetSeats(local);
-            foreach (var seat in local) Boat.Crew[seat].Input = Router.Seats[seat];
-            ai?.Drive(aiSeats); // seats held by joined players are wired by the host session
+            var local = roster.LocalSeats(); // numbered across rafts; the router knows seats within one raft
+            Router.SetSeats(Array.ConvertAll(local, roster.SeatInRaft));
+            foreach (var seat in local) rafts[roster.RaftOf(seat)].Boat.Crew[roster.SeatInRaft(seat)].Input = Router.Seats[roster.SeatInRaft(seat)];
+            for (var i = 0; i < rafts.Count; i++) rafts[i].Ai?.Drive(roster.AiSeatsOn(i));
         }
 
         void RebuildJoinedViewIfNeeded()
         {
-            var boat = client.Boat;
-            if (!boat.HasData || (raftView != null && clientViewCrew == boat.CrewCount)) return;
+            var crew = Mathf.Max(1, client.CrewCount);
+            for (var i = 0; i < client.Boats.Count; i++)
+            {
+                while (joinedViews.Count <= i)
+                {
+                    joinedViews.Add(null);
+                    joinedViewCrew.Add(0);
+                }
 
-            if (raftView != null) Destroy(raftView.gameObject);
-            raftView = RaftView.Build(boat, config, palette, catalog, Looks(Seats));
-            clientViewCrew = boat.CrewCount;
-            chase.SnapTo(boat.RenderPosition, boat.RenderAngleRad);
+                var boat = client.Boats[i];
+                var wanted = i < client.Rafts && boat.HasData;
+                if (!wanted)
+                {
+                    if (joinedViews[i] != null) Destroy(joinedViews[i].gameObject); // the host went back to one raft
+                    joinedViews[i] = null;
+                    continue;
+                }
+
+                if (joinedViews[i] != null && joinedViewCrew[i] == boat.CrewCount) continue;
+                if (joinedViews[i] != null) Destroy(joinedViews[i].gameObject);
+                var colour = client.Rafts < 2 ? (Color?)null : i == 0 ? new Color(1f, 0.5f, 0.45f) : new Color(0.5f, 0.72f, 1f);
+                joinedViews[i] = RaftView.Build(boat, config, palette, catalog, LooksOf(Seats, i, crew), colour);
+                joinedViewCrew[i] = boat.CrewCount;
+                if (i == client.MyRaft) chase.SnapTo(boat.RenderPosition, boat.RenderAngleRad);
+            }
         }
 
         void ShowHostsBarrels()
@@ -626,7 +752,13 @@ namespace RushAhead.UI
                 PhysicsBodies.ShowAt(barrels[i], props[i].Position, props[i].AngleRad);
         }
 
-        static Loadout[] Looks(RosterSeat[] seats) => Array.ConvertAll(seats, s => s.Loadout);
+        /// <summary>One raft's looks out of a roster numbered across rafts.</summary>
+        static Loadout[] LooksOf(RosterSeat[] seats, int raft, int crew)
+        {
+            var looks = new Loadout[Mathf.Max(0, Mathf.Min(crew, seats.Length - raft * crew))];
+            for (var seat = 0; seat < looks.Length; seat++) looks[seat] = seats[raft * crew + seat].Loadout;
+            return looks;
+        }
 
         int SeatedPlayers()
         {
@@ -671,6 +803,7 @@ namespace RushAhead.UI
         {
             if (ushort.TryParse(CommandLine.After("-rushahead-port"), out var customPort)) port = customPort;
 
+            if (CommandLine.After("-rushahead-mode") == "team") SetTeamRace(true);
             if (int.TryParse(CommandLine.After("-rushahead-course"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var startCourse)) ChooseVenue(startCourse);
             OnlineRooms.Profile = CommandLine.After("-rushahead-auth-profile"); // several copies on one PC need different players
             if (CommandLine.Has("-rushahead-host-online")) StartHostingOnline();
@@ -730,8 +863,6 @@ namespace RushAhead.UI
             if (venue == 0)
             {
                 BuildLagoon();
-                spawn = Spawn;
-                spawnAngle = 0f;
             }
             else
             {
@@ -740,8 +871,6 @@ namespace RushAhead.UI
                 barrels.AddRange(course.Barrels);
                 barrelBodies.AddRange(course.BarrelBodies);
                 runner.World.WaterVelocity = course.WaterVelocityAt;
-                spawn = course.SpawnPosition;
-                spawnAngle = course.SpawnAngleRad;
             }
 
             runner.World.Drifting.AddRange(barrelBodies);
@@ -752,8 +881,12 @@ namespace RushAhead.UI
 
         void UnloadVenue()
         {
-            race?.Dispose();
-            race = null;
+            foreach (var raft in rafts)
+            {
+                raft.Race?.Dispose();
+                raft.Race = null;
+            }
+
             course?.Destroy();
             course = null;
             if (courseView != null) Destroy(courseView.gameObject);
@@ -797,7 +930,7 @@ namespace RushAhead.UI
             }
 
             var def = courses[venue - 1];
-            var start = Mode == NetMode.Joined ? clientRaceStart : race?.StartTick ?? 0;
+            var start = Mode == NetMode.Joined ? clientRaceStart : StartTick;
             var now = Mode == NetMode.Joined ? PlaybackTick : runner.World.Tick;
             var info = new RaceInfo
             {
@@ -809,7 +942,31 @@ namespace RushAhead.UI
                 Finished = boat.FinishTick > 0,
                 Capsizes = boat.CapsizeCount,
                 Best = PersonalBest(def),
+                Rafts = Rafts,
+                MyRaft = MyRaft,
+                Winner = -1,
             };
+
+            // Team Race: how the other raft is doing, and who crossed the line first (ties go to the lower tick; then Red).
+            if (Rafts > 1)
+            {
+                var rival = RaftState(1 - MyRaft);
+                if (rival != null)
+                {
+                    info.RivalGatesPassed = rival.GatesPassed;
+                    info.RivalFinished = rival.FinishTick > 0;
+                    info.RivalSeconds = RaceClock.Seconds(start, rival.FinishTick, now, config.tickRate);
+                }
+
+                var best = int.MaxValue;
+                for (var raft = 0; raft < Rafts; raft++)
+                {
+                    var state = RaftState(raft);
+                    if (state == null || state.FinishTick <= 0 || state.FinishTick >= best) continue;
+                    best = state.FinishTick;
+                    info.Winner = raft;
+                }
+            }
 
             if (info.Finished && recordedRun != (venue, start))
             {
@@ -913,7 +1070,20 @@ namespace RushAhead.UI
 
         public bool NewBest;
 
+        /// <summary>One raft (Co-op) or two (Team Race).</summary>
+        public int Rafts;
+
+        public int MyRaft;
+
+        /// <summary>Team Race: the raft that finished first, or -1 while nobody has.</summary>
+        public int Winner;
+
+        public int RivalGatesPassed;
+        public bool RivalFinished;
+        public float RivalSeconds;
+
         public bool Active => Course != null;
+        public bool TeamRace => Rafts > 1;
         public int Stars => Finished ? Course.Stars(Seconds) : 0;
     }
 }

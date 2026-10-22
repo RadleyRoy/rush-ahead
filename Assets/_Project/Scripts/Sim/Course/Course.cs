@@ -99,12 +99,23 @@ namespace RushAhead.Sim
             }
         }
 
-        /// <summary>Where a capsized raft comes back: the start, or just past the last checkpoint it passed, facing downstream.</summary>
-        public (Vector2 position, float angleRad) RespawnPose(int gatesPassed)
+        /// <summary>
+        /// Where a raft starts, or comes back after capsizing (just past the last checkpoint it passed), facing
+        /// downstream. With two rafts each has its own lane, either side of the middle, so they never land on each other.
+        /// </summary>
+        public (Vector2 position, float angleRad) RespawnPose(int gatesPassed, int lane = 0, int lanes = 1)
         {
-            if (gatesPassed <= 0) return (SpawnPosition, SpawnAngleRad);
-            var gate = gates[Mathf.Min(gatesPassed, gates.Count) - 1];
-            return (gate.Centre + gate.Downstream * RespawnPastGate, Mathf.Atan2(gate.Downstream.y, gate.Downstream.x));
+            var at = gatesPassed <= 0 ? River.At(Def.startDistance)
+                : River.At(gates[Mathf.Min(gatesPassed, gates.Count) - 1].Distance + RespawnPastGate);
+            return (at.Centre + at.Left * LaneOffset(at, lane, lanes), Mathf.Atan2(at.Tangent.y, at.Tangent.x));
+        }
+
+        /// <summary>Across the river from the middle: lane 0 to the left, lane 1 to the right, clear of each other and the banks.</summary>
+        public static float LaneOffset(RiverSample at, int lane, int lanes)
+        {
+            if (lanes <= 1) return 0f;
+            var offset = Mathf.Clamp(at.HalfWidth * 0.42f, 2f, Mathf.Max(2f, at.HalfWidth - 1.9f));
+            return lane == 0 ? offset : -offset;
         }
 
         /// <summary>How fast the water itself moves here. Strongest mid-stream, easing off toward the banks and the zone's ends.</summary>

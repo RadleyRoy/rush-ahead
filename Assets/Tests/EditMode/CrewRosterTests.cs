@@ -193,6 +193,47 @@ namespace RushAhead.Tests
         }
 
         [Test]
+        public void InATeamRace_PlayersAreSpreadAcrossTheRafts_AndTheAiFillsTheRest()
+        {
+            var roster = new CrewRoster(catalog, 4, raftCount: 2);
+            Assert.That(roster.SeatCount, Is.EqualTo(8));
+            Assert.That(roster.SparesAreAi, Is.True, "two rafts are always crewed by AI where nobody sits");
+            Assert.That(roster.SeatOf(Peers.Host), Is.EqualTo(2), "the host: Red raft, best driving seat");
+
+            foreach (var client in new ulong[] { 1, 2, 3, 4, 5, 6, 7, 8 }) roster.AddHuman(client);
+            Assert.That(roster.RaftOfHuman(1), Is.EqualTo(1), "the next joiner evens up the teams");
+            Assert.That(roster.RaftOfHuman(2), Is.EqualTo(0));
+            Assert.That(roster.RaftOfHuman(3), Is.EqualTo(1));
+            Assert.That(roster.SeatOf(1), Is.EqualTo(roster.SeatAt(1, 2)), "and gets that raft's best seat");
+            Assert.That(roster.HumansOn(0), Is.EqualTo(4));
+            Assert.That(roster.HumansOn(1), Is.EqualTo(4));
+            Assert.That(roster.SeatOf(8), Is.EqualTo(-1), "a ninth player watches");
+            Assert.That(roster.AiSeats(), Is.Empty);
+
+            roster.RemoveHuman(3);
+            roster.RemoveHuman(5);
+            Assert.That(roster.AiSeatsOn(1), Has.Length.EqualTo(2), "the Blue raft's two empty seats go to the AI");
+            Assert.That(roster.AiSeatsOn(0), Is.Empty);
+            Assert.That(roster.Claim(8, roster.SeatAt(1, 0)), Is.True, "the watcher can take a free seat on either raft");
+            Assert.That(roster.RaftOfHuman(8), Is.EqualTo(1));
+        }
+
+        [Test]
+        public void SwitchingToTeamRace_DealsEveryoneAgain()
+        {
+            var roster = new CrewRoster(catalog, 4);
+            roster.AddHuman(1);
+            roster.AddHuman(2);
+            Assert.That(roster.RaftOfHuman(1), Is.EqualTo(0));
+
+            roster.SetLayout(4, 2);
+            Assert.That(roster.RaftOfHuman(Peers.Host), Is.EqualTo(0));
+            Assert.That(roster.RaftOfHuman(1), Is.EqualTo(1));
+            Assert.That(roster.RaftOfHuman(2), Is.EqualTo(0));
+            Assert.That(roster.Blowers(1), Has.Length.EqualTo(4));
+        }
+
+        [Test]
         public void Names_AreTrimmedToPrintableCharacters_WithoutSplittingAnEmoji()
         {
             Assert.That(Loadout.CleanName(null), Is.EqualTo(""));

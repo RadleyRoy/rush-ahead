@@ -179,6 +179,53 @@ namespace RushAhead.Tests
         }
 
         [Test]
+        public void ATeamRace_OverTheNetwork_ShowsEveryoneBothRafts()
+        {
+            var network = new LoopbackNetwork(seed: 21, latencySeconds: 0.08f, jitterSeconds: 0.03f, lossRate: 0.03f);
+            var roster = new CrewRoster(catalog, 4, raftCount: 2);
+            var red = world.SpawnBoat(new Vector2(0f, 3f), 0f, roster.Blowers(0));
+            var blue = world.SpawnBoat(new Vector2(0f, -3f), 0f, roster.Blowers(1));
+            var host = new HostSession(network.Host, roster, new Rigidbody2D[0]);
+            host.UseBoats(new[] { red, blue });
+
+            var sessions = new List<ClientSession>();
+            var ids = new List<ulong>();
+            for (var i = 0; i < 3; i++)
+            {
+                var endpoint = network.Connect();
+                ids.Add(endpoint.Id);
+                var session = new ClientSession(endpoint, config, catalog, catalog.DefaultLoadout(i), device: (ulong)(500 + i), seat =>
+                    // Whoever sits rear-left on the Blue raft (seat 2 there) drives it ahead.
+                    seat == roster.SeatAt(1, 2) ? new CrewInput { AimAngle = Mathf.PI, HasAim = true, Throttle = 1f } : CrewInput.Idle);
+                sessions.Add(session);
+            }
+
+            for (var frame = 0; frame < 4 * 60; frame++)
+            {
+                network.Advance(Dt);
+                foreach (var s in sessions) s.Update(Dt);
+                world.Advance(Dt);
+                host.OnTick(world.Tick);
+            }
+
+            Assert.That(roster.HumansOn(0), Is.EqualTo(2), "host plus one joiner on Red");
+            Assert.That(roster.HumansOn(1), Is.EqualTo(2), "two joiners on Blue");
+            foreach (var s in sessions)
+            {
+                Assert.That(s.Rafts, Is.EqualTo(2));
+                Assert.That(s.Boats[0].HasData && s.Boats[1].HasData, Is.True, "both rafts drawn");
+                Assert.That(s.MyRaft, Is.EqualTo(roster.RaftOfHuman(ids[sessions.IndexOf(s)])), "knows its own raft");
+                Assert.That(Vector2.Distance(s.Boats[1].RenderPosition, blue.Body.Position), Is.LessThan(1f), "Blue is where the host has it");
+            }
+
+            Assert.That(blue.Body.Position.x, Is.GreaterThan(1f), "a joined player drove the Blue raft");
+            Assert.That(red.Body.Position.x, Is.LessThan(0.5f), "and only that raft");
+
+            host.Dispose();
+            foreach (var s in sessions) s.Dispose();
+        }
+
+        [Test]
         public void APlayerWhoDropsOut_GetsTheirSeatBack_WhenTheyReconnect()
         {
             var network = new LoopbackNetwork(seed: 7, latencySeconds: 0.05f, jitterSeconds: 0.02f);

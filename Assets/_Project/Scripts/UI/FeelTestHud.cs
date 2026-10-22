@@ -124,26 +124,31 @@ namespace RushAhead.UI
         }
 
         /// <summary>When playing together, each animal carries its player's name in their colour, so everyone knows who's who.</summary>
+        /// <summary>Each animal carries its player's name (or "AI") in its seat colour, on every raft, so everyone knows who's who.</summary>
         void DrawNameTags(float scale)
         {
-            var view = Game.RaftView;
             var camera = Camera.main;
-            if ((Game.Mode == NetMode.Offline && !Game.HasAiCrew) || view == null || camera == null) return;
+            if ((Game.Mode == NetMode.Offline && !Game.HasAiCrew && !Game.TeamRace) || camera == null) return;
 
             tagStyle ??= new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter, fontStyle = FontStyle.Bold, fontSize = 15 };
             var seats = Game.Seats;
-            for (var seat = 0; seat < seats.Length && seat < Game.ViewedBoat.CrewCount; seat++)
+            var crew = Mathf.Max(1, Game.CrewCount);
+            for (var seat = 0; seat < seats.Length; seat++)
             {
                 if (!seats[seat].Human && !seats[seat].Ai && !seats[seat].Kept) continue;
-                var screen = camera.WorldToScreenPoint(view.TagPosition(seat));
+                var raft = seat / crew;
+                var view = Game.ViewOf(raft);
+                var state = Game.RaftState(raft);
+                if (view == null || state == null || seat % crew >= state.CrewCount) continue;
+                var screen = camera.WorldToScreenPoint(view.TagPosition(seat % crew));
                 if (screen.z <= 0f) continue;
 
                 var at = new Vector2(screen.x, Screen.height - screen.y) / scale;
-                var text = seats[seat].Yours ? "You" : DisplayName(seats[seat], seat);
+                var text = seats[seat].Yours ? "You" : DisplayName(seats[seat], seat % crew);
                 var rect = new Rect(at.x - 80f, at.y - 12f, 160f, 24f);
                 GUI.color = new Color(0f, 0f, 0f, 0.6f);
                 GUI.Label(new Rect(rect.x + 1.5f, rect.y + 1.5f, rect.width, rect.height), text, tagStyle);
-                GUI.color = RaftView.PlayerColor(seat);
+                GUI.color = RaftView.PlayerColor(seat % crew);
                 GUI.Label(rect, text, tagStyle);
             }
 

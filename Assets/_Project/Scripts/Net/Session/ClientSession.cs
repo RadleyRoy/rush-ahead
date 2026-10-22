@@ -14,7 +14,8 @@ namespace RushAhead.Net
         readonly INetTransport transport;
         readonly Func<int, CrewInput> readLocalInput;
         readonly ByteWriter writer = new(64);
-        readonly byte[] burstCounts = new byte[CrewSectors.MaxCrew];
+        readonly byte[] burstCounts = new byte[CrewRoster.MaxSeats];
+        readonly OrderMessage[] orders = new OrderMessage[CrewRoster.MaxRafts];
         readonly ulong device;
         Loadout profile;
         ushort sequence;
@@ -30,7 +31,7 @@ namespace RushAhead.Net
             this.profile = profile;
             this.device = device;
             Timeline = new SnapshotTimeline(config.tickRate, snapshotEveryTicks: 2);
-            Boat = new InterpolatedBoat(config, catalog.blowers);
+            for (var raft = 0; raft < CrewRoster.MaxRafts; raft++) boats.Add(new InterpolatedBoat(config, catalog.blowers, raft));
             transport.PeerConnected += OnConnected;
             transport.PeerDisconnected += OnDisconnected;
             transport.Received += OnReceived;
@@ -42,21 +43,35 @@ namespace RushAhead.Net
         /// <summary>The host loaded a venue or started a race.</summary>
         public event Action RaceChanged;
 
-        /// <summary>The AI crew's order, as last heard from the host.</summary>
-        public OrderMessage Order { get; private set; }
+        /// <summary>This player's raft's AI order, as last heard from the host.</summary>
+        public OrderMessage Order => orders[MyRaft];
 
         public event Action Disconnected;
 
+        readonly System.Collections.Generic.List<InterpolatedBoat> boats = new();
+
         public SnapshotTimeline Timeline { get; }
-        public InterpolatedBoat Boat { get; }
+
+        /// <summary>The first raft (the only one in Co-op).</summary>
+        public InterpolatedBoat Boat => boats[0];
+
+        /// <summary>Every raft the host might send; only the first <see cref="Rafts"/> have data.</summary>
+        public System.Collections.Generic.IReadOnlyList<InterpolatedBoat> Boats => boats;
+
+        /// <summary>One raft (Co-op) or two (Team Race), as the last roster said.</summary>
+        public int Rafts { get; private set; } = 1;
+
+        /// <summary>The raft this player is on (0 while watching).</summary>
+        public int MyRaft => Seats.Length > 0 && CrewCount > 0 ? Seats[0] / CrewCount : 0;
         public bool Connected { get; private set; }
         public RosterSeat[] Roster { get; private set; } = Array.Empty<RosterSeat>();
 
         /// <summary>The host's venue and race start, as last heard.</summary>
         public RaceMessage Race { get; private set; }
-        public int CrewCount => Roster.Length;
+        /// <summary>Animals per raft.</summary>
+        public int CrewCount => Rafts > 0 ? Roster.Length / Rafts : 0;
 
-        /// <summary>The seats this device drives: one, or none while the raft is full and it's watching.</summary>
+        /// <summary>The seats this device drives, numbered across all rafts: one, or none while it's watching.</summary>
         public int[] Seats { get; private set; } = Array.Empty<int>();
 
         /// <summary>Set when the host can't be played with (another version); the caller should leave and show it.</summary>
@@ -93,7 +108,7 @@ namespace RushAhead.Net
         public void Update(float deltaSeconds)
         {
             Timeline.Advance(deltaSeconds);
-            Boat.Update(Timeline);
+            foreach (var boat in boats) boat.Update(Timeline);
 
             sendTimer += deltaSeconds;
             if (sendTimer < SendInterval) return;
@@ -146,7 +161,8 @@ namespace RushAhead.Net
                 switch (Protocol.PeekType(message))
                 {
                     case MessageType.Roster:
-                        Roster = Protocol.ReadRoster(new ByteReader(message));
+                        Roster = Protocol.ReadRoster(new ByteReader(message), out var rafts);
+                        Rafts = rafts;
                         var seats = new System.Collections.Generic.List<int>();
                         for (var seat = 0; seat < Roster.Length; seat++)
                             if (Roster[seat].Yours) seats.Add(seat);
@@ -156,7 +172,8 @@ namespace RushAhead.Net
                         break;
 
                     case MessageType.Order:
-                        Order = Protocol.ReadOrder(new ByteReader(message));
+                        var order = Protocol.ReadOrder(new ByteReader(message));
+                        orders[order.Raft] = order;
                         break;
 
                     case MessageType.Race:

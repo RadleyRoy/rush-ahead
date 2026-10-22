@@ -16,6 +16,7 @@ namespace RushAhead.AI
     public sealed class AiCrew
     {
         const float LookaheadMetres = 7f;
+        const float LaneShare = 0.85f; // how far toward its own lane a Team Race crew steers
         const float SpeedGain = 0.8f; // throttle per m/s of velocity error
         const float BraceOrderSeconds = 3f;
         const float PushHereSeconds = 10f;
@@ -51,6 +52,12 @@ namespace RushAhead.AI
 
         /// <summary>The course's river, for following its racing line. Null in open water, where Go follows the players.</summary>
         public River River { get; set; }
+
+        /// <summary>In a Team Race, which side of the racing line this crew keeps to (0 left, 1 right), so two rafts race
+        /// side by side rather than queueing nose to tail. One lane (Co-op) follows the line itself.</summary>
+        public int Lane { get; set; }
+
+        public int Lanes { get; set; } = 1;
 
         public CrewOrder Order { get; private set; }
         public Vector2 PushPoint { get; private set; }
@@ -234,7 +241,12 @@ namespace RushAhead.AI
                     if (River != null)
                     {
                         var at = River.Project(boat.Body.Position);
-                        Target = River.At(at.Distance + LookaheadMetres).RacingPoint;
+                        var ahead = River.At(at.Distance + LookaheadMetres);
+                        // Keep to this crew's side of the line, wide enough apart that two rafts (3.2 m each) pass without
+                        // trading paint, and out of each other's exhaust; the clamp keeps clear of the banks.
+                        var across = Mathf.Clamp(ahead.LineOffset * ahead.HalfWidth + LaneShare * Course.LaneOffset(ahead, Lane, Lanes),
+                            -0.72f * ahead.HalfWidth, 0.72f * ahead.HalfWidth);
+                        Target = ahead.Centre + ahead.Left * across;
                         return Toward(Target.Value);
                     }
 

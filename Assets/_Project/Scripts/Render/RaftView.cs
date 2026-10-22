@@ -36,14 +36,16 @@ namespace RushAhead.Render
 
         /// <param name="boat">The live boat on the host, or a raft rebuilt from snapshots on a client.</param>
         /// <param name="looks">Each seat's chosen animal and fur; seats beyond the list get the catalog's defaults.</param>
-        public static RaftView Build(IBoatState boat, SimConfig config, ArtPalette palette, CrewCatalog catalog, IReadOnlyList<Loadout> looks)
+        /// <param name="tube">The tube's colour, to tell Team Race rafts apart; null keeps the classic peach.</param>
+        public static RaftView Build(IBoatState boat, SimConfig config, ArtPalette palette, CrewCatalog catalog, IReadOnlyList<Loadout> looks,
+                                     Color? tube = null)
         {
             var view = new GameObject($"Raft {boat.Index}").AddComponent<RaftView>();
             view.boat = boat;
             view.config = config;
             view.palette = palette;
             view.catalog = catalog;
-            view.BuildRaft(config.hullRadius);
+            view.BuildRaft(config.hullRadius, tube.HasValue ? palette.Tinted(palette.raftTube, tube.Value) : palette.raftTube);
             view.BuildSlices(config.hullRadius);
             view.BuildCrew(looks);
             view.LateUpdate();
@@ -68,14 +70,14 @@ namespace RushAhead.Render
         /// <summary>World position just above a seat's animal, for its name tag.</summary>
         public Vector3 TagPosition(int seat) => animals[seat].TagAnchor.position;
 
-        void BuildRaft(float radius)
+        void BuildRaft(float radius, Material tubeMaterial)
         {
             Shapes3D.MeshObject("Foam", Shapes3D.Disc(radius + 0.55f), transform, new Vector3(0f, 0.02f, 0f), palette.foam);
 
             hull = Shapes3D.Group(transform, "Hull");
             const float tube = 0.24f;
             Shapes3D.MeshObject("Band", Shapes3D.Torus(radius - tube, tube), hull, new Vector3(0f, 0.06f, 0f), palette.raftBand);
-            Shapes3D.MeshObject("Tube", Shapes3D.Torus(radius - tube - 0.02f, tube * 0.95f), hull, new Vector3(0f, 0.36f, 0f), palette.raftTube);
+            Shapes3D.MeshObject("Tube", Shapes3D.Torus(radius - tube - 0.02f, tube * 0.95f), hull, new Vector3(0f, 0.36f, 0f), tubeMaterial);
             Shapes3D.MeshObject("Floor", Shapes3D.Disc(radius - tube), hull, new Vector3(0f, FloorHeight, 0f), palette.raftFloor);
 
             // Grab handles around the tube, like the real thing.

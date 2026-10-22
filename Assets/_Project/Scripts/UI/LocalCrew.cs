@@ -24,7 +24,8 @@ namespace RushAhead.UI
         };
 
         public Loadout Profile;
-        public readonly Loadout[] Spares = new Loadout[CrewSectors.MaxCrew];
+        /// <summary>Per seat, numbered across both Team Race rafts.</summary>
+        public readonly Loadout[] Spares = new Loadout[RushAhead.Net.CrewRoster.MaxSeats];
 
         /// <summary>A random id this device keeps forever, so a host recognises its player coming back after a dropout.</summary>
         public ulong DeviceId { get; private set; }
@@ -42,10 +43,10 @@ namespace RushAhead.UI
             try
             {
                 var lines = PlayerPrefs.GetString(Key, "").Split('\n');
-                if (lines.Length == 1 + crew.Spares.Length)
+                if (lines.Length >= 2) // older saves have fewer spare seats (one raft); the rest keep their defaults
                 {
                     crew.Profile = catalog.Clamp(Parse(lines[0]));
-                    for (var seat = 0; seat < crew.Spares.Length; seat++) crew.Spares[seat] = catalog.Clamp(Parse(lines[seat + 1]));
+                    for (var seat = 0; seat < crew.Spares.Length && seat + 1 < lines.Length; seat++) crew.Spares[seat] = catalog.Clamp(Parse(lines[seat + 1]));
                 }
             }
             catch (Exception e) when (e is FormatException or OverflowException)

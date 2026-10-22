@@ -6,16 +6,20 @@ using RushAhead.Sim;
 namespace RushAhead.Net
 {
     /// <summary>
-    /// Who sits where, wearing what: the host's single source of truth, and an offline device's too. Every human (the
-    /// host's own player and each client) owns at most one seat; a seat nobody owns is a spare, driven by the AI crew
-    /// or (with AI off) by the host device's other controls. Joiners take the next free seat in drive order, anyone may
-    /// move to a free seat, and players keep their seats when others come and go. A player who drops out has their
-    /// seat (and look) kept for them for a while, so they get it back when they reconnect. Only a new crew size
-    /// re-deals everyone, in join order.
+    /// Who sits where, wearing what: the host's single source of truth, and an offline device's too. There are one or
+    /// two rafts (Co-op, or Team Race) of the same crew size; seats are numbered across them, raft by raft, so with one
+    /// raft a seat number is simply its seat. Every human (the host's own player and each client) owns at most one seat;
+    /// a seat nobody owns is a spare, driven by the AI crew or (Co-op with AI off) by the host device's other controls.
+    /// Joiners go to the raft with fewer players, taking its next free seat in drive order; anyone may move to a free
+    /// seat on either raft, and players keep their seats when others come and go. A player who drops out has their seat
+    /// (and look) kept for them for a while, so they get it back when they reconnect. Only a new layout re-deals
+    /// everyone, in join order.
     /// </summary>
     public sealed class CrewRoster
     {
         public const ulong Nobody = ulong.MaxValue;
+        public const int MaxRafts = 2;
+        public const int MaxSeats = CrewSectors.MaxCrew * MaxRafts;
 
         /// <summary>How long a dropped player's seat is kept for them.</summary>
         public const double KeepSeatSeconds = 45.0;
@@ -24,16 +28,17 @@ namespace RushAhead.Net
         readonly Dictionary<ulong, Loadout> profiles = new();
         readonly Dictionary<ulong, ulong> devices = new(); // human -> the device id they sent, to recognise them if they come back
         readonly Dictionary<int, Reservation> kept = new(); // seat -> who it's being kept for
-        readonly Loadout[] spareLooks = new Loadout[CrewSectors.MaxCrew];
+        readonly Loadout[] spareLooks = new Loadout[MaxSeats];
         Loadout hostProfile;
         ulong[] owners = Array.Empty<ulong>();
+        bool sparesAreAi;
 
-        public CrewRoster(CrewCatalog catalog, int crewCount)
+        public CrewRoster(CrewCatalog catalog, int crewCount, int raftCount = 1)
         {
             Catalog = catalog;
             hostProfile = catalog.DefaultLoadout(0);
             for (var seat = 0; seat < spareLooks.Length; seat++) spareLooks[seat] = catalog.DefaultLoadout(seat + 1);
-            SetCrewCount(crewCount);
+            SetLayout(crewCount, raftCount);
         }
 
         struct Reservation
@@ -43,16 +48,16 @@ namespace RushAhead.Net
             public double Until;
         }
 
-        /// <summary>Something changed: a seat, the crew size or a loadout.</summary>
+        /// <summary>Something changed: a seat, the layout or a loadout.</summary>
         public event Action Changed;
 
         /// <summary>Seconds on the host's clock, for keeping seats; the host keeps it current.</summary>
         public double Now { get; set; }
 
-        /// <summary>Spare seats are AI crewmates rather than the host device's extra controls.</summary>
+        /// <summary>Spare seats are AI crewmates rather than the host device's extra controls. Always true with two rafts.</summary>
         public bool SparesAreAi
         {
-            get => sparesAreAi;
+            get => sparesAreAi || RaftCount > 1;
             set
             {
                 if (sparesAreAi == value) return;
@@ -61,22 +66,36 @@ namespace RushAhead.Net
             }
         }
 
-        bool sparesAreAi;
-
         public CrewCatalog Catalog { get; }
-        public int CrewCount => owners.Length;
+
+        /// <summary>Animals per raft.</summary>
+        public int CrewCount { get; private set; }
+
+        public int RaftCount { get; private set; } = 1;
+        public int SeatCount => owners.Length;
 
         /// <summary>The host's own player first, then clients in the order they joined.</summary>
         public IReadOnlyList<ulong> Humans => humans;
 
+        public int RaftOf(int seat) => seat / CrewCount;
+        public int SeatInRaft(int seat) => seat % CrewCount;
+        public int SeatAt(int raft, int seatInRaft) => raft * CrewCount + seatInRaft;
+
         public ulong OwnerOf(int seat) => owners[seat];
 
-        /// <summary>The seat a human sits in, or -1 if the raft was full when they joined and they're watching.</summary>
+        /// <summary>The seat a human sits in, or -1 if every raft was full when they joined and they're watching.</summary>
         public int SeatOf(ulong human) => Array.IndexOf(owners, human);
+
+        /// <summary>The raft a human is on, or -1 while they're watching.</summary>
+        public int RaftOfHuman(ulong human)
+        {
+            var seat = SeatOf(human);
+            return seat < 0 ? -1 : RaftOf(seat);
+        }
 
         /// <summary>
         /// Seats this device's controls drive, in the order its input slots take them: the host player's own seat, then
-        /// the spares, best drivers first.
+        /// (Co-op with AI off) the spares on that raft, best drivers first.
         /// </summary>
         public int[] LocalSeats()
         {
@@ -84,19 +103,41 @@ namespace RushAhead.Net
             var own = SeatOf(Peers.Host);
             if (own >= 0) seats.Add(own);
             if (!SparesAreAi)
+            {
+                var raft = own >= 0 ? RaftOf(own) : 0;
                 foreach (var seat in CrewSectors.DriveOrder(CrewCount))
+                    if (owners[SeatAt(raft, seat)] == Nobody) seats.Add(SeatAt(raft, seat));
+            }
+
+            return seats.ToArray();
+        }
+
+        /// <summary>Every seat the AI drives, across all rafts: each spare, when <see cref="SparesAreAi"/>.</summary>
+        public int[] AiSeats()
+        {
+            var seats = new List<int>(SeatCount);
+            if (SparesAreAi)
+                for (var seat = 0; seat < SeatCount; seat++)
                     if (owners[seat] == Nobody) seats.Add(seat);
             return seats.ToArray();
         }
 
-        /// <summary>The seats the AI crew drives: every spare, when <see cref="SparesAreAi"/>.</summary>
-        public int[] AiSeats()
+        /// <summary>The AI seats on one raft, numbered within that raft (as its crew and AI know them).</summary>
+        public int[] AiSeatsOn(int raft)
         {
             var seats = new List<int>(CrewCount);
-            if (SparesAreAi)
-                for (var seat = 0; seat < CrewCount; seat++)
-                    if (owners[seat] == Nobody) seats.Add(seat);
+            foreach (var seat in AiSeats())
+                if (RaftOf(seat) == raft) seats.Add(SeatInRaft(seat));
             return seats.ToArray();
+        }
+
+        /// <summary>How many people sit on a raft, for balancing the teams.</summary>
+        public int HumansOn(int raft)
+        {
+            var count = 0;
+            for (var seat = 0; seat < CrewCount; seat++)
+                if (owners[SeatAt(raft, seat)] != Nobody) count++;
+            return count;
         }
 
         /// <summary>Whether a seat is being kept for a player who dropped out, and still has time to come back.</summary>
@@ -112,18 +153,18 @@ namespace RushAhead.Net
             return profiles.TryGetValue(owner, out var profile) ? profile : Catalog.DefaultLoadout(seat + 1);
         }
 
-        /// <summary>The blowers in seat order, for spawning a raft that matches the roster.</summary>
-        public BlowerDef[] Blowers()
+        /// <summary>One raft's blowers in seat order, for spawning it to match the roster.</summary>
+        public BlowerDef[] Blowers(int raft = 0)
         {
             var blowers = new BlowerDef[CrewCount];
-            for (var seat = 0; seat < blowers.Length; seat++) blowers[seat] = Catalog.BlowerOf(LoadoutAt(seat));
+            for (var seat = 0; seat < blowers.Length; seat++) blowers[seat] = Catalog.BlowerOf(LoadoutAt(SeatAt(raft, seat)));
             return blowers;
         }
 
-        /// <summary>The roster as <paramref name="viewer"/> sees it: every seat's look, and which seats are people, the host and theirs.</summary>
+        /// <summary>The roster as <paramref name="viewer"/> sees it: every seat on every raft, with who's a person, the host and theirs.</summary>
         public RosterSeat[] Describe(ulong viewer)
         {
-            var seats = new RosterSeat[CrewCount];
+            var seats = new RosterSeat[SeatCount];
             for (var seat = 0; seat < seats.Length; seat++)
             {
                 var owner = owners[seat];
@@ -141,13 +182,22 @@ namespace RushAhead.Net
             return seats;
         }
 
-        /// <summary>A fresh raft of a new size: everyone is re-dealt a seat in join order, so the host keeps the best one.</summary>
-        public void SetCrewCount(int count)
+        /// <summary>A fresh raft of a new size, keeping the number of rafts.</summary>
+        public void SetCrewCount(int count) => SetLayout(count, RaftCount);
+
+        /// <summary>
+        /// New rafts: everyone is re-dealt a seat in join order (so the host keeps the best one), spreading people
+        /// across the rafts as evenly as they go.
+        /// </summary>
+        public void SetLayout(int crewCount, int raftCount)
         {
-            if (count < 1 || count > CrewSectors.MaxCrew) throw new ArgumentOutOfRangeException(nameof(count), count, "1 to 4 players");
-            owners = new ulong[count];
+            if (crewCount < 1 || crewCount > CrewSectors.MaxCrew) throw new ArgumentOutOfRangeException(nameof(crewCount), crewCount, "1 to 4 players");
+            if (raftCount < 1 || raftCount > MaxRafts) throw new ArgumentOutOfRangeException(nameof(raftCount), raftCount, "1 or 2 rafts");
+            CrewCount = crewCount;
+            RaftCount = raftCount;
+            owners = new ulong[crewCount * raftCount];
             Array.Fill(owners, Nobody);
-            kept.Clear(); // a different raft: the old seats mean nothing now
+            kept.Clear(); // different rafts: the old seats mean nothing now
             foreach (var human in humans) TakeNextFreeSeat(human);
             Changed?.Invoke();
         }
@@ -156,7 +206,7 @@ namespace RushAhead.Net
         {
             if (humans.Contains(human)) return;
             humans.Add(human);
-            TakeNextFreeSeat(human); // a full raft leaves them watching
+            TakeNextFreeSeat(human); // full rafts leave them watching
             Changed?.Invoke();
         }
 
@@ -177,10 +227,10 @@ namespace RushAhead.Net
             Changed?.Invoke();
         }
 
-        /// <summary>Moves a human to a free seat, or seats someone who was watching. Refused if another player sits there.</summary>
+        /// <summary>Moves a human to a free seat on any raft, or seats someone who was watching. Refused if another player sits there.</summary>
         public bool Claim(ulong human, int seat)
         {
-            if (!humans.Contains(human) || seat < 0 || seat >= CrewCount) return false;
+            if (!humans.Contains(human) || seat < 0 || seat >= SeatCount) return false;
             if (owners[seat] == human) return true;
             if (owners[seat] != Nobody) return false;
 
@@ -220,7 +270,7 @@ namespace RushAhead.Net
             if (rejoined || !same) Changed?.Invoke();
         }
 
-        /// <summary>The host device's own looks: its player's, and what each seat wears while it's a spare.</summary>
+        /// <summary>The host device's own looks: its player's, and what each seat (across all rafts) wears while it's a spare.</summary>
         public void SetHostLooks(Loadout profile, IReadOnlyList<Loadout> spares)
         {
             hostProfile = Catalog.Clamp(profile);
@@ -228,26 +278,35 @@ namespace RushAhead.Net
             Changed?.Invoke();
         }
 
-        /// <summary>Hands each animal on <paramref name="boat"/> the blower its loadout names. Swapping refills the tank.</summary>
-        public void ApplyBlowers(Boat boat)
+        /// <summary>Hands each animal on a raft's boat the blower its loadout names. Swapping refills the tank.</summary>
+        public void ApplyBlowers(Boat boat, int raft = 0)
         {
-            if (boat == null || boat.Crew.Length != CrewCount) return;
+            if (boat == null || boat.Crew.Length != CrewCount || raft >= RaftCount) return;
             foreach (var crew in boat.Crew)
             {
-                var blower = Catalog.BlowerOf(LoadoutAt(crew.Seat));
+                var blower = Catalog.BlowerOf(LoadoutAt(SeatAt(raft, crew.Seat)));
                 if (crew.Blower != blower) crew.Equip(blower);
             }
         }
 
-        /// <summary>The best free seat, leaving seats kept for dropped players alone (a newcomer can still choose one).</summary>
+        /// <summary>
+        /// The best free seat on the raft with fewest people (the first raft on a tie), leaving seats kept for dropped
+        /// players alone (a newcomer can still choose one). If that raft is full, the other one.
+        /// </summary>
         void TakeNextFreeSeat(ulong human)
         {
-            foreach (var seat in CrewSectors.DriveOrder(CrewCount))
-            {
-                if (owners[seat] != Nobody || IsKept(seat)) continue;
-                owners[seat] = human;
-                return;
-            }
+            var rafts = new List<int>(RaftCount);
+            for (var raft = 0; raft < RaftCount; raft++) rafts.Add(raft);
+            rafts.Sort((a, b) => HumansOn(a) != HumansOn(b) ? HumansOn(a).CompareTo(HumansOn(b)) : a.CompareTo(b));
+
+            foreach (var raft in rafts)
+                foreach (var seat in CrewSectors.DriveOrder(CrewCount))
+                {
+                    var global = SeatAt(raft, seat);
+                    if (owners[global] != Nobody || IsKept(global)) continue;
+                    owners[global] = human;
+                    return;
+                }
         }
     }
 }

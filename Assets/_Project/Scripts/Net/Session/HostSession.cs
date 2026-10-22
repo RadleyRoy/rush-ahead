@@ -7,24 +7,27 @@ namespace RushAhead.Net
 {
     /// <summary>
     /// The authoritative side. Runs the only simulation, seats joiners through the <see cref="CrewRoster"/>, takes each
-    /// client's inputs for the seat they own, keeps every client's roster current, and broadcasts snapshots. The host's
-    /// own controls drive its player's seat and every spare.
+    /// client's inputs for the seat they own (on whichever raft), keeps every client's roster current, and broadcasts
+    /// snapshots of every raft. The host's own controls drive its player's seat; the AI (or, in Co-op with AI off, the
+    /// host's other controls) drives the spares.
     /// </summary>
     public sealed class HostSession : IDisposable
     {
         readonly INetTransport transport;
         readonly List<ulong> clients = new();
         readonly Dictionary<(ulong client, int seat), RemoteSeatInput> remote = new();
-        readonly ByteWriter writer = new(256);
+        readonly List<Boat> boats = new();
+        readonly OrderMessage[] orders = new OrderMessage[CrewRoster.MaxRafts];
+        readonly ByteWriter writer = new(512);
         readonly Snapshot snapshot = new();
         RaceMessage race;
-        OrderMessage order;
 
         public HostSession(INetTransport transport, CrewRoster roster, IReadOnlyList<Rigidbody2D> props)
         {
             this.transport = transport;
             Props = props;
             Roster = roster;
+            for (var raft = 0; raft < orders.Length; raft++) orders[raft].Raft = (byte)raft;
             transport.PeerConnected += OnClientJoined;
             transport.PeerDisconnected += OnClientLeft;
             transport.Received += OnReceived;
@@ -32,21 +35,29 @@ namespace RushAhead.Net
         }
 
         public CrewRoster Roster { get; }
-        public Boat Boat { get; private set; }
+
+        /// <summary>The first raft (the only one in Co-op).</summary>
+        public Boat Boat => boats.Count > 0 ? boats[0] : null;
+
+        public IReadOnlyList<Boat> Boats => boats;
         public int SnapshotEveryTicks { get; set; } = 2; // 30 Hz at the 60 Hz tick
         public IReadOnlyList<ulong> Clients => clients;
 
         /// <summary>Loose bodies every client should see, in an order all devices agree on (the venue's barrel list).</summary>
         public IReadOnlyList<Rigidbody2D> Props { get; set; }
 
-        /// <summary>A client asked the AI crew to do something. The host decides, then calls <see cref="SetOrder"/>.</summary>
+        /// <summary>
+        /// A client asked the AI crew to do something; <see cref="OrderMessage.Raft"/> is set to the client's own raft,
+        /// whatever they sent. The host decides, then calls <see cref="SetOrder"/>.
+        /// </summary>
         public event Action<OrderMessage> OrderRequested;
 
-        /// <summary>Tells every client (and anyone who joins later) what the AI crew is doing, for their order buttons.</summary>
+        /// <summary>Tells every client (and anyone who joins later) what a raft's AI crew is doing, for their order buttons.</summary>
         public void SetOrder(OrderMessage current)
         {
-            order = current;
-            foreach (var client in clients) Send(client, order);
+            if (current.Raft >= orders.Length) return;
+            orders[current.Raft] = current;
+            foreach (var client in clients) Send(client, current);
         }
 
         void Send(ulong client, in OrderMessage message)
@@ -63,11 +74,15 @@ namespace RushAhead.Net
             foreach (var client in clients) SendRace(client);
         }
 
-        /// <summary>Starts serving <paramref name="boat"/>, a raft spawned to match the roster's crew size.</summary>
-        public void UseBoat(Boat boat)
+        /// <summary>Starts serving one raft (Co-op).</summary>
+        public void UseBoat(Boat boat) => UseBoats(new[] { boat });
+
+        /// <summary>Starts serving these rafts, one per roster raft, spawned to match its layout.</summary>
+        public void UseBoats(IReadOnlyList<Boat> rafts)
         {
-            Boat = boat;
-            remote.Clear(); // seat numbers mean different places on a raft of another size
+            boats.Clear();
+            boats.AddRange(rafts);
+            remote.Clear(); // seat numbers mean different places on rafts of another layout
             OnRosterChanged();
         }
 
@@ -80,7 +95,7 @@ namespace RushAhead.Net
         /// <summary>Call after every simulation tick; broadcasts a snapshot every <see cref="SnapshotEveryTicks"/> ticks.</summary>
         public void OnTick(int tick)
         {
-            if (Boat == null || clients.Count == 0 || tick % SnapshotEveryTicks != 0) return;
+            if (boats.Count == 0 || clients.Count == 0 || tick % SnapshotEveryTicks != 0) return;
 
             Capture((uint)tick);
             writer.Reset();
@@ -92,22 +107,30 @@ namespace RushAhead.Net
         {
             if (clients.Contains(client)) return;
             clients.Add(client);
-            SendRace(client); // first, so they build the right venue before the raft appears on it
-            Send(client, order);
+            SendRace(client); // first, so they build the right venue before the rafts appear on it
+            for (var raft = 0; raft < Roster.RaftCount; raft++) Send(client, orders[raft]);
             Roster.AddHuman(client); // they wear a default look until their profile arrives, a moment later
         }
 
         void OnClientLeft(ulong client)
         {
             if (!clients.Remove(client)) return;
-            Roster.RemoveHuman(client); // their seat becomes a spare for the host's controls; nobody else moves
+            Roster.RemoveHuman(client); // their seat becomes a spare (the AI's, or the host's); nobody else moves
+        }
+
+        bool RaftsMatchRoster()
+        {
+            if (boats.Count != Roster.RaftCount) return false;
+            foreach (var boat in boats)
+                if (boat == null || boat.Crew.Length != Roster.CrewCount) return false;
+            return true;
         }
 
         void OnRosterChanged()
         {
-            if (Boat == null || Boat.Crew.Length != Roster.CrewCount) return; // a new raft is on its way; UseBoat calls back
+            if (!RaftsMatchRoster()) return; // new rafts are on their way; UseBoats calls back
 
-            Roster.ApplyBlowers(Boat);
+            for (var raft = 0; raft < boats.Count; raft++) Roster.ApplyBlowers(boats[raft], raft);
 
             // Point every client-owned seat at that client's input. An input source lives as long as its client keeps
             // the seat, so a re-sent roster never re-baselines (and can't drop) a burst in flight.
@@ -118,7 +141,7 @@ namespace RushAhead.Net
                 if (seat < 0) continue;
                 live.Add((client, seat));
                 if (!remote.TryGetValue((client, seat), out var input)) remote[(client, seat)] = input = new RemoteSeatInput();
-                Boat.Crew[seat].Input = input;
+                boats[Roster.RaftOf(seat)].Crew[Roster.SeatInRaft(seat)].Input = input;
             }
 
             var stale = new List<(ulong, int)>();
@@ -126,9 +149,10 @@ namespace RushAhead.Net
                 if (!live.Contains(key)) stale.Add(key);
             foreach (var key in stale) remote.Remove(key);
 
-            // A seat a client gave up mustn't keep replaying their last input; the host's own controls pick it up.
-            foreach (var crew in Boat.Crew)
-                if (crew.Input is RemoteSeatInput && !IsRemote(crew.Seat)) crew.Input = null;
+            // A seat a client gave up mustn't keep replaying their last input; whoever drives spares picks it up.
+            for (var raft = 0; raft < boats.Count; raft++)
+                foreach (var crew in boats[raft].Crew)
+                    if (crew.Input is RemoteSeatInput && !IsRemote(Roster.SeatAt(raft, crew.Seat))) crew.Input = null;
 
             foreach (var client in clients) SendRoster(client);
         }
@@ -143,7 +167,7 @@ namespace RushAhead.Net
         void SendRoster(ulong client)
         {
             writer.Reset();
-            Protocol.Write(writer, Roster.Describe(client));
+            Protocol.Write(writer, Roster.Describe(client), Roster.RaftCount);
             transport.Send(client, writer.Written, reliable: true);
         }
 
@@ -166,7 +190,11 @@ namespace RushAhead.Net
                         break;
 
                     case MessageType.Order:
-                        OrderRequested?.Invoke(Protocol.ReadOrder(reader));
+                        var order = Protocol.ReadOrder(reader);
+                        var raft = Roster.RaftOfHuman(from);
+                        if (raft < 0) break; // watching: no crew to order about
+                        order.Raft = (byte)raft;
+                        OrderRequested?.Invoke(order);
                         break;
 
                     case MessageType.ClaimSeat:
@@ -184,31 +212,36 @@ namespace RushAhead.Net
         void Capture(uint tick)
         {
             snapshot.Tick = tick;
-            if (snapshot.Boats.Count == 0) snapshot.Boats.Add(new BoatSnapshot());
+            while (snapshot.Boats.Count < boats.Count) snapshot.Boats.Add(new BoatSnapshot());
+            if (snapshot.Boats.Count > boats.Count) snapshot.Boats.RemoveRange(boats.Count, snapshot.Boats.Count - boats.Count);
 
-            var b = snapshot.Boats[0];
-            b.Position = Boat.Body.Position;
-            b.AngleRad = Boat.Body.AngleRad;
-            b.Velocity = Boat.Body.Velocity;
-            b.AngularVelocity = Boat.Body.AngularVelocityRad;
-            b.Tilt = Boat.Tilt.Tilt;
-            b.Capsized = Boat.State == BoatState.Capsized;
-            b.CapsizeCount = (byte)Mathf.Min(Boat.CapsizeCount, 255);
-            b.GatesPassed = (byte)Mathf.Min(Boat.GatesPassed, 255);
-            b.FinishTick = (uint)Mathf.Max(0, Boat.FinishTick);
-            b.TeleportCount = (byte)Boat.TeleportCount;
-            b.Crew.Clear();
-            foreach (var crew in Boat.Crew)
+            for (var i = 0; i < boats.Count; i++)
             {
-                b.Crew.Add(new CrewSnapshot
+                var boat = boats[i];
+                var b = snapshot.Boats[i];
+                b.Position = boat.Body.Position;
+                b.AngleRad = boat.Body.AngleRad;
+                b.Velocity = boat.Body.Velocity;
+                b.AngularVelocity = boat.Body.AngularVelocityRad;
+                b.Tilt = boat.Tilt.Tilt;
+                b.Capsized = boat.State == BoatState.Capsized;
+                b.CapsizeCount = (byte)Mathf.Min(boat.CapsizeCount, 255);
+                b.GatesPassed = (byte)Mathf.Min(boat.GatesPassed, 255);
+                b.FinishTick = (uint)Mathf.Max(0, boat.FinishTick);
+                b.TeleportCount = (byte)boat.TeleportCount;
+                b.Crew.Clear();
+                foreach (var crew in boat.Crew)
                 {
-                    LocalAimDeg = crew.LocalAimDeg,
-                    Spool = crew.Spool,
-                    Air = crew.Tank.Fraction,
-                    Braced = crew.Braced,
-                    BurstCount = (byte)crew.BurstCount,
-                    BlowerIndex = (byte)Mathf.Max(0, Roster.Catalog.IndexOf(crew.Blower)),
-                });
+                    b.Crew.Add(new CrewSnapshot
+                    {
+                        LocalAimDeg = crew.LocalAimDeg,
+                        Spool = crew.Spool,
+                        Air = crew.Tank.Fraction,
+                        Braced = crew.Braced,
+                        BurstCount = (byte)crew.BurstCount,
+                        BlowerIndex = (byte)Mathf.Max(0, Roster.Catalog.IndexOf(crew.Blower)),
+                    });
+                }
             }
 
             snapshot.Props.Clear();
@@ -222,7 +255,7 @@ namespace RushAhead.Net
             transport.PeerDisconnected -= OnClientLeft;
             transport.Received -= OnReceived;
             Roster.Changed -= OnRosterChanged;
-            foreach (var client in clients) Roster.RemoveHuman(client); // back to a one-device raft
+            foreach (var client in clients) Roster.RemoveHuman(client); // back to a one-device game
             clients.Clear();
         }
     }

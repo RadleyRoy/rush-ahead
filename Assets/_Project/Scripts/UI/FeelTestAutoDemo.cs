@@ -153,7 +153,9 @@ namespace RushAhead.UI
             var boat = game.ViewedBoat;
             Debug.Log($"[RushAhead] {name}: t={elapsed:0.0}s mode={game.Mode} pos={boat.RenderPosition} speed={boat.Velocity.magnitude:0.00} " +
                       $"course={run.Course?.displayName} clock={run.Seconds:0.0} gates={run.GatesPassed} finished={run.Finished} stars={run.Stars} " +
-                      $"capsizes={run.Capsizes} order={game.CurrentOrder.Order} {game.NetStatus} crew=[{CrewSummary()}]");
+                      $"capsizes={run.Capsizes} order={game.CurrentOrder.Order} " +
+                      (run.TeamRace ? $"raft={FeelTestBootstrap.TeamName(run.MyRaft)} rival-gates={run.RivalGatesPassed} rival-finished={run.RivalFinished} winner={run.Winner} " : "") +
+                      $"{game.NetStatus} crew=[{CrewSummary()}]");
         }
 
         /// <summary>Looks straight down on the whole course for one frame, without the HUD or haze, and saves that frame.</summary>

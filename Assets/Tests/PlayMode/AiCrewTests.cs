@@ -95,6 +95,48 @@ namespace RushAhead.Tests
             }
         }
 
+        [Test]
+        public void ATeamRaceOfTwoAiRafts_EndsWithAWinner()
+        {
+            var def = CourseSolvabilityTests.AllCourses().First();
+            var course = Course.Build(def);
+            try
+            {
+                world.WaterVelocity = course.WaterVelocityAt;
+                world.Drifting.AddRange(course.BarrelBodies);
+                var rafts = new List<(Boat boat, AiCrew ai, Race race)>();
+                for (var lane = 0; lane < 2; lane++)
+                {
+                    var (start, heading) = course.RespawnPose(0, lane, 2);
+                    var boat = world.SpawnBoat(start, heading, new[] { blower, blower, blower, blower });
+                    var ai = new AiCrew(boat, Keep(AiProfile.Preset(AiSkill.Ace)), config.tickRate, seed: 10 + lane) { River = course.River, Lane = lane, Lanes = 2 };
+                    ai.Drive(CrewSectors.DriveOrder(4));
+                    rafts.Add((boat, ai, new Race(course, boat, world.Tick, config.tickRate, lane, 2)));
+                }
+
+                Assert.That(Vector2.Distance(rafts[0].boat.Body.Position, rafts[1].boat.Body.Position), Is.GreaterThan(4f),
+                    "side by side on the start line, not on top of each other");
+                Assert.That(rafts[0].race.StartTick, Is.EqualTo(rafts[1].race.StartTick));
+
+                var limit = rafts[0].race.StartTick + Mathf.CeilToInt(def.parSeconds * 1.5f * config.tickRate);
+                while (rafts.Any(r => r.race.Phase != RacePhase.Finished) && world.Tick < limit)
+                {
+                    foreach (var r in rafts) r.ai.Update(Dt);
+                    world.Advance(Dt);
+                    foreach (var r in rafts) r.race.Step(world.Tick);
+                }
+
+                var times = rafts.Select(r => r.race.SecondsAt(world.Tick)).ToArray();
+                Debug.Log($"[RushAhead] {def.name}: AI team race, Red {times[0]:0.0} s, Blue {times[1]:0.0} s, " +
+                          $"capsizes {rafts[0].boat.CapsizeCount}/{rafts[1].boat.CapsizeCount}");
+                Assert.That(rafts.All(r => r.race.Phase == RacePhase.Finished), Is.True, "both rafts get home, despite bumping into each other");
+            }
+            finally
+            {
+                course.Destroy();
+            }
+        }
+
         AiProfile Keep(AiProfile profile)
         {
             created.Add(profile);
