@@ -1,0 +1,33 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 36c49ff31d9b25844bcda0ed2966742f, type: 3}
+  m_Name: ArtPalette
+  m_EditorClassIdentifier: RushAhead.Render::RushAhead.Render.ArtPalette
+  water: {fileID: 2100000, guid: bf221a5e35ff6c24f80967e7edd501d5, type: 2}
+  raftTube: {fileID: 2100000, guid: da5963a22e4a04c45be1feba4b54471c, type: 2}
+  raftBand: {fileID: 2100000, guid: 91b3ed2e070ca104ebeaada29b1f6b06, type: 2}
+  raftFloor: {fileID: 2100000, guid: 152b294838d8a7c4e825bc8e4e31d847, type: 2}
+  rock: {fileID: 2100000, guid: c174e409944cf59408fa40183968d106, type: 2}
+  cliff: {fileID: 2100000, guid: 8247c162d40406741884f71a7013b060, type: 2}
+  grass: {fileID: 2100000, guid: 8425d47dcd052274eaaebda1cea518de, type: 2}
+  wood: {fileID: 2100000, guid: daf563f672cbff44f83e39956260781d, type: 2}
+  leaves: {fileID: 2100000, guid: 0bbf3c884c33e734d8fe69e9c131e875, type: 2}
+  bamboo: {fileID: 2100000, guid: 2f95f4350d8e31d4ea3dc7b079fcf022, type: 2}
+  sign: {fileID: 2100000, guid: 84656349bf444fb47bbb3d06890a5da3, type: 2}
+  barrel: {fileID: 2100000, guid: b2cbcd69c69f50d419841fce755c59f0, type: 2}
+  barrelBand: {fileID: 2100000, guid: 8668c68462915404db92bcd07cd6bc41, type: 2}
+  animal: {fileID: 2100000, guid: 288a2ec884446da43946675bef2ea19b, type: 2}
+  eyeWhite: {fileID: 2100000, guid: fdbb9c3d942ce0549bd701c58adea313, type: 2}
+  eyeDark: {fileID: 2100000, guid: ff8cb7d945daa334fab21c560ea5414e, type: 2}
+  blowerTrim: {fileID: 2100000, guid: 5af1f44ef46ad2f4fb91df7fa71b6ccf, type: 2}
+  air: {fileID: 2100000, guid: 676150983e93e87498f7cda047ee14f9, type: 2}
+  foam: {fileID: 2100000, guid: 7472e098c083c754daaee972b4dcfc5f, type: 2}

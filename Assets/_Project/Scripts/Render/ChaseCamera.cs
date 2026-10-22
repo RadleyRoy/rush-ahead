@@ -1,0 +1,79 @@
+using System;
+using UnityEngine;
+
+namespace RushAhead.Render
+{
+    /// <summary>
+    /// Third-person chase camera: trails behind the raft, looking a little ahead of it, and slowly swings round
+    /// to face the way the raft is travelling. It never follows the raft's own spin, which would be nauseating on
+    /// a round boat that turns constantly. <see cref="Forward"/> is what stick input is relative to.
+    /// </summary>
+    [RequireComponent(typeof(Camera))]
+    public sealed class ChaseCamera : MonoBehaviour
+    {
+        public Func<Vector2> TargetPosition;
+        public Func<Vector2> TargetVelocity;
+
+        public float Distance = 10f;
+        public float PitchDeg = 30f;
+        public float LookAhead = 2f;
+        public float LookHeight = 0.6f;
+        public float FieldOfView = 55f;
+
+        [Tooltip("How quickly the camera swings round to the direction of travel, per second, at full speed.")]
+        public float TurnRate = 0.9f;
+        [Tooltip("Below this speed the camera holds its heading, so drifting and spinning don't swing it about.")]
+        public float MinTurnSpeed = 1f;
+        public float FollowRate = 5f;
+
+        float yawRad;
+        Vector3 focus;
+
+        /// <summary>The camera's heading on the water, in sim space. Stick-up pushes this way.</summary>
+        public Vector2 Forward => new(Mathf.Cos(yawRad), Mathf.Sin(yawRad));
+
+        void Awake()
+        {
+            var view = GetComponent<Camera>();
+            view.orthographic = false;
+            view.fieldOfView = FieldOfView;
+            view.nearClipPlane = 0.3f;
+            view.farClipPlane = 400f;
+        }
+
+        public void SnapTo(Vector2 position, float headingRad)
+        {
+            yawRad = headingRad;
+            focus = Focus(position);
+            Place();
+        }
+
+        void LateUpdate()
+        {
+            if (TargetPosition == null) return;
+            var dt = Time.deltaTime;
+
+            var velocity = TargetVelocity?.Invoke() ?? Vector2.zero;
+            var speed = velocity.magnitude;
+            if (speed > MinTurnSpeed)
+            {
+                var strength = Mathf.Clamp01((speed - MinTurnSpeed) / 3f);
+                var target = Mathf.Atan2(velocity.y, velocity.x);
+                yawRad = Mathf.LerpAngle(yawRad * Mathf.Rad2Deg, target * Mathf.Rad2Deg, 1f - Mathf.Exp(-TurnRate * strength * dt)) * Mathf.Deg2Rad;
+            }
+
+            focus = Vector3.Lerp(focus, Focus(TargetPosition()), 1f - Mathf.Exp(-FollowRate * dt));
+            Place();
+        }
+
+        Vector3 Focus(Vector2 position) => SimSpace.ToWorld(position + Forward * LookAhead, LookHeight);
+
+        void Place()
+        {
+            var pitch = PitchDeg * Mathf.Deg2Rad;
+            var back = -SimSpace.Direction(Forward) * (Mathf.Cos(pitch) * Distance);
+            transform.position = focus + back + Vector3.up * (Mathf.Sin(pitch) * Distance);
+            transform.rotation = Quaternion.LookRotation(focus - transform.position);
+        }
+    }
+}

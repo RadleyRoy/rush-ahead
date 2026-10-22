@@ -61,10 +61,13 @@ namespace RushAhead.Tests
             return obj;
         }
 
-        Boat SpawnBoat(BlowerDef blower = null)
+        /// <summary>Seats for 4: 0 front-left, 1 front-right, 2 rear-left, 3 rear-right (see CrewSectors).</summary>
+        Boat SpawnBoat(BlowerDef blower = null, int crew = 4)
         {
             var b = blower ? blower : leafBlower;
-            return world.SpawnBoat(Vector2.zero, 0f, new[] { b, b, b, b });
+            var loadout = new BlowerDef[crew];
+            for (var i = 0; i < crew; i++) loadout[i] = b;
+            return world.SpawnBoat(Vector2.zero, 0f, loadout);
         }
 
         static FixedInput Blow(Boat boat, int seat, float airAngle, float throttle = 1f)
@@ -109,13 +112,66 @@ namespace RushAhead.Tests
         {
             leafBlower.drainPerSec = 0f; // infinite air: a real tank empties in ~4.5 s, long before terminal speed
             var boat = SpawnBoat();
-            for (var seat = 0; seat < 4; seat++) Blow(boat, seat, Backward);
+            Blow(boat, 2, Backward); // only the rear two own the directions that drive the raft forward
+            Blow(boat, 3, Backward);
 
             Run(15f);
 
-            // Terminal speed where thrust equals quadratic drag: sqrt(4 * thrust / forwardDrag).
-            var terminal = Mathf.Sqrt(4f * leafBlower.thrustNewtons / config.forwardDrag);
+            // Terminal speed where thrust equals quadratic drag: sqrt(2 * thrust / forwardDrag).
+            var terminal = Mathf.Sqrt(2f * leafBlower.thrustNewtons / config.forwardDrag);
             Assert.That(boat.ForwardSpeed, Is.EqualTo(terminal).Within(terminal * 0.1f));
+        }
+
+        [Test]
+        public void FrontPlayers_CannotDriveTheRaftForward()
+        {
+            var boat = SpawnBoat();
+            Blow(boat, 0, Backward); // blowing straight back is 90 degrees outside the front quadrants
+            Blow(boat, 1, Backward);
+
+            Run(2f);
+
+            Assert.That(boat.Body.Velocity.magnitude, Is.LessThan(0.05f), "front players can only push the raft back or sideways");
+            Assert.That(boat.Crew[0].AimShare, Is.EqualTo(0f).Within(1e-4f));
+        }
+
+        [Test]
+        public void TwoPlayers_SplitTheRaftIntoLeftAndRight()
+        {
+            var boat = SpawnBoat(crew: 2);
+            var portward = Mathf.PI / 2f;
+            Blow(boat, 0, portward); // port player blowing out to port: allowed
+            Blow(boat, 1, portward); // starboard player can't blow across the raft to port
+
+            Run(2f);
+
+            Assert.That(boat.Body.Position.y, Is.LessThan(-0.5f), "the port player pushes the raft to starboard");
+            Assert.That(boat.Crew[1].AimShare, Is.EqualTo(0f).Within(1e-4f));
+        }
+
+        [Test]
+        public void ASoloPlayer_CanDriveInAnyDirection()
+        {
+            var boat = SpawnBoat(crew: 1);
+            Blow(boat, 0, Backward);
+
+            Run(3f);
+
+            Assert.That(boat.Body.Position.x, Is.GreaterThan(1.5f));
+            Assert.That(boat.Crew[0].AimShare, Is.EqualTo(1f));
+        }
+
+        [Test]
+        public void Slices_TurnWithTheRaft()
+        {
+            var boat = SpawnBoat();
+            boat.ResetTo(Vector2.zero, Mathf.PI / 2f); // raft now faces +y, so "behind it" is -y
+            Blow(boat, 2, -Mathf.PI / 2f);
+
+            world.Advance(Dt);
+
+            Assert.That(boat.Crew[2].AimShare, Is.EqualTo(1f), "rear-left may blow astern wherever the raft points");
+            Assert.That(boat.Crew[2].LocalAimDeg, Is.EqualTo(180f).Within(1e-3f).Or.EqualTo(-180f).Within(1e-3f));
         }
 
         [Test]

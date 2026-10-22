@@ -13,6 +13,7 @@ MonoBehaviour:
   m_Name: HairDryer
   m_EditorClassIdentifier: RushAhead.Content::RushAhead.Content.BlowerDef
   displayName: Hair Dryer
+  color: {r: 1, g: 0.45, b: 0.72, a: 1}
   thrustNewtons: 30
   spoolUpMs: 140
   spoolDownMs: 120

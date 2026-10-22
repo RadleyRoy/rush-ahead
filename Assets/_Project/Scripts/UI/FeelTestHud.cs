@@ -19,6 +19,7 @@ namespace RushAhead.UI
 
         bool tuning;
         bool help = true;
+        int pendingCrewCount;
         Vector2 scroll;
         Rect tuneButton, resetButton, helpButton, panel;
         Texture2D circle;
@@ -37,7 +38,7 @@ namespace RushAhead.UI
         void OnGUI()
         {
             if (Game == null || Game.Boat == null) return;
-            if (circle == null) circle = ShapeSprites.Circle(1f).texture;
+            if (circle == null) circle = CircleTexture(64);
 
             var scale = Scale;
             GUI.matrix = Matrix4x4.Scale(new Vector3(scale, scale, 1f));
@@ -100,12 +101,12 @@ namespace RushAhead.UI
         void DrawHelp(float height)
         {
             const string text =
-                "The stick points where you want the boat to go; your animal blows the other way.\n" +
-                "Touch: drag on the left or right half to drive the two rear seats. Quick tap = burst.\n" +
-                "Keyboard: WASD (+L Shift burst, L Ctrl brace) and Arrows (+R Shift, R Ctrl) = rear seats;\n" +
-                "   IJKL (+U, O) and Numpad 8456 (+0, .) = front seats. Up to four people on one keyboard.\n" +
-                "Gamepad: one pad = both sticks (bumpers burst, B brace). Two or more pads = one seat each (A burst, B brace).\n" +
-                "Holding the trigger drains air and blocks recharging. Let go to refill.";
+                "Push the stick where you want the raft to go (up = away from the camera); your animal blows the other way.\n" +
+                "Each player can only blow inside their coloured slice around the raft. Teamwork is the only way forward.\n" +
+                "Touch: drag on the left or right half to drive the two main seats. Quick tap = burst.\n" +
+                "Keyboard: WASD (+L Shift burst, L Ctrl brace) and Arrows (+R Shift, R Ctrl) = main seats;\n" +
+                "   IJKL (+U, O) and Numpad 8456 (+0, .) = the rest. Gamepads: one pad = both sticks; more = one seat each.\n" +
+                "Holding the trigger drains air and blocks recharging. Let go to refill. Tune > Players: 1 to 4.";
             GUI.Box(new Rect(10f, height - 130f, 640f, 120f), text, new GUIStyle(GUI.skin.box) { alignment = TextAnchor.UpperLeft, wordWrap = true });
         }
 
@@ -142,10 +143,18 @@ namespace RushAhead.UI
 #endif
 
             GUILayout.Space(8f);
+            var crewCount = Game.Boat.Crew.Length;
+            GUILayout.Label($"Players: {crewCount} (each owns {360 / crewCount} degrees)");
+            GUILayout.BeginHorizontal();
+            for (var count = 1; count <= CrewSectors.MaxCrew; count++)
+                if (GUILayout.Toggle(count == crewCount, $" {count}", GUI.skin.button) && count != crewCount)
+                    pendingCrewCount = count; // applied in Update: changing it mid-OnGUI would break IMGUI's two-pass layout
+            GUILayout.EndHorizontal();
+
             GUILayout.Label("Blowers (tap to change)");
             foreach (var crew in Game.Boat.Crew)
             {
-                if (!GUILayout.Button($"Seat {crew.Seat + 1} ({SeatName(crew.Seat)}): {crew.Blower.displayName}")) continue;
+                if (!GUILayout.Button($"P{crew.Seat + 1} ({SeatName(crew.Seat, crewCount)}): {crew.Blower.displayName}")) continue;
                 var blowers = Game.Blowers.ToList();
                 crew.Equip(blowers[(blowers.IndexOf(crew.Blower) + 1) % blowers.Count]);
             }
@@ -173,7 +182,45 @@ namespace RushAhead.UI
             GUILayout.EndArea();
         }
 
-        static string SeatName(int seat) => seat switch { 0 => "front left", 1 => "front right", 2 => "rear left", _ => "rear right" };
+        void Update()
+        {
+            if (pendingCrewCount == 0) return;
+            Game.SetCrewCount(pendingCrewCount);
+            pendingCrewCount = 0;
+        }
+
+        static string SeatName(int seat, int crewCount) =>
+            $"{RaftView.LookFor(seat).ToString().ToLowerInvariant()}, {SliceName(CrewSectors.CentreDeg(seat, crewCount))}";
+
+        static string SliceName(float centreDeg) => Mathf.RoundToInt(centreDeg) switch
+        {
+            0 => "front",
+            45 => "front-left",
+            -45 => "front-right",
+            90 => "left",
+            -90 => "right",
+            120 or 135 => "rear-left",
+            -120 or -135 => "rear-right",
+            _ => "all round",
+        };
+
+        /// <summary>A soft-edged white disc for drawing the touch sticks.</summary>
+        static Texture2D CircleTexture(int size)
+        {
+            var texture = new Texture2D(size, size, TextureFormat.RGBA32, false) { filterMode = FilterMode.Bilinear, wrapMode = TextureWrapMode.Clamp };
+            var pixels = new Color32[size * size];
+            var centre = (size - 1) * 0.5f;
+            for (var y = 0; y < size; y++)
+            for (var x = 0; x < size; x++)
+            {
+                var inside = centre - new Vector2(x - centre, y - centre).magnitude; // pixels inside the rim
+                pixels[y * size + x] = new Color32(255, 255, 255, (byte)(Mathf.Clamp01(inside) * 255));
+            }
+
+            texture.SetPixels32(pixels);
+            texture.Apply(false, true);
+            return texture;
+        }
 
         static float Slider(string label, float value, float min, float max, string format = "0.00")
         {

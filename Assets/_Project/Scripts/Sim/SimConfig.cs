@@ -10,8 +10,6 @@ namespace RushAhead.Sim
     [CreateAssetMenu(menuName = "Rush Ahead/Sim Config", fileName = "SimConfig")]
     public sealed class SimConfig : ScriptableObject
     {
-        public const int SeatCount = 4;
-
         [Header("Tick")]
         [Range(30, 120)] public int tickRate = 60;
 
@@ -19,9 +17,9 @@ namespace RushAhead.Sim
         [Min(1f)] public float mass = 60f;
         [Tooltip("Boats resist spin more than their footprint suggests.")]
         [Min(0.1f)] public float inertiaMultiplier = 1.4f;
-        [Tooltip("x = length (bow to stern), y = beam.")]
-        public Vector2 hullSize = new(3f, 2f);
-        [Min(0f)] public float bowLength = 0.8f;
+        [Tooltip("Outer radius of the round inflatable raft.")]
+        [Min(0.5f)] public float hullRadius = 1.6f;
+        [Range(8, 32)] public int hullSegments = 16;
         [Tooltip("Unity damping scales with mass, so keep this tiny: water drag below does the real work.")]
         [Min(0f)] public float linearDamping = 0.02f;
         [Min(0f)] public float angularDamping = 0.05f;
@@ -29,7 +27,8 @@ namespace RushAhead.Sim
 
         [Header("Water drag (quadratic, hull-local)")]
         [Min(0f)] public float forwardDrag = 5f;
-        [Tooltip("The keel. lateral/forward of about 8 is what makes the boat track instead of sliding.")]
+        [Tooltip("The keel. lateral/forward of about 8 makes the raft track along the way the crew faces instead of " +
+                 "sliding; set it equal to forward drag for a free-spinning, puck-like ring.")]
         [Min(0f)] public float lateralDrag = 40f;
         [Min(0f)] public float angularDrag = 18f;
 
@@ -39,12 +38,9 @@ namespace RushAhead.Sim
         [Tooltip("How much of the air's push reaches bodies in the cone (air pushes others less than it pushes you).")]
         [Range(0f, 2f)] public float coneCoupling = 0.5f;
 
-        [Header("Seats (hull-local): fore-left, fore-right, aft-left, aft-right")]
-        public Vector2[] seatOffsets =
-        {
-            new(0.55f, 0.5f), new(0.55f, -0.5f),
-            new(-0.85f, 0.5f), new(-0.85f, -0.5f),
-        };
+        [Header("Seats")]
+        [Tooltip("Distance from the raft's centre to each animal. Each sits in the middle of its air slice (CrewSectors).")]
+        [Min(0f)] public float seatRadius = 0.99f;
 
         [Header("Tilt: visual lean and capsize (radians)")]
         [Min(0.1f)] public float tiltInertia = 40f;
@@ -66,20 +62,24 @@ namespace RushAhead.Sim
 
         public float TickDt => 1f / tickRate;
 
-        /// <summary>Convex hull outline: a rectangular midsection with a triangular bow.</summary>
+        /// <summary>Where a seat's animal sits (hull-local), for a crew of <paramref name="crewCount"/>.</summary>
+        public Vector2 SeatOffset(int seat, int crewCount)
+        {
+            var angle = CrewSectors.CentreDeg(seat, crewCount) * Mathf.Deg2Rad;
+            return seatRadius * new Vector2(Mathf.Cos(angle), Mathf.Sin(angle));
+        }
+
+        /// <summary>The round raft's outline as a regular polygon, counter-clockwise from the bow.</summary>
         public Vector2[] HullOutline()
         {
-            var halfLength = hullSize.x * 0.5f;
-            var halfBeam = hullSize.y * 0.5f;
-            var shoulder = halfLength - bowLength;
-            return new[]
+            var points = new Vector2[hullSegments];
+            for (var i = 0; i < hullSegments; i++)
             {
-                new Vector2(-halfLength, halfBeam),
-                new Vector2(shoulder, halfBeam),
-                new Vector2(halfLength, 0f),
-                new Vector2(shoulder, -halfBeam),
-                new Vector2(-halfLength, -halfBeam),
-            };
+                var angle = 2f * Mathf.PI * i / hullSegments;
+                points[i] = hullRadius * new Vector2(Mathf.Cos(angle), Mathf.Sin(angle));
+            }
+
+            return points;
         }
     }
 }

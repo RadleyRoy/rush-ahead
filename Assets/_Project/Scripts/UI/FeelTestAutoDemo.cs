@@ -8,10 +8,12 @@ namespace RushAhead.UI
     /// <summary>
     /// Scripted run for checking the feel test without a human: launch a player build with
     /// <c>-rushahead-demo &lt;output folder&gt;</c> and it drives the boat, saves screenshots, logs state and quits.
+    /// Add <c>-rushahead-crew &lt;1-4&gt;</c> to run it with a smaller crew.
     /// </summary>
     public sealed class FeelTestAutoDemo : MonoBehaviour
     {
         const string Flag = "-rushahead-demo";
+        const string CrewFlag = "-rushahead-crew";
 
         static readonly (float time, string name)[] Shots =
         {
@@ -35,6 +37,10 @@ namespace RushAhead.UI
             demo.outputFolder = args[index + 1];
             Directory.CreateDirectory(demo.outputFolder);
             game.Router.Scripted = true;
+
+            var crewIndex = Array.IndexOf(args, CrewFlag);
+            if (crewIndex >= 0 && crewIndex + 1 < args.Length && int.TryParse(args[crewIndex + 1], out var crew) && crew >= 1 && crew <= CrewSectors.MaxCrew)
+                game.SetCrewCount(crew);
             Debug.Log($"[RushAhead] Auto demo writing to {demo.outputFolder}");
         }
 
@@ -56,34 +62,41 @@ namespace RushAhead.UI
             if (elapsed > 10.5f) Application.Quit();
         }
 
+        /// <summary>
+        /// Sticks are camera-relative, exactly as a player's would be: up pushes away from the camera. The two main
+        /// seats are whichever the left and right touch sticks drive at the current crew size.
+        /// </summary>
         void Drive(CrewInputRouter router, float t)
         {
-            var east = Vector2.right;
-            var north = Vector2.up;
-            for (var seat = 0; seat < SimConfig.SeatCount; seat++) router.SetScripted(seat, Vector2.zero);
+            var ahead = Vector2.up;
+            var right = Vector2.right;
+            var crew = game.Boat.Crew.Length;
+            var left = router.SeatForSlot(0);
+            var other = router.SeatForSlot(1);
+            for (var seat = 0; seat < crew; seat++) router.SetScripted(seat, Vector2.zero);
 
             if (t < 3.5f)
             {
-                // Both rear seats push east: straight-line cruising.
-                router.SetScripted(2, east);
-                router.SetScripted(3, east);
+                // Both main seats push ahead: straight-line cruising.
+                router.SetScripted(left, ahead);
+                router.SetScripted(other, ahead);
             }
             else if (t < 5.5f)
             {
-                // Rear-left keeps pushing, rear-right stops: off-centre thrust turns the boat.
-                router.SetScripted(2, east);
+                // One keeps pushing, the other stops: off-centre thrust turns the raft.
+                router.SetScripted(left, ahead);
             }
             else if (t < 6.4f)
             {
-                // One burst from both rear seats, along their last aim.
-                router.SetScripted(2, Vector2.zero, burst: !burstFired);
-                router.SetScripted(3, Vector2.zero, burst: !burstFired);
+                // One burst from both main seats, along their last aim.
+                router.SetScripted(left, Vector2.zero, burst: !burstFired);
+                router.SetScripted(other, Vector2.zero, burst: !burstFired);
                 burstFired = true;
             }
             else if (t < 8.5f)
             {
-                // Everyone shoves north at once: the boat heels hard.
-                for (var seat = 0; seat < SimConfig.SeatCount; seat++) router.SetScripted(seat, north);
+                // Everyone shoves sideways at once. Only players whose slice faces that way can help.
+                for (var seat = 0; seat < crew; seat++) router.SetScripted(seat, right);
             }
         }
     }

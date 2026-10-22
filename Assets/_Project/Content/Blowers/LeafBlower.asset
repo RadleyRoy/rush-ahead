@@ -13,6 +13,7 @@ MonoBehaviour:
   m_Name: LeafBlower
   m_EditorClassIdentifier: RushAhead.Content::RushAhead.Content.BlowerDef
   displayName: Leaf Blower
+  color: {r: 1, g: 0.55, b: 0.15, a: 1}
   thrustNewtons: 45
   spoolUpMs: 260
   spoolDownMs: 180

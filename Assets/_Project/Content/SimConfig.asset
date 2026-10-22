@@ -15,8 +15,8 @@ MonoBehaviour:
   tickRate: 60
   mass: 60
   inertiaMultiplier: 1.4
-  hullSize: {x: 3, y: 2}
-  bowLength: 0.8
+  hullRadius: 1.6
+  hullSegments: 16
   linearDamping: 0.02
   angularDamping: 0.05
   hullBounciness: 0.2
@@ -25,13 +25,10 @@ MonoBehaviour:
   angularDrag: 18
   thrustMultiplier: 1
   coneCoupling: 0.5
-  seatOffsets:
-  - {x: 0.55, y: 0.5}
-  - {x: 0.55, y: -0.5}
-  - {x: -0.85, y: 0.5}
-  - {x: -0.85, y: -0.5}
+  seatRadius: 0.99
   tiltInertia: 40
   tiltStiffness: 6
+  pitchStiffnessMultiplier: 3
   tiltDamping: 1.7
   heelArm: 0.5
   turnHeelCoupling: 0.15

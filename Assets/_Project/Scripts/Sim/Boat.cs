@@ -20,17 +20,26 @@ namespace RushAhead.Sim
         readonly SimConfig config;
         float recoverySecondsLeft;
 
+        /// <param name="loadout">One blower per player: 1 to <see cref="CrewSectors.MaxCrew"/>. The crew size sets each player's air slice.</param>
         public Boat(int index, BoatPhysics body, SimConfig config, IReadOnlyList<BlowerDef> loadout)
         {
-            if (loadout.Count != SimConfig.SeatCount)
-                throw new ArgumentException($"A boat needs {SimConfig.SeatCount} blowers, got {loadout.Count}.", nameof(loadout));
+            if (loadout.Count < 1 || loadout.Count > CrewSectors.MaxCrew)
+                throw new ArgumentException($"A boat needs 1 to {CrewSectors.MaxCrew} blowers, got {loadout.Count}.", nameof(loadout));
 
             Index = index;
             Body = body;
             this.config = config;
-            Crew = new CrewMember[SimConfig.SeatCount];
+            Crew = new CrewMember[loadout.Count];
             for (var seat = 0; seat < Crew.Length; seat++)
-                Crew[seat] = new CrewMember(seat, config.seatOffsets[seat], loadout[seat]) { AimAngle = body.AngleRad + Mathf.PI };
+            {
+                // Everyone starts with their nozzle pointing straight out of the middle of their slice.
+                var centre = CrewSectors.CentreDeg(seat, Crew.Length);
+                Crew[seat] = new CrewMember(seat, config.SeatOffset(seat, Crew.Length), loadout[seat])
+                {
+                    LocalAimDeg = centre,
+                    AimAngle = body.AngleRad + centre * Mathf.Deg2Rad,
+                };
+            }
         }
 
         public event Action<Boat> CapsizedEvent;
@@ -59,27 +68,39 @@ namespace RushAhead.Sim
 
             foreach (var crew in Crew)
             {
-                crew.SeatOffset = config.seatOffsets[crew.Seat];
+                crew.SeatOffset = config.SeatOffset(crew.Seat, Crew.Length);
                 var input = afloat && crew.Input != null ? crew.Input.ReadInput() : CrewInput.Idle;
                 crew.Braced = afloat && input.Brace;
                 if (crew.Braced) bracedCount++;
-                if (input.HasAim) crew.AimAngle = input.AimAngle;
 
-                heelAccel += StepBlower(crew, input, dt);
+                // Each player may only blow inside their own slice of the raft. Asking for a direction outside it turns
+                // the nozzle to the nearest edge and keeps only the part of the push that still helps.
+                var share = 1f;
+                if (input.HasAim)
+                {
+                    var requestedLocal = (input.AimAngle - Body.AngleRad) * Mathf.Rad2Deg;
+                    share = CrewSectors.Clamp(requestedLocal, crew.Seat, Crew.Length, out var allowedLocal);
+                    crew.LocalAimDeg = allowedLocal;
+                    crew.AimShare = share;
+                }
+
+                crew.AimAngle = Body.AngleRad + crew.LocalAimDeg * Mathf.Deg2Rad; // the slice turns with the raft
+                heelAccel += StepBlower(crew, input, share, dt);
             }
 
             ApplyWaterDrag();
             StepTilt(heelAccel, bracedCount, dt);
         }
 
+        /// <param name="share">How much of the requested push the player's slice allows (see <see cref="CrewSectors.Clamp"/>).</param>
         /// <returns>The heeling acceleration this crew member's thrust causes.</returns>
-        Vector2 StepBlower(CrewMember crew, CrewInput input, float dt)
+        Vector2 StepBlower(CrewMember crew, CrewInput input, float share, float dt)
         {
             var spec = crew.Blower;
             var thrust = spec.thrustNewtons * config.thrustMultiplier;
 
             // Braced crew stop blowing; burst-only blowers (bellows) have no continuous airflow to draw.
-            var requested = crew.Braced || thrust <= 0f ? 0f : Mathf.Clamp01(input.Throttle);
+            var requested = crew.Braced || thrust <= 0f ? 0f : Mathf.Clamp01(input.Throttle) * share;
             var available = crew.Tank.Tick(requested, dt);
             crew.Spool = BlowerMath.Spool(crew.Spool, available, dt, spec.spoolUpMs / 1000f, spec.spoolDownMs / 1000f);
             crew.SecondsSinceBurst += dt;
@@ -97,9 +118,9 @@ namespace RushAhead.Sim
                 heel = HeelPerUnit(force);
             }
 
-            if (input.Burst && !crew.Braced && crew.Tank.TryBurst())
+            if (input.Burst && !crew.Braced && share > 0f && crew.Tank.TryBurst())
             {
-                var burstImpulse = spec.burstImpulse * config.thrustMultiplier;
+                var burstImpulse = spec.burstImpulse * config.thrustMultiplier * share;
                 var impulse = BlowerMath.ReactionForce(airDirection, burstImpulse, 1f, spec.special);
                 Body.AddForceAtLocalPoint(impulse, crew.SeatOffset, impulse: true);
                 Body.PushBodiesInCone(nozzle, airDirection, spec, burstImpulse * config.coneCoupling, true, coneSign);
@@ -177,7 +198,13 @@ namespace RushAhead.Sim
             Body.Teleport(position, angleRad);
             Tilt.Reset();
             State = BoatState.Afloat;
-            foreach (var crew in Crew) crew.Equip(crew.Blower);
+            foreach (var crew in Crew)
+            {
+                crew.Equip(crew.Blower);
+                crew.LocalAimDeg = CrewSectors.CentreDeg(crew.Seat, Crew.Length);
+                crew.AimShare = 1f;
+                crew.AimAngle = angleRad + crew.LocalAimDeg * Mathf.Deg2Rad;
+            }
         }
     }
 }

@@ -24,8 +24,17 @@ namespace RushAhead.Sim
         /// <summary>0..1 lagged throttle: the blower's motor winding up and down.</summary>
         public float Spool { get; internal set; }
 
-        /// <summary>World-space direction the air leaves the nozzle, in radians.</summary>
+        /// <summary>
+        /// Nozzle direction relative to the raft, in degrees (0 = bow, +90 = port). Always inside the seat's slice
+        /// (<see cref="CrewSectors"/>), and it turns with the raft.
+        /// </summary>
+        public float LocalAimDeg { get; internal set; }
+
+        /// <summary>World-space direction the air leaves the nozzle, in radians. Derived from <see cref="LocalAimDeg"/> each tick.</summary>
         public float AimAngle { get; internal set; }
+
+        /// <summary>Share of the last requested push the slice allowed: 1 inside it, falling to 0 when asking for the far side.</summary>
+        public float AimShare { get; internal set; } = 1f;
 
         public bool Braced { get; internal set; }
         public float SecondsSinceBurst { get; internal set; } = float.MaxValue;

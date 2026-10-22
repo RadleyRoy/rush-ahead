@@ -10,27 +10,39 @@ using TouchPhase = UnityEngine.InputSystem.TouchPhase;
 namespace RushAhead.UI
 {
     /// <summary>
-    /// Turns every local device into per-seat <see cref="CrewInput"/>. By default the stick points where you
-    /// want the boat to go and the animal aims its nozzle the opposite way; "direct nozzle aim" flips that.
-    /// Touch: a floating stick on each half of the screen, tap to burst. Keyboard: four clusters so up to four
-    /// people can share one keyboard. Gamepads: one pad is twin-stick, two or more get a seat each.
+    /// Turns every local device into per-seat <see cref="CrewInput"/>. Sticks are camera-relative (up pushes away
+    /// from the camera). By default the stick points where you want the boat to go and the animal aims its nozzle
+    /// the opposite way; "direct nozzle aim" flips that.
+    /// Devices feed four input slots: slot 0 is the left touch stick, WASD or a lone pad's left stick; slot 1 the right
+    /// touch stick, arrows or that pad's right stick; slots 2 and 3 are IJKL and the numpad. With two or more pads,
+    /// pad N is slot N. <see cref="SetCrewCount"/> decides which seat each slot drives.
     /// </summary>
     public sealed class CrewInputRouter : MonoBehaviour
     {
         const float Deadzone = 0.15f;
         const float TapSeconds = 0.2f;
+        const int SlotCount = 4;
 
-        /// <summary>Seats driven by the left and right touch stick, and by one gamepad's two sticks. The aft pair steers like twin outboards.</summary>
-        public static readonly int[] TwinStickSeats = { 2, 3 };
+        // Seat per input slot, by crew size (-1 = unused). The two sticks always get the seats that can drive the raft
+        // forward: the rear quarters for 3 and 4 players, port and starboard for 2, and the soloist on both for 1.
+        static readonly int[][] SlotSeatsByCrew =
+        {
+            new[] { 0, 0, -1, -1 },
+            new[] { 0, 1, -1, -1 },
+            new[] { 1, 2, 0, -1 },
+            new[] { 2, 3, 0, 1 },
+        };
 
-        /// <summary>Seat order when each gamepad drives one seat: the first two players get the aft seats.</summary>
-        static readonly int[] PadSeats = { 2, 3, 0, 1 };
+        int[] slotSeats = SlotSeatsByCrew[3];
 
         public readonly SeatSource[] Seats = { new(), new(), new(), new() };
         public readonly TouchStick[] Sticks = { new(), new() };
 
         /// <summary>Screen-space (y-up) areas where touches belong to on-screen buttons, not sticks.</summary>
         public Func<Vector2, bool> IsOverUi;
+
+        /// <summary>The camera's heading on the water in sim space. Null means sticks are world-aligned.</summary>
+        public Func<Vector2> CameraForward;
 
         public bool DirectNozzleAim { get; set; }
 
@@ -55,7 +67,7 @@ namespace RushAhead.UI
                 var magnitude = Mathf.Min(1f, Stick.magnitude);
                 if (magnitude > Deadzone)
                 {
-                    var direction = Stick / Stick.magnitude;
+                    var direction = Owner.CameraRelative(Stick / Stick.magnitude);
                     var air = Owner.DirectNozzleAim ? direction : -direction;
                     input.AimAngle = Mathf.Atan2(air.y, air.x);
                     input.HasAim = true;
@@ -76,6 +88,20 @@ namespace RushAhead.UI
         void Awake()
         {
             foreach (var seat in Seats) seat.Owner = this;
+        }
+
+        public void SetCrewCount(int crewCount) => slotSeats = SlotSeatsByCrew[crewCount - 1];
+
+        /// <summary>The seat an input slot drives, or -1 if unused at this crew size.</summary>
+        public int SeatForSlot(int slot) => slotSeats[slot];
+
+        /// <summary>Stick up is the camera's forward on the water; stick right is the camera's right.</summary>
+        Vector2 CameraRelative(Vector2 stick)
+        {
+            if (CameraForward == null) return stick;
+            var forward = CameraForward();
+            var right = new Vector2(forward.y, -forward.x);
+            return stick.x * right + stick.y * forward;
         }
 
         void OnEnable()
@@ -116,8 +142,11 @@ namespace RushAhead.UI
             ReadGamepads();
         }
 
-        void Contribute(int seat, Vector2 stick, bool burst, bool brace)
+        void Contribute(int slot, Vector2 stick, bool burst, bool brace)
         {
+            var seat = slotSeats[slot];
+            if (seat < 0) return;
+
             var source = Seats[seat];
             if (stick.sqrMagnitude > source.Stick.sqrMagnitude) source.Stick = stick;
             source.BurstPending |= burst;
@@ -139,7 +168,7 @@ namespace RushAhead.UI
                 if (touch.phase is TouchPhase.Ended or TouchPhase.Canceled)
                 {
                     var quickTap = touch.time - touch.startTime < TapSeconds && delta.magnitude < 0.2f;
-                    if (quickTap) Contribute(TwinStickSeats[side], Vector2.zero, burst: true, brace: false);
+                    if (quickTap) Contribute(side, Vector2.zero, burst: true, brace: false);
                     continue;
                 }
 
@@ -148,7 +177,7 @@ namespace RushAhead.UI
                 stick.TouchId = touch.touchId;
                 stick.Origin = touch.startScreenPosition;
                 stick.Position = touch.startScreenPosition + Vector2.ClampMagnitude(delta, 1f) * radius;
-                Contribute(TwinStickSeats[side], Vector2.ClampMagnitude(delta, 1f), false, false);
+                Contribute(side, Vector2.ClampMagnitude(delta, 1f), false, false);
             }
         }
 
@@ -157,16 +186,16 @@ namespace RushAhead.UI
             var kb = Keyboard.current;
             if (kb == null) return;
 
-            Cluster(2, kb.wKey, kb.aKey, kb.sKey, kb.dKey, kb.leftShiftKey, kb.leftCtrlKey);
-            Cluster(3, kb.upArrowKey, kb.leftArrowKey, kb.downArrowKey, kb.rightArrowKey, kb.rightShiftKey, kb.rightCtrlKey);
-            Cluster(0, kb.iKey, kb.jKey, kb.kKey, kb.lKey, kb.uKey, kb.oKey);
-            Cluster(1, kb.numpad8Key, kb.numpad4Key, kb.numpad5Key, kb.numpad6Key, kb.numpad0Key, kb.numpadPeriodKey);
+            Cluster(0, kb.wKey, kb.aKey, kb.sKey, kb.dKey, kb.leftShiftKey, kb.leftCtrlKey);
+            Cluster(1, kb.upArrowKey, kb.leftArrowKey, kb.downArrowKey, kb.rightArrowKey, kb.rightShiftKey, kb.rightCtrlKey);
+            Cluster(2, kb.iKey, kb.jKey, kb.kKey, kb.lKey, kb.uKey, kb.oKey);
+            Cluster(3, kb.numpad8Key, kb.numpad4Key, kb.numpad5Key, kb.numpad6Key, kb.numpad0Key, kb.numpadPeriodKey);
         }
 
-        void Cluster(int seat, KeyControl up, KeyControl left, KeyControl down, KeyControl right, KeyControl burst, KeyControl brace)
+        void Cluster(int slot, KeyControl up, KeyControl left, KeyControl down, KeyControl right, KeyControl burst, KeyControl brace)
         {
             var stick = new Vector2((right.isPressed ? 1 : 0) - (left.isPressed ? 1 : 0), (up.isPressed ? 1 : 0) - (down.isPressed ? 1 : 0));
-            Contribute(seat, stick.normalized, burst.wasPressedThisFrame, brace.isPressed);
+            Contribute(slot, stick.normalized, burst.wasPressedThisFrame, brace.isPressed);
         }
 
         void ReadGamepads()
@@ -176,16 +205,16 @@ namespace RushAhead.UI
             {
                 var pad = pads[0];
                 var brace = pad.buttonEast.isPressed;
-                Contribute(TwinStickSeats[0], pad.leftStick.ReadValue(), pad.leftShoulder.wasPressedThisFrame || pad.leftTrigger.wasPressedThisFrame, brace);
-                Contribute(TwinStickSeats[1], pad.rightStick.ReadValue(), pad.rightShoulder.wasPressedThisFrame || pad.rightTrigger.wasPressedThisFrame, brace);
+                Contribute(0, pad.leftStick.ReadValue(), pad.leftShoulder.wasPressedThisFrame || pad.leftTrigger.wasPressedThisFrame, brace);
+                Contribute(1, pad.rightStick.ReadValue(), pad.rightShoulder.wasPressedThisFrame || pad.rightTrigger.wasPressedThisFrame, brace);
                 return;
             }
 
-            for (var i = 0; i < pads.Count && i < PadSeats.Length; i++)
+            for (var i = 0; i < pads.Count && i < SlotCount; i++)
             {
                 var pad = pads[i];
                 var burst = pad.buttonSouth.wasPressedThisFrame || pad.rightTrigger.wasPressedThisFrame;
-                Contribute(PadSeats[i], pad.leftStick.ReadValue(), burst, pad.buttonEast.isPressed);
+                Contribute(i, pad.leftStick.ReadValue(), burst, pad.buttonEast.isPressed);
             }
         }
     }

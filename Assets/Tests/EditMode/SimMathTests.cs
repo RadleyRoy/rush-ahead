@@ -276,5 +276,91 @@ namespace RushAhead.Tests
 
             Assert.That(BoatPhysics.PolygonInertiaPerMass(rectangle), Is.EqualTo(expected).Within(1e-4f));
         }
+
+        [Test]
+        public void RoundRaft_IsCloseToASolidDisc()
+        {
+            var config = ScriptableObject.CreateInstance<SimConfig>();
+            var disc = config.hullRadius * config.hullRadius / 2f; // I / m for a solid disc
+
+            Assert.That(BoatPhysics.PolygonInertiaPerMass(config.HullOutline()), Is.EqualTo(disc).Within(disc * 0.03f));
+            Object.DestroyImmediate(config);
+        }
+    }
+}
+
+namespace RushAhead.Tests
+{
+    public class CrewSectorTests
+    {
+        [Test]
+        public void Slices_TileTheWholeCircle_ForEveryCrewSize([Values(1, 2, 3, 4)] int crew)
+        {
+            // Sample between whole degrees so no sample sits exactly on a shared edge.
+            for (var degree = -180f + 0.5f; degree < 180f; degree += 1f)
+            {
+                var owners = 0;
+                for (var seat = 0; seat < crew; seat++)
+                    if (Mathf.Approximately(CrewSectors.Clamp(degree, seat, crew, out var allowed), 1f) && Mathf.Approximately(Mathf.DeltaAngle(allowed, degree), 0f))
+                        owners++;
+
+                Assert.That(owners, Is.EqualTo(1), $"{crew} players: {degree} degrees must belong to exactly one player");
+            }
+        }
+
+        [Test]
+        public void EachPlayer_GetsAnEqualShare([Values(1, 2, 3, 4)] int crew)
+        {
+            Assert.That(2f * CrewSectors.HalfWidthDeg(crew), Is.EqualTo(360f / crew).Within(1e-4f));
+        }
+
+        [Test]
+        public void InsideTheSlice_IsUntouched()
+        {
+            var share = CrewSectors.Clamp(30f, seat: 0, crewCount: 4, out var allowed); // front-left owns 0..90
+            Assert.That(share, Is.EqualTo(1f));
+            Assert.That(allowed, Is.EqualTo(30f).Within(1e-4f));
+        }
+
+        [Test]
+        public void OutsideTheSlice_TurnsToTheNearestEdgeAndKeepsOnlyTheUsefulPush()
+        {
+            var share = CrewSectors.Clamp(120f, seat: 0, crewCount: 4, out var allowed);
+            Assert.That(allowed, Is.EqualTo(90f).Within(1e-4f));
+            Assert.That(share, Is.EqualTo(Mathf.Cos(30f * Mathf.Deg2Rad)).Within(1e-4f));
+
+            share = CrewSectors.Clamp(-60f, seat: 0, crewCount: 4, out allowed);
+            Assert.That(allowed, Is.EqualTo(0f).Within(1e-4f));
+            Assert.That(share, Is.EqualTo(0.5f).Within(1e-4f));
+        }
+
+        [Test]
+        public void TheFarSide_GivesNothing()
+        {
+            // Front-left asking to blow straight back (180) is 90 degrees past its nearest edge.
+            Assert.That(CrewSectors.Clamp(180f, seat: 0, crewCount: 4, out _), Is.EqualTo(0f).Within(1e-4f));
+        }
+
+        [Test]
+        public void ASoloPlayer_OwnsTheWholeCircle()
+        {
+            for (var degree = -179f; degree < 180f; degree += 7f)
+                Assert.That(CrewSectors.Clamp(degree, 0, 1, out _), Is.EqualTo(1f));
+        }
+
+        [Test]
+        public void EachAnimal_SitsInTheMiddleOfItsSlice([Values(1, 2, 3, 4)] int crew)
+        {
+            var config = ScriptableObject.CreateInstance<SimConfig>();
+            for (var seat = 0; seat < crew; seat++)
+            {
+                var offset = config.SeatOffset(seat, crew);
+                var angle = Mathf.Atan2(offset.y, offset.x) * Mathf.Rad2Deg;
+                Assert.That(Mathf.DeltaAngle(angle, CrewSectors.CentreDeg(seat, crew)), Is.EqualTo(0f).Within(1e-3f));
+                Assert.That(offset.magnitude, Is.EqualTo(config.seatRadius).Within(1e-4f));
+            }
+
+            Object.DestroyImmediate(config);
+        }
     }
 }

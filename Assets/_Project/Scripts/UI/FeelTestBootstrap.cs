@@ -7,23 +7,26 @@ using UnityEngine;
 namespace RushAhead.UI
 {
     /// <summary>
-    /// Phase 2 feel test: one boat in an open lagoon with loose barrels, a rock slalom and a tight gate.
-    /// No network, no art. Its only job is answering "is steering this boat fun?" and finding the
-    /// <see cref="SimConfig"/> values that make it so.
+    /// Phase 2 feel test: one raft with 1 to 4 players in a lagoon with loose barrels, a rock slalom and a tight
+    /// gate, seen through a third-person chase camera. No network. Its only job is answering "is steering this raft
+    /// fun?" and finding the <see cref="SimConfig"/> values that make it so.
     /// </summary>
     public sealed class FeelTestBootstrap : MonoBehaviour
     {
-        static readonly Vector2 Spawn = new(-24f, 0f);
+        static readonly Vector2 Spawn = new(-22f, 0f); // far enough from the west bank for the chase camera
         static readonly Vector2 ArenaHalfSize = new(32f, 20f);
-        static readonly Color Rock = new(0.45f, 0.45f, 0.5f);
-        static readonly Color Barrel = new(0.85f, 0.55f, 0.2f);
-        static readonly Color Bank = new(0.3f, 0.55f, 0.28f);
+        const float BarrelRadius = 0.4f;
 
         [SerializeField] SimConfig config;
         [Tooltip("Blowers selectable per seat in the tuning panel. The first is everyone's default.")]
         [SerializeField] BlowerDef[] blowers;
+        [SerializeField] ArtPalette palette;
 
         readonly List<GameObject> barrels = new();
+        readonly BlowerDef[] seatBlowers = new BlowerDef[CrewSectors.MaxCrew];
+        SimRunner runner;
+        RaftView raftView;
+        ChaseCamera chase;
 
         public SimConfig Config => config;
         public IReadOnlyList<BlowerDef> Blowers => blowers;
@@ -35,20 +38,18 @@ namespace RushAhead.UI
             Application.targetFrameRate = 60; // mobile defaults to 30
             Screen.sleepTimeout = SleepTimeout.NeverSleep;
 
-            var runner = gameObject.AddComponent<SimRunner>();
+            runner = gameObject.AddComponent<SimRunner>();
             runner.Init(config);
             BuildArena();
+            for (var seat = 0; seat < seatBlowers.Length; seat++) seatBlowers[seat] = blowers[0];
 
-            Boat = runner.World.SpawnBoat(Spawn, 0f, new[] { blowers[0], blowers[0], blowers[0], blowers[0] });
-            BoatView.Attach(Boat, config);
+            chase = Camera.main.gameObject.AddComponent<ChaseCamera>();
+            chase.TargetPosition = () => Boat.Body.transform.position; // interpolated, so the camera stays smooth
+            chase.TargetVelocity = () => Boat.Body.Velocity;
 
             Router = gameObject.AddComponent<CrewInputRouter>();
-            for (var seat = 0; seat < Boat.Crew.Length; seat++) Boat.Crew[seat].Input = Router.Seats[seat];
-
-            var cameraFollow = Camera.main.gameObject.AddComponent<FollowCamera>();
-            cameraFollow.Target = Boat.Body.transform;
-            cameraFollow.Velocity = () => Boat.Body.Velocity;
-            Camera.main.transform.position = new Vector3(Spawn.x, Spawn.y, Camera.main.transform.position.z);
+            Router.CameraForward = () => chase.Forward;
+            SetCrewCount(CrewSectors.MaxCrew);
 
             var hud = gameObject.AddComponent<FeelTestHud>();
             hud.Game = this;
@@ -57,52 +58,69 @@ namespace RushAhead.UI
             FeelTestAutoDemo.StartIfRequested(this);
         }
 
+        /// <summary>Puts a fresh raft with 1 to 4 players at the start. Each seat keeps the blower chosen for it.</summary>
+        public void SetCrewCount(int count)
+        {
+            if (Boat != null)
+            {
+                foreach (var crew in Boat.Crew) seatBlowers[crew.Seat] = crew.Blower;
+                runner.World.Despawn(Boat);
+                Destroy(raftView.gameObject);
+            }
+
+            var loadout = new BlowerDef[count];
+            for (var seat = 0; seat < count; seat++) loadout[seat] = seatBlowers[seat];
+            Boat = runner.World.SpawnBoat(Spawn, 0f, loadout);
+            raftView = RaftView.Build(Boat, config, palette);
+
+            Router.SetCrewCount(count);
+            for (var seat = 0; seat < count; seat++) Boat.Crew[seat].Input = Router.Seats[seat];
+            chase.SnapTo(Spawn, 0f);
+        }
+
         public void ResetBoat()
         {
             Boat.ResetTo(Spawn, 0f);
+            chase.SnapTo(Spawn, 0f);
             for (var i = 0; i < barrels.Count; i++)
                 PhysicsBodies.Reset(barrels[i], BarrelSpot(i));
         }
 
         void BuildArena()
         {
-            var water = ShapeSprites.Spawn(transform, "Water", ShapeSprites.WaterCell(2f, new Color(0.16f, 0.42f, 0.62f), new Color(0.22f, 0.5f, 0.7f)), Color.white, -10);
-            water.drawMode = SpriteDrawMode.Tiled;
-            water.size = 2f * ArenaHalfSize + new Vector2(16f, 16f);
-
+            var scenery = Shapes3D.Group(transform, "Scenery");
+            var random = new System.Random(7); // same scenery every run
             var h = ArenaHalfSize;
-            PhysicsBodies.CreateWallLoop(new[] { new Vector2(-h.x, -h.y), new Vector2(h.x, -h.y), new Vector2(h.x, h.y), new Vector2(-h.x, h.y) });
-            BankStrip(new Vector2(0f, h.y + 2f), new Vector2(2f * h.x + 8f, 4f));
-            BankStrip(new Vector2(0f, -h.y - 2f), new Vector2(2f * h.x + 8f, 4f));
-            BankStrip(new Vector2(h.x + 2f, 0f), new Vector2(4f, 2f * h.y));
-            BankStrip(new Vector2(-h.x - 2f, 0f), new Vector2(4f, 2f * h.y));
 
-            // A slalom down the middle, then a gate only 2.8 m wide for a 2 m beam.
+            CourseDressing.Water(scenery, Vector2.zero, 2f * h + new Vector2(120f, 120f), palette);
+
+            // Banks all round, walked counter-clockwise so each cliff builds outward, away from the water.
+            var corners = new[] { new Vector2(-h.x, -h.y), new Vector2(h.x, -h.y), new Vector2(h.x, h.y), new Vector2(-h.x, h.y) };
+            PhysicsBodies.CreateWallLoop(corners);
+            for (var i = 0; i < corners.Length; i++)
+                CourseDressing.CliffBank(scenery, corners[i], corners[(i + 1) % corners.Length], 7f, palette, random);
+
+            // A slalom down the middle, then a gate between two rocks with 0.8 m to spare for the 3.2 m raft.
             foreach (var (position, radius) in new[]
                      {
                          (new Vector2(-4f, 6f), 1.5f), (new Vector2(4f, -6f), 1.5f), (new Vector2(12f, 6f), 1.5f), (new Vector2(20f, -6f), 1.5f),
-                         (new Vector2(27f, 2.6f), 1.2f), (new Vector2(27f, -2.6f), 1.2f),
+                         (new Vector2(27f, 3.2f), 1.2f), (new Vector2(27f, -3.2f), 1.2f),
                      })
             {
-                var rock = PhysicsBodies.CreateRock(position, radius);
-                ShapeSprites.Spawn(rock.transform, "Rock", ShapeSprites.Circle(radius), Rock, 1);
+                PhysicsBodies.CreateRock(position, radius);
+                CourseDressing.Rock(scenery, position, radius, palette, random);
             }
+
+            CourseDressing.Gate(scenery, new Vector2(27f, 3.2f), new Vector2(27f, -3.2f), palette);
 
             for (var i = 0; i < 8; i++)
             {
-                var barrel = PhysicsBodies.CreateBarrel(BarrelSpot(i), 0.4f, 8f);
-                ShapeSprites.Spawn(barrel.transform, "Barrel", ShapeSprites.Circle(0.4f), Barrel, 1);
+                var barrel = PhysicsBodies.CreateBarrel(BarrelSpot(i), BarrelRadius, 8f);
+                CourseDressing.Barrel(scenery, barrel.transform, BarrelRadius, palette);
                 barrels.Add(barrel);
             }
         }
 
-        static Vector2 BarrelSpot(int i) => new(-17f + 1.6f * (i % 4), -2.4f + 1.6f * (i / 4) + 0.8f * (i % 2));
-
-        void BankStrip(Vector2 centre, Vector2 size)
-        {
-            var strip = ShapeSprites.Spawn(transform, "Bank", ShapeSprites.Square, Bank, -5);
-            strip.transform.position = centre;
-            strip.transform.localScale = size;
-        }
+        static Vector2 BarrelSpot(int i) => new(-15f + 1.8f * (i % 4), -2.7f + 1.8f * (i / 4) + 0.9f * (i % 2));
     }
 }

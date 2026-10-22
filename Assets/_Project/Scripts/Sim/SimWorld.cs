@@ -40,6 +40,15 @@ namespace RushAhead.Sim
             Physics2D.Simulate(dt);
         }
 
+        public void Despawn(Boat boat)
+        {
+            if (!boats.Remove(boat) || boat.Body == null) return;
+            // Deactivate first: Destroy is deferred to the end of the frame, and a replacement raft spawned on the
+            // same spot must not collide with the old one in the meantime.
+            boat.Body.gameObject.SetActive(false);
+            Object.Destroy(boat.Body.gameObject);
+        }
+
         public void DestroyAll()
         {
             foreach (var boat in boats)

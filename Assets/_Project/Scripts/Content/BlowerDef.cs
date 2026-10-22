@@ -11,13 +11,16 @@ namespace RushAhead.Content
     }
 
     /// <summary>
-    /// A hand-held air blower. Every field maps onto a term in the simulation; none is cosmetic.
+    /// A hand-held air blower. Every field except <see cref="color"/> maps onto a term in the simulation.
     /// Infinite air is <c>drainPerSec = 0</c>; no burst is <c>burstImpulse = 0</c>; burst-only is <c>thrustNewtons = 0</c>.
     /// </summary>
     [CreateAssetMenu(menuName = "Rush Ahead/Blower", fileName = "Blower")]
     public sealed class BlowerDef : ScriptableObject
     {
         public string displayName = "Leaf Blower";
+
+        [Tooltip("Body colour of the blower model; the only cosmetic field here.")]
+        public Color color = new(1f, 0.55f, 0.15f);
 
         [Header("Thrust")]
         [Min(0f)] public float thrustNewtons = 45f;
