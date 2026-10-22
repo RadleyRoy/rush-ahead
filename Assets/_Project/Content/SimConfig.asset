@@ -1,0 +1,42 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a8f3d9721edc38049b7cc6e8d09a81d2, type: 3}
+  m_Name: SimConfig
+  m_EditorClassIdentifier: RushAhead.Sim::RushAhead.Sim.SimConfig
+  tickRate: 60
+  mass: 60
+  inertiaMultiplier: 1.4
+  hullSize: {x: 3, y: 2}
+  bowLength: 0.8
+  linearDamping: 0.02
+  angularDamping: 0.05
+  hullBounciness: 0.2
+  forwardDrag: 5
+  lateralDrag: 40
+  angularDrag: 18
+  thrustMultiplier: 1
+  coneCoupling: 0.5
+  seatOffsets:
+  - {x: 0.55, y: 0.5}
+  - {x: 0.55, y: -0.5}
+  - {x: -0.85, y: 0.5}
+  - {x: -0.85, y: -0.5}
+  tiltInertia: 40
+  tiltStiffness: 6
+  tiltDamping: 1.7
+  heelArm: 0.5
+  turnHeelCoupling: 0.15
+  impactKickScale: 0.004
+  capsizeAngle: 0.55
+  capsizeHoldSeconds: 0.4
+  braceDampingMultiplier: 3
+  recoverySeconds: 1.2

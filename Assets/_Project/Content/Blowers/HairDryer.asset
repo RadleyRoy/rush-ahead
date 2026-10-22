@@ -1,0 +1,28 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4f197571576e67b4faea1a797bb28a6f, type: 3}
+  m_Name: HairDryer
+  m_EditorClassIdentifier: RushAhead.Content::RushAhead.Content.BlowerDef
+  displayName: Hair Dryer
+  thrustNewtons: 30
+  spoolUpMs: 140
+  spoolDownMs: 120
+  coneHalfAngleDeg: 9
+  range: 6.5
+  falloffExp: 1.1
+  airCapacity: 140
+  drainPerSec: 14
+  rechargePerSec: 18
+  rechargeDelayMs: 450
+  burstImpulse: 30
+  burstCost: 20
+  special: 0

@@ -1,0 +1,28 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4f197571576e67b4faea1a797bb28a6f, type: 3}
+  m_Name: Bellows
+  m_EditorClassIdentifier: RushAhead.Content::RushAhead.Content.BlowerDef
+  displayName: Bellows
+  thrustNewtons: 0
+  spoolUpMs: 260
+  spoolDownMs: 180
+  coneHalfAngleDeg: 30
+  range: 3
+  falloffExp: 1.6
+  airCapacity: 100
+  drainPerSec: 22
+  rechargePerSec: 30
+  rechargeDelayMs: 200
+  burstImpulse: 110
+  burstCost: 26
+  special: 0

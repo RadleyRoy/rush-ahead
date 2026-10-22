@@ -1,8 +1,14 @@
 {
     "name": "RushAhead.Editor",
     "rootNamespace": "RushAhead.EditorTools",
-    "references": [],
-    "includePlatforms": ["Editor"],
+    "references": [
+        "RushAhead.Content",
+        "RushAhead.Sim",
+        "RushAhead.UI"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
     "excludePlatforms": [],
     "allowUnsafeCode": false,
     "overrideReferences": false,
