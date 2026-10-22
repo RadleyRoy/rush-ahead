@@ -13,16 +13,16 @@ namespace RushAhead.Net
     public sealed class HostSession : IDisposable
     {
         readonly INetTransport transport;
-        readonly IReadOnlyList<Rigidbody2D> props;
         readonly List<ulong> clients = new();
         readonly Dictionary<(ulong client, int seat), RemoteSeatInput> remote = new();
         readonly ByteWriter writer = new(256);
         readonly Snapshot snapshot = new();
+        RaceMessage race;
 
         public HostSession(INetTransport transport, CrewRoster roster, IReadOnlyList<Rigidbody2D> props)
         {
             this.transport = transport;
-            this.props = props;
+            Props = props;
             Roster = roster;
             transport.PeerConnected += OnClientJoined;
             transport.PeerDisconnected += OnClientLeft;
@@ -34,6 +34,16 @@ namespace RushAhead.Net
         public Boat Boat { get; private set; }
         public int SnapshotEveryTicks { get; set; } = 2; // 30 Hz at the 60 Hz tick
         public IReadOnlyList<ulong> Clients => clients;
+
+        /// <summary>Loose bodies every client should see, in an order all devices agree on (the venue's barrel list).</summary>
+        public IReadOnlyList<Rigidbody2D> Props { get; set; }
+
+        /// <summary>Tells every client (and anyone who joins later) which venue is loaded and when its race starts.</summary>
+        public void SetRace(int course, int startTick)
+        {
+            race = new RaceMessage { Course = (byte)course, StartTick = (uint)Mathf.Max(0, startTick) };
+            foreach (var client in clients) SendRace(client);
+        }
 
         /// <summary>Starts serving <paramref name="boat"/>, a raft spawned to match the roster's crew size.</summary>
         public void UseBoat(Boat boat)
@@ -64,6 +74,7 @@ namespace RushAhead.Net
         {
             if (clients.Contains(client)) return;
             clients.Add(client);
+            SendRace(client); // first, so they build the right venue before the raft appears on it
             Roster.AddHuman(client); // they wear a default look until their profile arrives, a moment later
         }
 
@@ -101,6 +112,13 @@ namespace RushAhead.Net
                 if (crew.Input is RemoteSeatInput && !IsRemote(crew.Seat)) crew.Input = null;
 
             foreach (var client in clients) SendRoster(client);
+        }
+
+        void SendRace(ulong client)
+        {
+            writer.Reset();
+            Protocol.Write(writer, race);
+            transport.Send(client, writer.Written, reliable: true);
         }
 
         void SendRoster(ulong client)
@@ -152,6 +170,9 @@ namespace RushAhead.Net
             b.Tilt = Boat.Tilt.Tilt;
             b.Capsized = Boat.State == BoatState.Capsized;
             b.CapsizeCount = (byte)Mathf.Min(Boat.CapsizeCount, 255);
+            b.GatesPassed = (byte)Mathf.Min(Boat.GatesPassed, 255);
+            b.FinishTick = (uint)Mathf.Max(0, Boat.FinishTick);
+            b.TeleportCount = (byte)Boat.TeleportCount;
             b.Crew.Clear();
             foreach (var crew in Boat.Crew)
             {
@@ -167,8 +188,8 @@ namespace RushAhead.Net
             }
 
             snapshot.Props.Clear();
-            foreach (var prop in props)
-                snapshot.Props.Add(new PropSnapshot { Position = prop.position, AngleRad = prop.rotation * Mathf.Deg2Rad });
+            foreach (var prop in Props)
+                if (prop != null) snapshot.Props.Add(new PropSnapshot { Position = prop.position, AngleRad = prop.rotation * Mathf.Deg2Rad });
         }
 
         public void Dispose()

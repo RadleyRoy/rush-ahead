@@ -4,6 +4,7 @@ using System.Globalization;
 using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
+using RushAhead.AI;
 using RushAhead.Content;
 using RushAhead.Net;
 using RushAhead.Render;
@@ -20,9 +21,10 @@ namespace RushAhead.UI
     }
 
     /// <summary>
-    /// The feel test: one raft with 1 to 4 players in a lagoon with loose barrels, a rock slalom and a tight gate, seen
-    /// through a third-person chase camera. Plays offline, hosts a LAN game, or joins one. A joined device runs no
-    /// simulation at all; it draws the host's raft and barrels from snapshots and sends controls for its own seat.
+    /// The feel test: one raft with 1 to 4 players, either in the practice lagoon (loose barrels, a rock slalom and a
+    /// tight gate) or racing down a course, seen through a third-person chase camera. Plays offline, hosts a LAN game,
+    /// or joins one. A joined device runs no simulation at all; it builds the same venue, draws the host's raft and
+    /// barrels from snapshots, and sends controls for its own seat.
     /// Every player brings their own animal (species, fur, blower, name); the host's <see cref="CrewRoster"/> decides
     /// who sits where and keeps everyone's view of the crew the same.
     ///
@@ -32,6 +34,8 @@ namespace RushAhead.UI
     ///   -rushahead-find [listen address]   look for a room on the LAN and join the first one heard
     ///   -rushahead-port &lt;port&gt;             default 7777
     ///   -rushahead-name / -animal / -fur / -blower   this run's player look (not saved)
+    ///   -rushahead-course &lt;n&gt;              start on course n (1 is the first course; 0 is the lagoon)
+    ///   -rushahead-autopilot                 let the course autopilot drive (offline or hosting)
     /// </summary>
     public sealed class FeelTestBootstrap : MonoBehaviour
     {
@@ -41,6 +45,8 @@ namespace RushAhead.UI
 
         [SerializeField] SimConfig config;
         [SerializeField] CrewCatalog catalog;
+        [Tooltip("Race courses, in menu order. The order is part of the wire format: only ever append.")]
+        [SerializeField] CourseDef[] courses;
         [SerializeField] ArtPalette palette;
 
         readonly List<GameObject> barrels = new();
@@ -49,6 +55,20 @@ namespace RushAhead.UI
         RaftView raftView;
         ChaseCamera chase;
         CrewRoster roster;
+
+        // The venue: 0 is the practice lagoon, n is courses[n - 1]. Barrels are listed in an order every device agrees on.
+        int venue;
+        GameObject lagoon;
+        Course course;
+        CourseView courseView;
+        Race race;
+        CourseAutopilot autopilot;
+        bool autopilotWanted;
+        Vector2 spawn = Spawn;
+        float spawnAngle;
+        int clientRaceStart;
+        int shownTeleports = -1;
+        (int venue, int start) recordedRun = (-1, -1);
 
         INetTransport transport;
         HostSession host;
@@ -66,6 +86,16 @@ namespace RushAhead.UI
 
         public SimConfig Config => config;
         public CrewCatalog Catalog => catalog;
+        public IReadOnlyList<CourseDef> Courses => courses;
+
+        /// <summary>0 for the practice lagoon, n for <see cref="Courses"/>[n - 1].</summary>
+        public int Venue => venue;
+
+        /// <summary>The course loaded, or null in the lagoon.</summary>
+        public Course CurrentCourse => course;
+
+        /// <summary>The run on screen: countdown, clock, checkpoints and, once over, the result.</summary>
+        public RaceInfo Run { get; private set; }
         public CrewInputRouter Router { get; private set; }
         public NetMode Mode { get; private set; }
         public string NetStatus { get; private set; } = "";
@@ -104,7 +134,8 @@ namespace RushAhead.UI
 
             runner = gameObject.AddComponent<SimRunner>();
             runner.Init(config);
-            BuildArena();
+            runner.Ticked += StepRace; // ahead of the host's snapshots, so each one carries that tick's progress
+            LoadVenue(0);
 
             chase = Camera.main.gameObject.AddComponent<ChaseCamera>();
             chase.TargetPosition = () => ViewedBoat.RenderPosition;
@@ -149,7 +180,12 @@ namespace RushAhead.UI
                 beacon.Update(Time.unscaledDeltaTime);
             }
 
-            if (Mode != NetMode.Joined) return;
+            if (Mode == NetMode.Joined) UpdateJoined();
+            UpdateRun();
+        }
+
+        void UpdateJoined()
+        {
             client.Update(Time.deltaTime);
             everConnected |= client.Connected;
             if (client.Error != null) hostLost = true; // leave next frame, showing why
@@ -176,20 +212,48 @@ namespace RushAhead.UI
             if (raftView != null) Destroy(raftView.gameObject);
 
             roster.SetCrewCount(count);
-            Boat = runner.World.SpawnBoat(Spawn, 0f, roster.Blowers());
+            Boat = runner.World.SpawnBoat(spawn, spawnAngle, roster.Blowers());
             raftView = RaftView.Build(Boat, config, palette, catalog, Looks(roster.Describe(Peers.Host)));
             host?.UseBoat(Boat);
             OnRosterChanged();
-            chase.SnapTo(Spawn, 0f);
+            StartRun();
         }
 
-        public void ResetBoat()
+        /// <summary>Back to the start: on a course, a fresh race with a countdown; in the lagoon, a standing start.</summary>
+        public void ResetBoat() => StartRun();
+
+        /// <summary>Loads a venue (0 is the practice lagoon) and starts a run there. Joined players follow the host.</summary>
+        public void ChooseVenue(int index)
         {
             if (!CanEditRaft) return;
-            Boat.ResetTo(Spawn, 0f);
-            chase.SnapTo(Spawn, 0f);
-            for (var i = 0; i < barrels.Count; i++)
-                PhysicsBodies.Reset(barrels[i], BarrelSpot(i));
+            LoadVenue(index);
+            StartRun();
+        }
+
+        void StartRun()
+        {
+            if (!CanEditRaft || Boat == null) return;
+            race?.Dispose();
+            race = null;
+            if (course != null)
+            {
+                race = new Race(course, Boat, runner.World.Tick, config.tickRate);
+            }
+            else
+            {
+                Boat.ResetTo(spawn, spawnAngle);
+                for (var i = 0; i < barrels.Count; i++) PhysicsBodies.Reset(barrels[i], BarrelSpot(i));
+            }
+
+            autopilot = autopilotWanted && course != null ? new CourseAutopilot(Boat, course.River) : null;
+            if (autopilot == null) WireLocalSeats(roster.LocalSeats());
+            host?.SetRace(venue, race?.StartTick ?? 0);
+        }
+
+        void StepRace(int tick)
+        {
+            autopilot?.Update(); // sets the crew's controls for the next tick
+            race?.Step(tick);
         }
 
         /// <summary>Whether this device chooses a seat's look: its own player's seat, and on its own raft the spares too.</summary>
@@ -244,6 +308,7 @@ namespace RushAhead.UI
             runner.Ticked += host.OnTick;
             Mode = NetMode.Hosting;
             host.UseBoat(Boat);
+            host.SetRace(venue, race?.StartTick ?? 0);
 
             // Same-machine tests listen on loopback only, so they advertise there too and never touch the real network.
             var loopbackOnly = listen == IPAddress.Loopback.ToString();
@@ -274,7 +339,10 @@ namespace RushAhead.UI
 
             StopSearching();
 
-            // The host runs the only simulation: drop our raft and stop simulating our barrels.
+            // The host runs the only simulation: drop our raft and race, and stop simulating our barrels.
+            race?.Dispose();
+            race = null;
+            autopilot = null;
             runner.World.Despawn(Boat);
             Boat = null;
             Destroy(raftView.gameObject);
@@ -283,6 +351,7 @@ namespace RushAhead.UI
 
             client = new ClientSession(transport, config, catalog, Local.Profile, seat => Router.Seats[seat].ReadInput());
             client.RosterChanged += OnClientRoster;
+            client.RaceChanged += OnClientRace;
             client.Disconnected += () => hostLost = true; // handled next frame, outside the transport's own callback
             Router.SetSeats(Array.Empty<int>()); // nothing to drive until the host deals us a seat
             Seats = Array.Empty<RosterSeat>();
@@ -300,9 +369,8 @@ namespace RushAhead.UI
 
             if (wasJoined)
             {
-                foreach (var barrel in barrels) PhysicsBodies.Freeze(barrel, false);
+                LoadVenue(venue); // fresh barrels, simulated here again
                 SetCrewCount(crewCount);
-                ResetBoat();
             }
         }
 
@@ -344,6 +412,7 @@ namespace RushAhead.UI
 
         void WireLocalSeats(IReadOnlyList<int> seats)
         {
+            if (autopilot != null) return; // the autopilot has the controls
             Router.SetSeats(seats);
             foreach (var seat in seats) Boat.Crew[seat].Input = Router.Seats[seat];
         }
@@ -410,6 +479,8 @@ namespace RushAhead.UI
         void ApplyCommandLine()
         {
             if (ushort.TryParse(CommandLine.After("-rushahead-port"), out var customPort)) port = customPort;
+            autopilotWanted = CommandLine.Has("-rushahead-autopilot");
+            if (int.TryParse(CommandLine.After("-rushahead-course"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var startCourse)) ChooseVenue(startCourse);
             if (CommandLine.Has("-rushahead-host")) StartHosting(CommandLine.After("-rushahead-host") ?? "0.0.0.0");
             else if (CommandLine.After("-rushahead-join") is { } address) Join(address);
             else if (CommandLine.Has("-rushahead-find"))
@@ -450,9 +521,122 @@ namespace RushAhead.UI
             return "this device's IP";
         }
 
-        void BuildArena()
+        /// <summary>Tears down the current venue and builds another. Joined, its barrels only show where the host says.</summary>
+        void LoadVenue(int index)
         {
-            var scenery = Shapes3D.Group(transform, "Scenery");
+            UnloadVenue();
+            venue = Mathf.Clamp(index, 0, courses.Length);
+            if (venue == 0)
+            {
+                BuildLagoon();
+                spawn = Spawn;
+                spawnAngle = 0f;
+            }
+            else
+            {
+                course = Course.Build(courses[venue - 1]);
+                courseView = CourseView.Build(course, palette);
+                barrels.AddRange(course.Barrels);
+                barrelBodies.AddRange(course.BarrelBodies);
+                runner.World.WaterVelocity = course.WaterVelocityAt;
+                spawn = course.SpawnPosition;
+                spawnAngle = course.SpawnAngleRad;
+            }
+
+            runner.World.Drifting.AddRange(barrelBodies);
+            if (Mode == NetMode.Joined)
+                foreach (var barrel in barrels) PhysicsBodies.Freeze(barrel);
+            recordedRun = (-1, -1);
+        }
+
+        void UnloadVenue()
+        {
+            race?.Dispose();
+            race = null;
+            autopilot = null;
+            course?.Destroy();
+            course = null;
+            if (courseView != null) Destroy(courseView.gameObject);
+            courseView = null;
+            if (lagoon != null)
+            {
+                lagoon.SetActive(false); // out of the physics world now, not at the end of the frame
+                Destroy(lagoon);
+            }
+
+            lagoon = null;
+            barrels.Clear();
+            barrelBodies.Clear();
+            runner.World.Drifting.Clear();
+            runner.World.WaterVelocity = null;
+        }
+
+        void OnClientRace()
+        {
+            var message = client.Race;
+            if (message.Course != venue) LoadVenue(message.Course);
+            clientRaceStart = (int)message.StartTick;
+        }
+
+        /// <summary>Keeps the camera, the gates and the run's numbers in step with the raft on screen.</summary>
+        void UpdateRun()
+        {
+            var boat = ViewedBoat;
+            if (boat == null) return;
+            if (boat.TeleportCount != shownTeleports)
+            {
+                shownTeleports = boat.TeleportCount; // a respawn or restart: cut the camera there, don't swoop
+                chase.SnapTo(boat.RenderPosition, boat.RenderAngleRad);
+            }
+
+            if (courseView != null) courseView.ShowProgress(boat.GatesPassed);
+            if (venue == 0)
+            {
+                Run = default;
+                return;
+            }
+
+            var def = courses[venue - 1];
+            var start = Mode == NetMode.Joined ? clientRaceStart : race?.StartTick ?? 0;
+            var now = Mode == NetMode.Joined ? PlaybackTick : runner.World.Tick;
+            var info = new RaceInfo
+            {
+                Course = def,
+                Countdown = RaceClock.CountdownLeft(start, now, config.tickRate),
+                SinceStart = (float)((now - start) / config.tickRate),
+                Seconds = RaceClock.Seconds(start, boat.FinishTick, now, config.tickRate),
+                GatesPassed = boat.GatesPassed,
+                Finished = boat.FinishTick > 0,
+                Capsizes = boat.CapsizeCount,
+                Best = PersonalBest(def),
+            };
+
+            if (info.Finished && recordedRun != (venue, start))
+            {
+                // Every device keeps its own best for each course, from the host's time.
+                recordedRun = (venue, start);
+                info.NewBest = info.Best <= 0f || info.Seconds < info.Best;
+                if (info.NewBest)
+                {
+                    PlayerPrefs.SetFloat(BestKey(def), info.Seconds);
+                    PlayerPrefs.Save();
+                }
+            }
+            else
+            {
+                info.NewBest = Run.NewBest && info.Finished;
+            }
+
+            Run = info;
+        }
+
+        static string BestKey(CourseDef def) => $"rushahead.best.{def.name}";
+        static float PersonalBest(CourseDef def) => PlayerPrefs.GetFloat(BestKey(def), 0f);
+
+        void BuildLagoon()
+        {
+            lagoon = new GameObject("Practice lagoon");
+            var scenery = Shapes3D.Group(lagoon.transform, "Scenery");
             var random = new System.Random(7); // same scenery every run, and on every player's device
             var h = ArenaHalfSize;
 
@@ -460,7 +644,7 @@ namespace RushAhead.UI
 
             // Banks all round, walked counter-clockwise so each cliff builds outward, away from the water.
             var corners = new[] { new Vector2(-h.x, -h.y), new Vector2(h.x, -h.y), new Vector2(h.x, h.y), new Vector2(-h.x, h.y) };
-            PhysicsBodies.CreateWallLoop(corners);
+            PhysicsBodies.CreateWallLoop(corners).transform.SetParent(lagoon.transform, true);
             for (var i = 0; i < corners.Length; i++)
                 CourseDressing.CliffBank(scenery, corners[i], corners[(i + 1) % corners.Length], 7f, palette, random);
 
@@ -471,7 +655,7 @@ namespace RushAhead.UI
                          (new Vector2(27f, 3.2f), 1.2f), (new Vector2(27f, -3.2f), 1.2f),
                      })
             {
-                PhysicsBodies.CreateRock(position, radius);
+                PhysicsBodies.CreateRock(position, radius).transform.SetParent(lagoon.transform, true);
                 CourseDressing.Rock(scenery, position, radius, palette, random);
             }
 
@@ -481,6 +665,7 @@ namespace RushAhead.UI
             for (var i = 0; i < 8; i++)
             {
                 var barrel = PhysicsBodies.CreateBarrel(BarrelSpot(i), BarrelRadius, 8f);
+                barrel.transform.SetParent(lagoon.transform, true);
                 CourseDressing.Barrel(scenery, barrel.transform, BarrelRadius, palette);
                 barrels.Add(barrel);
                 barrelBodies.Add(barrel.GetComponent<Rigidbody2D>());
@@ -503,5 +688,32 @@ namespace RushAhead.UI
             var i = Array.IndexOf(Args, flag);
             return i >= 0 && i + 1 < Args.Length && !Args[i + 1].StartsWith("-") ? Args[i + 1] : null;
         }
+    }
+
+    /// <summary>A run as the HUD shows it: the same on the host and every joined device.</summary>
+    public struct RaceInfo
+    {
+        public CourseDef Course;
+
+        /// <summary>3, 2, 1 before the start; 0 once the clock is running.</summary>
+        public int Countdown;
+
+        /// <summary>Seconds since the start signal (negative during the countdown), for showing "GO!" briefly.</summary>
+        public float SinceStart;
+
+        /// <summary>The clock: time so far, or the finishing time.</summary>
+        public float Seconds;
+
+        public int GatesPassed;
+        public bool Finished;
+        public int Capsizes;
+
+        /// <summary>This device's best time on the course before this run, or 0 if it has none.</summary>
+        public float Best;
+
+        public bool NewBest;
+
+        public bool Active => Course != null;
+        public int Stars => Finished ? Course.Stars(Seconds) : 0;
     }
 }

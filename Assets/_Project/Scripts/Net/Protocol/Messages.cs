@@ -11,6 +11,9 @@ namespace RushAhead.Net
         /// <summary>Host to one client, reliable, on every change: each seat's animal and which seat is theirs.</summary>
         Roster = 0x02,
 
+        /// <summary>Host to every client, reliable, on every change: which course is loaded and when its race starts.</summary>
+        Race = 0x03,
+
         /// <summary>Host to every client, unreliable, 30 Hz: the whole visible world.</summary>
         Snapshot = 0x10,
 
@@ -88,7 +91,22 @@ namespace RushAhead.Net
         public Vector2 Tilt;
         public bool Capsized;
         public byte CapsizeCount;
+        public byte GatesPassed;
+        public uint FinishTick;
+
+        /// <summary>Wraps at 256; only ever compared for change.</summary>
+        public byte TeleportCount;
+
         public readonly List<CrewSnapshot> Crew = new();
+    }
+
+    /// <summary>The venue and race everyone is in. Course 0 is the practice lagoon (no race); course n is the host's n-th course.</summary>
+    public struct RaceMessage
+    {
+        public byte Course;
+
+        /// <summary>The host tick the countdown ends and the clock starts.</summary>
+        public uint StartTick;
     }
 
     public struct PropSnapshot
@@ -108,7 +126,7 @@ namespace RushAhead.Net
     public static class Protocol
     {
         /// <summary>Bump on any wire-format change. Mismatched peers refuse each other.</summary>
-        public const byte Version = 2;
+        public const byte Version = 3;
 
         const byte FlagHasAim = 1, FlagBrace = 2;
         const byte BoatCapsized = 1;
@@ -187,6 +205,21 @@ namespace RushAhead.Net
 
             ExpectEnd(r, "roster");
             return seats;
+        }
+
+        public static void Write(ByteWriter w, in RaceMessage m)
+        {
+            w.U8((byte)MessageType.Race);
+            w.U8(m.Course);
+            w.U32(m.StartTick);
+        }
+
+        public static RaceMessage ReadRace(ByteReader r)
+        {
+            Expect(r, MessageType.Race);
+            var m = new RaceMessage { Course = r.U8(), StartTick = r.U32() };
+            ExpectEnd(r, "race");
+            return m;
         }
 
         public static void WriteProfile(ByteWriter w, in Loadout loadout)
@@ -305,6 +338,9 @@ namespace RushAhead.Net
                 w.I16(Quantize.Tilt(boat.Tilt.y));
                 w.U8(boat.Capsized ? BoatCapsized : (byte)0);
                 w.U8(boat.CapsizeCount);
+                w.U8(boat.GatesPassed);
+                w.U32(boat.FinishTick);
+                w.U8(boat.TeleportCount);
                 w.U8((byte)boat.Crew.Count);
                 foreach (var crew in boat.Crew)
                 {
@@ -344,6 +380,9 @@ namespace RushAhead.Net
                 boat.Tilt = new Vector2(Quantize.Tilt(r.I16()), Quantize.Tilt(r.I16()));
                 boat.Capsized = (r.U8() & BoatCapsized) != 0;
                 boat.CapsizeCount = r.U8();
+                boat.GatesPassed = r.U8();
+                boat.FinishTick = r.U32();
+                boat.TeleportCount = r.U8();
 
                 var crew = Bounded(r.U8(), MaxCrew, "crew count");
                 boat.Crew.Clear();

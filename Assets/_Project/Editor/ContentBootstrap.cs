@@ -114,9 +114,11 @@ namespace RushAhead.EditorTools
             catalog.furColors = FurColors;
             EditorUtility.SetDirty(catalog);
 
+            var courses = CourseLibrary.CreateDefaults();
+
             var config = LoadOrCreate<SimConfig>($"{ContentFolder}/SimConfig.asset");
             EditorUtility.SetDirty(config); // re-saving drops fields the code no longer has (the old fixed seat list)
-            WireFeelTestScene(scene, config, catalog, palette, sky);
+            WireFeelTestScene(scene, config, catalog, courses, palette, sky);
             AssetDatabase.SaveAssets();
             Debug.Log("[RushAhead] Default content and FeelTest scene ready.");
         }
@@ -169,7 +171,7 @@ namespace RushAhead.EditorTools
             return EditorSceneManager.OpenScene(FeelTestScene, OpenSceneMode.Single);
         }
 
-        static void WireFeelTestScene(Scene scene, SimConfig config, CrewCatalog catalog, ArtPalette palette, Material sky)
+        static void WireFeelTestScene(Scene scene, SimConfig config, CrewCatalog catalog, CourseDef[] courses, ArtPalette palette, Material sky)
         {
             var bootstrap = Object.FindAnyObjectByType<FeelTestBootstrap>();
             if (bootstrap == null) bootstrap = new GameObject("Feel Test").AddComponent<FeelTestBootstrap>();
@@ -178,6 +180,9 @@ namespace RushAhead.EditorTools
             serialized.FindProperty("config").objectReferenceValue = config;
             serialized.FindProperty("palette").objectReferenceValue = palette;
             serialized.FindProperty("catalog").objectReferenceValue = catalog;
+            var list = serialized.FindProperty("courses");
+            list.arraySize = courses.Length;
+            for (var i = 0; i < courses.Length; i++) list.GetArrayElementAtIndex(i).objectReferenceValue = courses[i];
             serialized.ApplyModifiedPropertiesWithoutUndo();
 
             // The chase camera positions itself every frame; the scene only needs a perspective camera and a sky.

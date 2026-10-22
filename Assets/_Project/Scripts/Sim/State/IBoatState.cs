@@ -23,6 +23,15 @@ namespace RushAhead.Sim
         bool Capsized { get; }
         int CapsizeCount { get; }
 
+        /// <summary>Changes whenever the raft jumps somewhere (a reset or respawn): cut to it, don't glide.</summary>
+        int TeleportCount { get; }
+
+        /// <summary>Checkpoints passed in the current race.</summary>
+        int GatesPassed { get; }
+
+        /// <summary>The host tick the raft finished on, or 0.</summary>
+        int FinishTick { get; }
+
         /// <summary>0 when level, 1 at the capsize threshold.</summary>
         float TiltDanger { get; }
 

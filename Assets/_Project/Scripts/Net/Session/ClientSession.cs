@@ -36,12 +36,18 @@ namespace RushAhead.Net
         /// <summary>A new roster arrived: seats, looks or both changed.</summary>
         public event Action RosterChanged;
 
+        /// <summary>The host loaded a venue or started a race.</summary>
+        public event Action RaceChanged;
+
         public event Action Disconnected;
 
         public SnapshotTimeline Timeline { get; }
         public InterpolatedBoat Boat { get; }
         public bool Connected { get; private set; }
         public RosterSeat[] Roster { get; private set; } = Array.Empty<RosterSeat>();
+
+        /// <summary>The host's venue and race start, as last heard.</summary>
+        public RaceMessage Race { get; private set; }
         public int CrewCount => Roster.Length;
 
         /// <summary>The seats this device drives: one, or none while the raft is full and it's watching.</summary>
@@ -132,6 +138,11 @@ namespace RushAhead.Net
                         // Burst counts keep running across seat changes: the host baselines each seat on its first packet.
                         Seats = seats.ToArray();
                         RosterChanged?.Invoke();
+                        break;
+
+                    case MessageType.Race:
+                        Race = Protocol.ReadRace(new ByteReader(message));
+                        RaceChanged?.Invoke();
                         break;
 
                     case MessageType.Snapshot:

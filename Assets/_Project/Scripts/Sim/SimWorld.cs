@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using RushAhead.Content;
 using UnityEngine;
@@ -18,6 +19,12 @@ namespace RushAhead.Sim
         public IReadOnlyList<Boat> Boats => boats;
         public int Tick { get; private set; }
 
+        /// <summary>How fast the water moves at a point (a course's currents). Null for still water.</summary>
+        public Func<Vector2, Vector2> WaterVelocity { get; set; }
+
+        /// <summary>Loose bodies (barrels) that currents carry along. Their own damping is their drag in still water.</summary>
+        public List<Rigidbody2D> Drifting { get; } = new();
+
         public Boat SpawnBoat(Vector2 position, float angleRad, IReadOnlyList<BlowerDef> loadout)
         {
             var body = BoatPhysics.Create(Config, position, angleRad, $"Boat {boats.Count}");
@@ -29,7 +36,19 @@ namespace RushAhead.Sim
         /// <summary>Applies one tick of forces. In play mode Unity steps 2D physics straight after FixedUpdate.</summary>
         public void StepForces(float dt)
         {
-            foreach (var boat in boats) boat.Step(dt);
+            foreach (var boat in boats)
+            {
+                boat.WaterVelocity = WaterVelocity?.Invoke(boat.Body.Position) ?? Vector2.zero;
+                boat.Step(dt);
+            }
+
+            if (WaterVelocity != null)
+            {
+                // Damping pulls a barrel toward still; this pulls it toward the water's speed instead, so it drifts with the flow.
+                foreach (var body in Drifting)
+                    if (body != null && body.simulated) body.AddForce(body.mass * body.linearDamping * WaterVelocity(body.position));
+            }
+
             Tick++;
         }
 
@@ -46,13 +65,13 @@ namespace RushAhead.Sim
             // Deactivate first: Destroy is deferred to the end of the frame, and a replacement raft spawned on the
             // same spot must not collide with the old one in the meantime.
             boat.Body.gameObject.SetActive(false);
-            Object.Destroy(boat.Body.gameObject);
+            UnityEngine.Object.Destroy(boat.Body.gameObject);
         }
 
         public void DestroyAll()
         {
             foreach (var boat in boats)
-                if (boat.Body != null) Object.DestroyImmediate(boat.Body.gameObject);
+                if (boat.Body != null) UnityEngine.Object.DestroyImmediate(boat.Body.gameObject);
             boats.Clear();
         }
     }

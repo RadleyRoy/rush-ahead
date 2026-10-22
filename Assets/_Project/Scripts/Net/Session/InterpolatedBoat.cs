@@ -33,6 +33,9 @@ namespace RushAhead.Net
         public Vector2 Tilt { get; private set; }
         public bool Capsized { get; private set; }
         public int CapsizeCount { get; private set; }
+        public int TeleportCount { get; private set; }
+        public int GatesPassed { get; private set; }
+        public int FinishTick { get; private set; }
         public float TiltDanger => Mathf.Clamp01(Tilt.magnitude / config.capsizeAngle);
         public int CrewCount { get; private set; }
         public ICrewState CrewAt(int seat) => crew[Mathf.Clamp(seat, 0, crew.Length - 1)];
@@ -52,6 +55,13 @@ namespace RushAhead.Net
             var span = (to.Tick - from.Tick) / timeline.TickRate;
             var position = span > 0f ? Hermite(a.Position, a.Velocity * span, b.Position, b.Velocity * span, t) : a.Position;
             var angle = a.AngleRad + Mathf.DeltaAngle(a.AngleRad * Mathf.Rad2Deg, b.AngleRad * Mathf.Rad2Deg) * Mathf.Deg2Rad * t;
+            if (a.TeleportCount != b.TeleportCount)
+            {
+                // The raft jumped (a respawn or reset) between these snapshots: cut to where it landed, don't sweep across the map.
+                a = b;
+                position = b.Position;
+                angle = b.AngleRad;
+            }
             if (overshoot > 0f)
             {
                 var ahead = Mathf.Min(overshoot, MaxExtrapolationSeconds);
@@ -65,6 +75,9 @@ namespace RushAhead.Net
             Tilt = Vector2.Lerp(a.Tilt, b.Tilt, t);
             Capsized = a.Capsized;
             CapsizeCount = a.CapsizeCount;
+            TeleportCount = a.TeleportCount;
+            GatesPassed = a.GatesPassed;
+            FinishTick = (int)a.FinishTick;
 
             CrewCount = Mathf.Min(a.Crew.Count, b.Crew.Count, crew.Length);
             for (var i = 0; i < CrewCount; i++)

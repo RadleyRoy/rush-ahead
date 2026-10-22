@@ -50,7 +50,25 @@ namespace RushAhead.Sim
         public CrewMember[] Crew { get; }
         public TiltModel Tilt { get; } = new();
         public BoatState State { get; private set; }
-        public int CapsizeCount { get; private set; }
+        public int CapsizeCount { get; internal set; }
+
+        /// <summary>While true (a race countdown, after the finish) the crew's controls are read but ignored.</summary>
+        public bool ControlsLocked { get; set; }
+
+        /// <summary>After a respawn the raft can lean but not capsize again for this long, so it gets a fair restart.</summary>
+        public float CapsizeImmunitySeconds { get; set; }
+
+        /// <summary>How fast the water under the raft moves (a current). Drag acts on the raft's speed through the water.</summary>
+        public Vector2 WaterVelocity { get; set; }
+
+        /// <summary>Counts jumps to a new place (reset, respawn), so views know to cut rather than slide there.</summary>
+        public int TeleportCount { get; private set; }
+
+        /// <summary>Checkpoints passed in the current race; set by the race rules.</summary>
+        public int GatesPassed { get; internal set; }
+
+        /// <summary>The tick the raft crossed the finish line, or 0 while it hasn't.</summary>
+        public int FinishTick { get; internal set; }
 
         /// <summary>Speed along the hull's heading (negative when going backwards).</summary>
         public float ForwardSpeed => Body.LocalVector(Body.Velocity).x;
@@ -75,10 +93,13 @@ namespace RushAhead.Sim
             var heelAccel = Vector2.zero;
             var bracedCount = 0;
 
+            CapsizeImmunitySeconds = Mathf.Max(0f, CapsizeImmunitySeconds - dt);
             foreach (var crew in Crew)
             {
                 crew.SeatOffset = config.SeatOffset(crew.Seat, Crew.Length);
-                var input = afloat && crew.Input != null ? crew.Input.ReadInput() : CrewInput.Idle;
+                // Always read, so presses made while the controls are locked are used up rather than firing afterwards.
+                var input = crew.Input?.ReadInput() ?? CrewInput.Idle;
+                if (!afloat || ControlsLocked) input = CrewInput.Idle;
                 crew.Braced = afloat && input.Brace;
                 if (crew.Braced) bracedCount++;
 
@@ -154,7 +175,7 @@ namespace RushAhead.Sim
 
         void ApplyWaterDrag()
         {
-            var localVelocity = Body.LocalVector(Body.Velocity);
+            var localVelocity = Body.LocalVector(Body.Velocity - WaterVelocity); // a current carries the raft along with it
             Body.AddForce(Body.WorldVector(WaterDrag.LocalForce(localVelocity, config.forwardDrag, config.lateralDrag)));
             Body.AddTorque(WaterDrag.Torque(Body.AngularVelocityRad, config.angularDrag));
         }
@@ -185,7 +206,8 @@ namespace RushAhead.Sim
             var rollDamping = config.tiltDamping * Mathf.Lerp(1f, config.braceDampingMultiplier, bracedCount / (float)Crew.Length);
             var damping = new Vector2(rollDamping, rollDamping * Mathf.Sqrt(pitchMultiplier));
 
-            if (!Tilt.Step(heelAccel + turnHeel, stiffness, damping, config.capsizeAngle, config.capsizeHoldSeconds, dt))
+            var capsizeAngle = CapsizeImmunitySeconds > 0f ? float.PositiveInfinity : config.capsizeAngle;
+            if (!Tilt.Step(heelAccel + turnHeel, stiffness, damping, capsizeAngle, config.capsizeHoldSeconds, dt))
                 return;
 
             State = BoatState.Capsized;
@@ -207,6 +229,7 @@ namespace RushAhead.Sim
         public void ResetTo(Vector2 position, float angleRad)
         {
             Body.Teleport(position, angleRad);
+            TeleportCount++;
             Tilt.Reset();
             State = BoatState.Afloat;
             foreach (var crew in Crew)

@@ -22,6 +22,9 @@ namespace RushAhead.Tests
                 Tilt = new Vector2(0.12f, -0.03f),
                 Capsized = false,
                 CapsizeCount = 2,
+                GatesPassed = 3,
+                FinishTick = 0x1234,
+                TeleportCount = 5,
             };
             for (var i = 0; i < 4; i++)
                 boat.Crew.Add(new CrewSnapshot { LocalAimDeg = 45f + 90f * i - 180f, Spool = 0.25f * i, Air = 1f - 0.2f * i, Braced = i == 1, BurstCount = (byte)(i * 3), BlowerIndex = (byte)i });
@@ -77,6 +80,9 @@ namespace RushAhead.Tests
             Assert.That(b.AngularVelocity, Is.EqualTo(a.AngularVelocity).Within(0.002f));
             Assert.That(Vector2.Distance(a.Tilt, b.Tilt), Is.LessThan(0.0005f));
             Assert.That(b.CapsizeCount, Is.EqualTo(2));
+            Assert.That(b.GatesPassed, Is.EqualTo(3));
+            Assert.That(b.FinishTick, Is.EqualTo(0x1234u));
+            Assert.That(b.TeleportCount, Is.EqualTo(5));
             Assert.That(b.Crew.Count, Is.EqualTo(4));
             for (var i = 0; i < 4; i++)
             {
@@ -116,6 +122,15 @@ namespace RushAhead.Tests
             bytes[1] = Protocol.Version + 1;
             var e = Assert.Throws<VersionMismatchException>(() => Protocol.ReadRoster(new ByteReader(new ArraySegment<byte>(bytes))));
             Assert.That(e.Message, Does.Contain("same version"), "the player is told what to do about it");
+        }
+
+        [Test]
+        public void Race_RoundTrips()
+        {
+            var bytes = Encode(w => Protocol.Write(w, new RaceMessage { Course = 1, StartTick = 987654 }));
+            var read = Protocol.ReadRace(new ByteReader(new ArraySegment<byte>(bytes)));
+            Assert.That(read.Course, Is.EqualTo(1));
+            Assert.That(read.StartTick, Is.EqualTo(987654u));
         }
 
         [Test]
@@ -168,10 +183,11 @@ namespace RushAhead.Tests
 
         // Committed wire bytes: if these change, the protocol changed. Bump Protocol.Version and re-record.
         const string InputGolden = "2002feff0080bf0107";
-        const string SnapshotGolden = "10d20400000180e9ffff40030000ee32800240ff00ffec0185ff00020400a000ff00000000e040cc010301002080990006020060bf660009030200f1ffff4dfdffff5f14cdf2ffff33feffffb8cb";
-        const string RosterGolden = "0202030300000007536b69707065720504090106c396747465720002020300";
-        const string ProfileGolden = "2102050704065261646c6579";
-        const string AdvertGolden = "5255534802efbeadde611e020407536b6970706572";
+        const string SnapshotGolden = "10d20400000180e9ffff40030000ee32800240ff00ffec0185ff00020334120000050400a000ff00000000e040cc010301002080990006020060bf660009030200f1ffff4dfdffff5f14cdf2ffff33feffffb8cb";
+        const string RosterGolden = "0203030300000007536b69707065720504090106c396747465720002020300";
+        const string ProfileGolden = "2103050704065261646c6579";
+        const string AdvertGolden = "5255534803efbeadde611e020407536b6970706572";
+        const string RaceGolden = "0302d2040000";
 
         [Test]
         public void WireFormat_MatchesTheCommittedBytes()
@@ -181,9 +197,10 @@ namespace RushAhead.Tests
             var roster = Hex(Encode(w => Protocol.Write(w, SampleRoster())));
             var profile = Hex(Encode(w => Protocol.WriteProfile(w, SampleProfile)));
             var advert = Hex(Encode(w => Protocol.Write(w, SampleAdvert)));
+            var race = Hex(Encode(w => Protocol.Write(w, new RaceMessage { Course = 2, StartTick = 1234 })));
             var recording = $"InputGolden = \"{input}\";\nSnapshotGolden = \"{snapshot}\";\nRosterGolden = \"{roster}\";\n" +
-                            $"ProfileGolden = \"{profile}\";\nAdvertGolden = \"{advert}\";";
-            Assert.That(input == InputGolden && snapshot == SnapshotGolden && roster == RosterGolden && profile == ProfileGolden && advert == AdvertGolden,
+                            $"ProfileGolden = \"{profile}\";\nAdvertGolden = \"{advert}\";\nRaceGolden = \"{race}\";";
+            Assert.That(input == InputGolden && snapshot == SnapshotGolden && roster == RosterGolden && profile == ProfileGolden && advert == AdvertGolden && race == RaceGolden,
                 Is.True, $"Wire bytes changed. If deliberate, bump Protocol.Version and re-record:\n{recording}");
         }
 
@@ -206,7 +223,7 @@ namespace RushAhead.Tests
             {
                 var bytes = new byte[random.Next(0, 120)];
                 random.NextBytes(bytes);
-                if (bytes.Length > 0) bytes[0] = (byte)(random.Next(5) switch { 0 => 0x02, 1 => 0x10, 2 => 0x20, 3 => 0x21, _ => 0x22 }); // aim at real decoders
+                if (bytes.Length > 0) bytes[0] = (byte)(random.Next(6) switch { 0 => 0x02, 1 => 0x10, 2 => 0x20, 3 => 0x21, 4 => 0x03, _ => 0x22 }); // aim at real decoders
                 if (bytes.Length > 1 && random.Next(2) == 0) bytes[1] = Protocol.Version; // and get past the version check half the time
                 var message = new ArraySegment<byte>(bytes);
                 Protocol.TryReadAdvert(message, out _); // must never throw at all
@@ -215,6 +232,7 @@ namespace RushAhead.Tests
                     switch (bytes.Length == 0 ? 0 : bytes[0])
                     {
                         case 0x02: Protocol.ReadRoster(new ByteReader(message)); break;
+                        case 0x03: Protocol.ReadRace(new ByteReader(message)); break;
                         case 0x10: Protocol.ReadSnapshot(new ByteReader(message), new Snapshot()); break;
                         case 0x20: Protocol.ReadInput(new ByteReader(message)); break;
                         case 0x21: Protocol.ReadProfile(new ByteReader(message)); break;

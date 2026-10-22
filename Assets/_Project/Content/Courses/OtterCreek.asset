@@ -1,0 +1,97 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 110f1613fe645bf43965f6081c1bcce4, type: 3}
+  m_Name: OtterCreek
+  m_EditorClassIdentifier: RushAhead.Content::RushAhead.Content.CourseDef
+  displayName: Otter Creek
+  blurb: Weave the rocks, ride the current, shove through the barrels and fight the
+    gorge.
+  river:
+  - position: {x: 0, y: 0}
+    width: 16
+    lineOffset: 0
+  - position: {x: 15, y: 0}
+    width: 16
+    lineOffset: 0
+  - position: {x: 31.5, y: 4.5}
+    width: 14
+    lineOffset: 0
+  - position: {x: 45, y: 15}
+    width: 13
+    lineOffset: -0.45
+  - position: {x: 52.5, y: 30}
+    width: 14
+    lineOffset: 0.45
+  - position: {x: 54, y: 46.5}
+    width: 14
+    lineOffset: -0.45
+  - position: {x: 63, y: 60}
+    width: 12
+    lineOffset: 0
+  - position: {x: 78, y: 66}
+    width: 11
+    lineOffset: 0
+  - position: {x: 94.5, y: 64.5}
+    width: 12
+    lineOffset: 0
+  - position: {x: 109.5, y: 55.5}
+    width: 18
+    lineOffset: 0
+  - position: {x: 120, y: 42}
+    width: 9
+    lineOffset: 0
+  - position: {x: 129, y: 30}
+    width: 12
+    lineOffset: 0
+  - position: {x: 142.5, y: 24}
+    width: 14
+    lineOffset: 0
+  - position: {x: 159, y: 22.5}
+    width: 16
+    lineOffset: 0
+  - position: {x: 172.5, y: 22.5}
+    width: 16
+    lineOffset: 0
+  startDistance: 8
+  gates:
+  - 43.41692
+  - 103.35322
+  - 162.00148
+  - 211.18199
+  rocks:
+  - position: {x: 42.06088, y: 17.408642}
+    radius: 1.4
+  - position: {x: 56.172356, y: 29.023378}
+    radius: 1.5
+  - position: {x: 50.398228, y: 47.711296}
+    radius: 1.3
+  - position: {x: 136.07071, y: 31.063808}
+    radius: 1.1
+  barrels:
+  - {x: 102.04441, y: 58.622135}
+  - {x: 103.92284, y: 61.575356}
+  - {x: 107.19615, y: 57.420925}
+  - {x: 104.72463, y: 54.275837}
+  - {x: 109.66767, y: 60.566013}
+  - {x: 112.372215, y: 55.498756}
+  - {x: 109.49798, y: 52.716904}
+  - {x: 113.536026, y: 51.072044}
+  currents:
+  - from: 101.35322
+    to: 138.3941
+    speed: 0.9
+  - from: 161.14226
+    to: 184.20012
+    speed: -0.5
+  parSeconds: 150
+  twoStarSeconds: 120
+  threeStarSeconds: 100

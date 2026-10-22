@@ -31,6 +31,7 @@ namespace RushAhead.UI
         readonly List<Action> later = new();
         Panel open;
         bool help = true;
+        int shownVenue;
         Vector2 scroll;
         Rect crewButton, tuneButton, resetButton, helpButton, panel;
         Texture2D circle;
@@ -45,13 +46,19 @@ namespace RushAhead.UI
         {
             var gui = new Vector2(screenPosition.x, Screen.height - screenPosition.y) / Scale;
             return crewButton.Contains(gui) || tuneButton.Contains(gui) || resetButton.Contains(gui) || helpButton.Contains(gui) ||
-                   (open != Panel.None && panel.Contains(gui));
+                   (open != Panel.None && panel.Contains(gui)) || resultsCard.Contains(gui);
         }
 
         void Update()
         {
             foreach (var action in later) action();
             later.Clear();
+            if (Game.Venue != shownVenue)
+            {
+                shownVenue = Game.Venue;
+                if (shownVenue > 0) help = false; // racing: keep the view clear; the Help button still brings it back
+            }
+
             Game.SetSearching(open == Panel.Crew); // only listen for rooms while someone's looking
             UpdateCrewPanel();
         }
@@ -73,6 +80,7 @@ namespace RushAhead.UI
             DrawNameTags(scale);
             DrawSticks(scale);
             DrawStatus();
+            DrawRace(width, height);
 
             tuneButton = new Rect(width - 90f, 10f, 80f, 40f);
             resetButton = new Rect(width - 180f, 10f, 80f, 40f);
@@ -81,11 +89,11 @@ namespace RushAhead.UI
             if (GUI.Button(crewButton, open == Panel.Crew ? "Close" : "Crew")) Later(() => open = open == Panel.Crew ? Panel.None : Panel.Crew);
             if (GUI.Button(tuneButton, open == Panel.Tune ? "Close" : "Tune")) Later(() => open = open == Panel.Tune ? Panel.None : Panel.Tune);
             GUI.enabled = Game.CanEditRaft; // only the host can reset the shared raft
-            if (GUI.Button(resetButton, "Reset")) Later(Game.ResetBoat);
+            if (GUI.Button(resetButton, Game.Run.Active ? "Restart" : "Reset")) Later(Game.ResetBoat);
             GUI.enabled = true;
             if (GUI.Button(helpButton, help ? "Hide help" : "Help")) Later(() => help = !help);
 
-            if (help && open == Panel.None) DrawHelp(height);
+            if (help && open == Panel.None && !Game.Run.Finished) DrawHelp(height);
             if (open == Panel.Crew) DrawCrew(width, height);
             if (open == Panel.Tune) DrawTuning(width, height);
 

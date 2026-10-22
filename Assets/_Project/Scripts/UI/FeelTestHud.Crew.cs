@@ -44,6 +44,8 @@ namespace RushAhead.UI
             crewScroll = GUILayout.BeginScrollView(crewScroll);
             DrawPlayTogether();
             GUILayout.Space(10f);
+            DrawCourses();
+            GUILayout.Space(10f);
             DrawSeats();
             GUILayout.Space(10f);
             DrawDresser();
