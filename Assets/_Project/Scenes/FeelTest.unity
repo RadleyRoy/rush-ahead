@@ -387,6 +387,10 @@ MonoBehaviour:
   courses:
   - {fileID: 11400000, guid: c66589dbb6d609b46b21dd93c3eb2630, type: 2}
   palette: {fileID: 11400000, guid: 92d326366186d7e48bc562b8587f30fb, type: 2}
+  aiProfiles:
+  - {fileID: 11400000, guid: da6bb35901ffd4b43ababdab4632f1cd, type: 2}
+  - {fileID: 11400000, guid: 7020fcc67181d2345bcd97d7f1564189, type: 2}
+  - {fileID: 11400000, guid: 7ddb8d65797521b42aed01c1d75c708e, type: 2}
 --- !u!4 &1770865933
 Transform:
   m_ObjectHideFlags: 0

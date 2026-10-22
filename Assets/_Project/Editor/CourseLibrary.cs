@@ -95,8 +95,8 @@ namespace RushAhead.EditorTools
                 new CurrentZone(DistanceNear(10) - 6f, DistanceNear(11) + 2f, -0.5f), // the gorge pushes back
             };
 
-            // Set from the course-solvability test: a steady autopilot crew finishes in about 118 s (2 stars); pushing flat
-            // out it runs dry and takes 130 s. Three stars wants a crew that takes turns well.
+            // Set from the course-solvability test: the steady AI crew finishes in about 104 s (2 stars); pushing flat out
+            // it runs dry and takes about 119 s. An all-Ace AI crew just makes 3 stars; Keen gets 1, Clumsy none.
             c.parSeconds = 150f;
             c.twoStarSeconds = 120f;
             c.threeStarSeconds = 100f;

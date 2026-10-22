@@ -125,7 +125,8 @@ namespace RushAhead.UI
                 GUI.DrawTexture(chip, circle);
                 GUI.color = Color.white;
 
-                var who = !s.Human ? "spare" : s.Yours ? $"{DisplayName(s, seat)} (you)" : s.Host ? $"{DisplayName(s, seat)} (host)" : DisplayName(s, seat);
+                var who = s.Kept ? $"kept for {s.Loadout.Name}, AI holding it" : s.Ai ? "AI crewmate" : !s.Human ? "spare"
+                    : s.Yours ? $"{DisplayName(s, seat)} (you)" : s.Host ? $"{DisplayName(s, seat)} (host)" : DisplayName(s, seat);
                 GUILayout.Label($"P{seat + 1}  {who}, {SliceName(seat, seats.Length)}\n" +
                                 $"{Catalog.SpeciesOf(s.Loadout).displayName} with the {Catalog.BlowerOf(s.Loadout).displayName}", small, GUILayout.MinWidth(200f));
 
@@ -135,7 +136,29 @@ namespace RushAhead.UI
                 GUILayout.EndHorizontal();
             }
 
-            if (seats.Length > 0 && MySeat(seats) < 0) GUILayout.Label("You're watching. Sit in a spare seat to join in.", small);
+            if (seats.Length > 0 && MySeat(seats) < 0) GUILayout.Label("You're watching. Sit in a free seat to join in.", small);
+            DrawAiSetting();
+        }
+
+        /// <summary>Who fills the seats no player has: AI crewmates at a skill, or (off) this device's other controls.</summary>
+        void DrawAiSetting()
+        {
+            if (!Game.CanEditRaft) return;
+            GUILayout.Space(6f);
+            GUILayout.BeginHorizontal();
+            GUILayout.Label("AI crew", GUILayout.Width(60f));
+            var profiles = Game.AiProfiles;
+            for (var setting = -1; setting < 3; setting++)
+            {
+                var label = setting < 0 ? "Off" : profiles != null && setting < profiles.Count && profiles[setting] != null ? profiles[setting].displayName : $"{(Content.AiSkill)setting}";
+                var chosen = setting;
+                if (GUILayout.Toggle(Game.AiSetting == setting, label, GUI.skin.button) && Game.AiSetting != setting) Later(() => Game.SetAiSetting(chosen));
+            }
+
+            GUILayout.EndHorizontal();
+            var blurb = Game.AiSetting < 0 ? "Spare seats are yours: drive them with the second stick, the keyboard or more pads."
+                : profiles != null && Game.AiSetting < profiles.Count && profiles[Game.AiSetting] != null ? profiles[Game.AiSetting].blurb : "";
+            GUILayout.Label(blurb, small);
         }
 
         void DrawDresser()

@@ -77,7 +77,7 @@ namespace RushAhead.Tests
             {
                 var endpoint = network.Connect();
                 var profile = new Loadout { Species = (byte)(3 + i), Fur = (byte)(6 + i), Blower = (byte)(i == 0 ? 1 : 0), Name = $"Player {i}" };
-                var session = new ClientSession(endpoint, config, catalog, profile, seat =>
+                var session = new ClientSession(endpoint, config, catalog, profile, device: (ulong)(100 + i), seat =>
                 {
                     if (seat == 3 && time < 3f) // rear-right drives forward for three seconds
                         return new CrewInput { AimAngle = boat.Body.AngleRad + Mathf.PI, HasAim = true, Throttle = 1f };
@@ -176,6 +176,56 @@ namespace RushAhead.Tests
 
             host.Dispose();
             foreach (var (_, session, _) in clients) session.Dispose();
+        }
+
+        [Test]
+        public void APlayerWhoDropsOut_GetsTheirSeatBack_WhenTheyReconnect()
+        {
+            var network = new LoopbackNetwork(seed: 7, latencySeconds: 0.05f, jitterSeconds: 0.02f);
+            var roster = new CrewRoster(catalog, 4) { SparesAreAi = true };
+            var boat = world.SpawnBoat(Vector2.zero, 0f, roster.Blowers());
+            var host = new HostSession(network.Host, roster, new Rigidbody2D[0]);
+            host.UseBoat(boat);
+            var otto = new Loadout { Species = 4, Fur = 9, Blower = 1, Name = "Otto" };
+            var sessions = new List<ClientSession>();
+
+            ClientSession Connect(out LoopbackNetwork.Endpoint endpoint)
+            {
+                endpoint = network.Connect();
+                var session = new ClientSession(endpoint, config, catalog, otto, device: 4242, _ => CrewInput.Idle);
+                sessions.Add(session);
+                return session;
+            }
+
+            void Run(float seconds)
+            {
+                for (var t = 0f; t < seconds; t += Dt)
+                {
+                    roster.Now += Dt;
+                    network.Advance(Dt);
+                    foreach (var s in sessions) s.Update(Dt);
+                    world.Advance(Dt);
+                    host.OnTick(world.Tick);
+                }
+            }
+
+            var first = Connect(out var firstEndpoint);
+            Run(1f);
+            var seat = first.Seats.Single();
+            Assert.That(roster.LoadoutAt(seat), Is.EqualTo(otto));
+
+            network.Disconnect(firstEndpoint);
+            Run(1f);
+            Assert.That(roster.IsKept(seat), Is.True, "the seat waits for them");
+            Assert.That(roster.AiSeats(), Does.Contain(seat), "with an AI crewmate holding it");
+
+            var again = Connect(out _);
+            Run(1f);
+            Assert.That(again.Seats, Is.EqualTo(new[] { seat }), "they come back to the same seat");
+            Assert.That(again.Roster[seat].Yours && !again.Roster[seat].Kept && !again.Roster[seat].Ai, Is.True);
+
+            host.Dispose();
+            foreach (var s in sessions) s.Dispose();
         }
     }
 }

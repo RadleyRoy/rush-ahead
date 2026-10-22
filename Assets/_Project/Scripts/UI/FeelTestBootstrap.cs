@@ -35,7 +35,9 @@ namespace RushAhead.UI
     ///   -rushahead-port &lt;port&gt;             default 7777
     ///   -rushahead-name / -animal / -fur / -blower   this run's player look (not saved)
     ///   -rushahead-course &lt;n&gt;              start on course n (1 is the first course; 0 is the lagoon)
-    ///   -rushahead-autopilot                 let the course autopilot drive (offline or hosting)
+    ///   -rushahead-ai off|clumsy|keen|ace    AI crewmates in the spare seats for this run (not saved)
+    ///   -rushahead-ai-all [skill]            AI drives every seat, the host's too (default: the steady autopilot)
+    ///   -rushahead-autopilot                 the same as -rushahead-ai-all steady
     /// </summary>
     public sealed class FeelTestBootstrap : MonoBehaviour
     {
@@ -48,6 +50,8 @@ namespace RushAhead.UI
         [Tooltip("Race courses, in menu order. The order is part of the wire format: only ever append.")]
         [SerializeField] CourseDef[] courses;
         [SerializeField] ArtPalette palette;
+        [Tooltip("AI crewmate skills, worst first: Clumsy, Keen, Ace.")]
+        [SerializeField] AiProfile[] aiProfiles;
 
         readonly List<GameObject> barrels = new();
         readonly List<Rigidbody2D> barrelBodies = new();
@@ -62,8 +66,9 @@ namespace RushAhead.UI
         Course course;
         CourseView courseView;
         Race race;
-        CourseAutopilot autopilot;
-        bool autopilotWanted;
+        AiCrew ai;
+        AiSkill? aiDrivesEverything; // set: the AI has every seat, the host's too (demos and testing)
+        OrderMessage shownOrder;
         Vector2 spawn = Spawn;
         float spawnAngle;
         int clientRaceStart;
@@ -96,6 +101,25 @@ namespace RushAhead.UI
 
         /// <summary>The run on screen: countdown, clock, checkpoints and, once over, the result.</summary>
         public RaceInfo Run { get; private set; }
+
+        /// <summary>AI crewmates in the spare seats: -1 off, otherwise an index into the skills (Clumsy, Keen, Ace).</summary>
+        public int AiSetting => Local.AiSetting;
+
+        public IReadOnlyList<AiProfile> AiProfiles => aiProfiles;
+
+        /// <summary>Whether any seat on the raft on screen is an AI crewmate, so orders make sense.</summary>
+        public bool HasAiCrew
+        {
+            get
+            {
+                foreach (var seat in Seats)
+                    if (seat.Ai) return true;
+                return false;
+            }
+        }
+
+        /// <summary>The AI crew's current order and its push-here point, as this device last heard.</summary>
+        public OrderMessage CurrentOrder => Mode == NetMode.Joined ? client.Order : ai != null ? new OrderMessage { Order = ai.Order, Point = ai.PushPoint } : default;
         public CrewInputRouter Router { get; private set; }
         public NetMode Mode { get; private set; }
         public string NetStatus { get; private set; } = "";
@@ -148,6 +172,7 @@ namespace RushAhead.UI
             ApplyCommandLineLook();
             roster = new CrewRoster(catalog, crewCount);
             roster.SetHostLooks(Local.Profile, Local.Spares);
+            roster.SparesAreAi = Local.AiSetting >= 0;
             roster.Changed += OnRosterChanged;
             SetCrewCount(crewCount);
 
@@ -170,6 +195,14 @@ namespace RushAhead.UI
             }
 
             UpdateDiscovery();
+            roster.Now = Time.realtimeSinceStartupAsDouble;
+
+            // Brace and Push here wear off by themselves: keep joined players' order buttons honest when they do.
+            if (ai != null && (ai.Order != shownOrder.Order || ai.PushPoint != shownOrder.Point))
+            {
+                shownOrder = new OrderMessage { Order = ai.Order, Point = ai.PushPoint };
+                host?.SetOrder(shownOrder);
+            }
 
             if (Mode == NetMode.Hosting)
             {
@@ -214,9 +247,42 @@ namespace RushAhead.UI
             roster.SetCrewCount(count);
             Boat = runner.World.SpawnBoat(spawn, spawnAngle, roster.Blowers());
             raftView = RaftView.Build(Boat, config, palette, catalog, Looks(roster.Describe(Peers.Host)));
+            ai = NewAiCrew();
             host?.UseBoat(Boat);
             OnRosterChanged();
             StartRun();
+        }
+
+        /// <summary>AI crewmates off (-1) or at a skill (0 Clumsy, 1 Keen, 2 Ace). Saved on this device; the host's setting rules.</summary>
+        public void SetAiSetting(int setting)
+        {
+            if (!CanEditRaft) return;
+            Local.AiSetting = Mathf.Clamp(setting, -1, 2);
+            Local.Save();
+            ai = NewAiCrew();
+            ai.River = course?.River;
+            roster.SparesAreAi = Local.AiSetting >= 0; // raises Changed if it flipped, which rewires the seats
+            WireSeats();
+            Seats = roster.Describe(Peers.Host);
+        }
+
+        /// <summary>Tells the AI crew what to do. Joined, the request goes to the host, whose AI it is.</summary>
+        public void GiveOrder(CrewOrder order, Vector2 point = default)
+        {
+            if (Mode == NetMode.Joined) client.RequestOrder(order, point);
+            else ApplyOrder(new OrderMessage { Order = order, Point = point });
+        }
+
+        void ApplyOrder(OrderMessage order) => ai?.Give(order.Order, order.Point);
+
+        AiCrew NewAiCrew()
+        {
+            if (Boat == null) return null;
+            var skill = aiDrivesEverything ?? (AiSkill)Mathf.Max(0, Local.AiSetting);
+            var profile = skill != AiSkill.Steady && aiProfiles != null && (int)skill < aiProfiles.Length && aiProfiles[(int)skill] != null
+                ? aiProfiles[(int)skill]
+                : AiProfile.Preset(skill);
+            return new AiCrew(Boat, profile, config.tickRate, seed: Environment.TickCount);
         }
 
         /// <summary>Back to the start: on a course, a fresh race with a countdown; in the lagoon, a standing start.</summary>
@@ -245,14 +311,19 @@ namespace RushAhead.UI
                 for (var i = 0; i < barrels.Count; i++) PhysicsBodies.Reset(barrels[i], BarrelSpot(i));
             }
 
-            autopilot = autopilotWanted && course != null ? new CourseAutopilot(Boat, course.River) : null;
-            if (autopilot == null) WireLocalSeats(roster.LocalSeats());
+            if (ai != null)
+            {
+                ai.River = course?.River;
+                ai.Give(CrewOrder.Go);
+            }
+
+            WireSeats();
             host?.SetRace(venue, race?.StartTick ?? 0);
         }
 
         void StepRace(int tick)
         {
-            autopilot?.Update(); // sets the crew's controls for the next tick
+            ai?.Update(config.TickDt); // decides the AI crew's controls for the coming ticks
             race?.Step(tick);
         }
 
@@ -305,6 +376,7 @@ namespace RushAhead.UI
 
             StopSearching();
             host = new HostSession(transport, roster, barrelBodies);
+            host.OrderRequested += ApplyOrder; // any player can order the AI crew about
             runner.Ticked += host.OnTick;
             Mode = NetMode.Hosting;
             host.UseBoat(Boat);
@@ -342,14 +414,14 @@ namespace RushAhead.UI
             // The host runs the only simulation: drop our raft and race, and stop simulating our barrels.
             race?.Dispose();
             race = null;
-            autopilot = null;
+            ai = null;
             runner.World.Despawn(Boat);
             Boat = null;
             Destroy(raftView.gameObject);
             raftView = null;
             foreach (var barrel in barrels) PhysicsBodies.Freeze(barrel);
 
-            client = new ClientSession(transport, config, catalog, Local.Profile, seat => Router.Seats[seat].ReadInput());
+            client = new ClientSession(transport, config, catalog, Local.Profile, Local.DeviceId, seat => Router.Seats[seat].ReadInput());
             client.RosterChanged += OnClientRoster;
             client.RaceChanged += OnClientRace;
             client.Disconnected += () => hostLost = true; // handled next frame, outside the transport's own callback
@@ -398,7 +470,7 @@ namespace RushAhead.UI
         {
             if (Mode == NetMode.Joined || Boat == null || Boat.Crew.Length != roster.CrewCount) return; // a new raft is on its way
             roster.ApplyBlowers(Boat);
-            WireLocalSeats(roster.LocalSeats());
+            WireSeats();
             Seats = roster.Describe(Peers.Host);
             if (raftView != null) raftView.Restyle(Looks(Seats));
         }
@@ -410,11 +482,25 @@ namespace RushAhead.UI
             if (raftView != null) raftView.Restyle(Looks(Seats));
         }
 
-        void WireLocalSeats(IReadOnlyList<int> seats)
+        /// <summary>Hands every seat this device simulates to its driver: this device's controls, or the AI crew.</summary>
+        void WireSeats()
         {
-            if (autopilot != null) return; // the autopilot has the controls
-            Router.SetSeats(seats);
-            foreach (var seat in seats) Boat.Crew[seat].Input = Router.Seats[seat];
+            if (Boat == null) return;
+            int[] local, aiSeats;
+            if (aiDrivesEverything.HasValue)
+            {
+                local = Array.Empty<int>();
+                aiSeats = CrewSectors.DriveOrder(Boat.Crew.Length);
+            }
+            else
+            {
+                local = roster.LocalSeats();
+                aiSeats = roster.AiSeats();
+            }
+
+            Router.SetSeats(local);
+            foreach (var seat in local) Boat.Crew[seat].Input = Router.Seats[seat];
+            ai?.Drive(aiSeats); // seats held by joined players are wired by the host session
         }
 
         void RebuildJoinedViewIfNeeded()
@@ -479,7 +565,7 @@ namespace RushAhead.UI
         void ApplyCommandLine()
         {
             if (ushort.TryParse(CommandLine.After("-rushahead-port"), out var customPort)) port = customPort;
-            autopilotWanted = CommandLine.Has("-rushahead-autopilot");
+
             if (int.TryParse(CommandLine.After("-rushahead-course"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var startCourse)) ChooseVenue(startCourse);
             if (CommandLine.Has("-rushahead-host")) StartHosting(CommandLine.After("-rushahead-host") ?? "0.0.0.0");
             else if (CommandLine.After("-rushahead-join") is { } address) Join(address);
@@ -498,6 +584,13 @@ namespace RushAhead.UI
             if (byte.TryParse(CommandLine.After("-rushahead-animal"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var species)) profile.Species = species;
             if (byte.TryParse(CommandLine.After("-rushahead-fur"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var fur)) profile.Fur = fur;
             if (byte.TryParse(CommandLine.After("-rushahead-blower"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var blower)) profile.Blower = blower;
+
+            // AI for this run only: these never touch the saved setting.
+            if (CommandLine.After("-rushahead-ai") is { } aiFlag)
+                Local.AiSetting = Enum.TryParse<AiSkill>(aiFlag, true, out var chosen) && chosen != AiSkill.Steady ? (int)chosen : -1;
+            if (CommandLine.Has("-rushahead-ai-all"))
+                aiDrivesEverything = Enum.TryParse<AiSkill>(CommandLine.After("-rushahead-ai-all") ?? "", true, out var all) ? all : AiSkill.Steady;
+            if (CommandLine.Has("-rushahead-autopilot")) aiDrivesEverything = AiSkill.Steady;
             Local.Profile = catalog.Clamp(profile);
         }
 
@@ -553,7 +646,6 @@ namespace RushAhead.UI
         {
             race?.Dispose();
             race = null;
-            autopilot = null;
             course?.Destroy();
             course = null;
             if (courseView != null) Destroy(courseView.gameObject);

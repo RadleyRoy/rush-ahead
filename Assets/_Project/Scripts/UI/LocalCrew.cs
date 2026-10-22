@@ -9,11 +9,14 @@ namespace RushAhead.UI
 {
     /// <summary>
     /// The animals this device brings to a raft: its player's own, which travels with them when they join someone else,
-    /// and what each seat wears while it's a spare driven by this device's other controls. Saved between sessions.
+    /// what each seat wears while it's a spare (an AI crewmate, or this device's other controls), the AI setting, and
+    /// the device's own id. Saved between sessions.
     /// </summary>
     public sealed class LocalCrew
     {
         const string Key = "rushahead.crew.v1";
+        const string DeviceKey = "rushahead.device.v1";
+        const string AiKey = "rushahead.ai.v1";
 
         static readonly string[] StarterNames =
         {
@@ -22,6 +25,12 @@ namespace RushAhead.UI
 
         public Loadout Profile;
         public readonly Loadout[] Spares = new Loadout[CrewSectors.MaxCrew];
+
+        /// <summary>A random id this device keeps forever, so a host recognises its player coming back after a dropout.</summary>
+        public ulong DeviceId { get; private set; }
+
+        /// <summary>AI crewmates in spare seats: -1 off, 0 Clumsy, 1 Keen (the default), 2 Ace.</summary>
+        public int AiSetting = 1;
 
         /// <summary>The saved crew, or a fresh one: a bear with a random starter name, and a different animal in each spare seat.</summary>
         public static LocalCrew Load(CrewCatalog catalog)
@@ -44,6 +53,16 @@ namespace RushAhead.UI
                 // A save from some other build: start fresh rather than fail.
             }
 
+            crew.AiSetting = Mathf.Clamp(PlayerPrefs.GetInt(AiKey, 1), -1, 2);
+            if (!ulong.TryParse(PlayerPrefs.GetString(DeviceKey, ""), NumberStyles.None, CultureInfo.InvariantCulture, out var device) || device == 0)
+            {
+                device = ((ulong)(uint)UnityEngine.Random.Range(int.MinValue, int.MaxValue) << 32) | (uint)UnityEngine.Random.Range(int.MinValue, int.MaxValue);
+                if (device == 0) device = 1;
+                PlayerPrefs.SetString(DeviceKey, device.ToString(CultureInfo.InvariantCulture));
+                PlayerPrefs.Save();
+            }
+
+            crew.DeviceId = device;
             return crew;
         }
 
@@ -52,6 +71,7 @@ namespace RushAhead.UI
             var text = new StringBuilder(Format(Profile));
             foreach (var spare in Spares) text.Append('\n').Append(Format(spare));
             PlayerPrefs.SetString(Key, text.ToString());
+            PlayerPrefs.SetInt(AiKey, AiSetting);
             PlayerPrefs.Save();
         }
 

@@ -24,6 +24,7 @@ namespace RushAhead.EditorTools
         const string ContentFolder = "Assets/_Project/Content";
         const string BlowerFolder = ContentFolder + "/Blowers";
         const string SpeciesFolder = ContentFolder + "/Species";
+        const string AiFolder = ContentFolder + "/AI";
 
         /// <summary>Curated fur swatches; the first six are the species' own colours, the rest are for dressing up.</summary>
         static readonly Color[] FurColors =
@@ -53,6 +54,7 @@ namespace RushAhead.EditorTools
             EnsureFolder(ContentFolder);
             EnsureFolder(BlowerFolder);
             EnsureFolder(SpeciesFolder);
+            EnsureFolder(AiFolder);
             EnsureFolder(SceneFolder);
 
             // Open the scene before loading any assets: opening a scene unloads assets nothing references yet,
@@ -115,10 +117,11 @@ namespace RushAhead.EditorTools
             EditorUtility.SetDirty(catalog);
 
             var courses = CourseLibrary.CreateDefaults();
+            var aiProfiles = new[] { Ai(AiSkill.Clumsy), Ai(AiSkill.Keen), Ai(AiSkill.Ace) };
 
             var config = LoadOrCreate<SimConfig>($"{ContentFolder}/SimConfig.asset");
             EditorUtility.SetDirty(config); // re-saving drops fields the code no longer has (the old fixed seat list)
-            WireFeelTestScene(scene, config, catalog, courses, palette, sky);
+            WireFeelTestScene(scene, config, catalog, courses, aiProfiles, palette, sky);
             AssetDatabase.SaveAssets();
             Debug.Log("[RushAhead] Default content and FeelTest scene ready.");
         }
@@ -140,6 +143,18 @@ namespace RushAhead.EditorTools
             blower.color = color;
             EditorUtility.SetDirty(blower);
             return blower;
+        }
+
+        /// <summary>An AI skill from its built-in tuning, created once; after that the asset's tuning is kept.</summary>
+        static AiProfile Ai(AiSkill skill)
+        {
+            var path = $"{AiFolder}/{skill}.asset";
+            var profile = AssetDatabase.LoadAssetAtPath<AiProfile>(path);
+            if (profile != null) return profile;
+
+            profile = AiProfile.Preset(skill);
+            AssetDatabase.CreateAsset(profile, path);
+            return profile;
         }
 
         /// <summary>Species are purely cosmetic, so their fields are always applied.</summary>
@@ -171,7 +186,7 @@ namespace RushAhead.EditorTools
             return EditorSceneManager.OpenScene(FeelTestScene, OpenSceneMode.Single);
         }
 
-        static void WireFeelTestScene(Scene scene, SimConfig config, CrewCatalog catalog, CourseDef[] courses, ArtPalette palette, Material sky)
+        static void WireFeelTestScene(Scene scene, SimConfig config, CrewCatalog catalog, CourseDef[] courses, AiProfile[] aiProfiles, ArtPalette palette, Material sky)
         {
             var bootstrap = Object.FindAnyObjectByType<FeelTestBootstrap>();
             if (bootstrap == null) bootstrap = new GameObject("Feel Test").AddComponent<FeelTestBootstrap>();
@@ -183,6 +198,9 @@ namespace RushAhead.EditorTools
             var list = serialized.FindProperty("courses");
             list.arraySize = courses.Length;
             for (var i = 0; i < courses.Length; i++) list.GetArrayElementAtIndex(i).objectReferenceValue = courses[i];
+            var ai = serialized.FindProperty("aiProfiles");
+            ai.arraySize = aiProfiles.Length;
+            for (var i = 0; i < aiProfiles.Length; i++) ai.GetArrayElementAtIndex(i).objectReferenceValue = aiProfiles[i];
             serialized.ApplyModifiedPropertiesWithoutUndo();
 
             // The chase camera positions itself every frame; the scene only needs a perspective camera and a sky.

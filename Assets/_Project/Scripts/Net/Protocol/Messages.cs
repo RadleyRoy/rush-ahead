@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 using RushAhead.Content;
+using RushAhead.Sim;
 using UnityEngine;
 
 namespace RushAhead.Net
@@ -13,6 +14,9 @@ namespace RushAhead.Net
 
         /// <summary>Host to every client, reliable, on every change: which course is loaded and when its race starts.</summary>
         Race = 0x03,
+
+        /// <summary>Either way, reliable: a client asks the AI crew to do something; the host tells everyone what it's doing.</summary>
+        Order = 0x04,
 
         /// <summary>Host to every client, unreliable, 30 Hz: the whole visible world.</summary>
         Snapshot = 0x10,
@@ -55,6 +59,20 @@ namespace RushAhead.Net
 
         /// <summary>The player this roster was sent to.</summary>
         public bool Yours;
+
+        /// <summary>An AI crewmate sits here.</summary>
+        public bool Ai;
+
+        /// <summary>Kept for a player who dropped out; the look is theirs, and they get the seat back if they return soon.</summary>
+        public bool Kept;
+    }
+
+    public struct OrderMessage
+    {
+        public CrewOrder Order;
+
+        /// <summary>Where to push, for <see cref="CrewOrder.PushHere"/>.</summary>
+        public Vector2 Point;
     }
 
     /// <summary>What a host broadcasts on the LAN about once a second, so joiners can find it without typing an address.</summary>
@@ -126,12 +144,12 @@ namespace RushAhead.Net
     public static class Protocol
     {
         /// <summary>Bump on any wire-format change. Mismatched peers refuse each other.</summary>
-        public const byte Version = 3;
+        public const byte Version = 4;
 
         const byte FlagHasAim = 1, FlagBrace = 2;
         const byte BoatCapsized = 1;
         const byte CrewBraced = 1;
-        const byte SeatHuman = 1, SeatHost = 2, SeatYours = 4;
+        const byte SeatHuman = 1, SeatHost = 2, SeatYours = 4, SeatAi = 8, SeatKept = 16;
         const int MaxBoats = 8, MaxCrew = 4, MaxProps = 64;
         static readonly byte[] AdvertMagic = { (byte)'R', (byte)'U', (byte)'S', (byte)'H' };
 
@@ -177,7 +195,8 @@ namespace RushAhead.Net
             w.U8((byte)seats.Count);
             foreach (var seat in seats)
             {
-                w.U8((byte)((seat.Human ? SeatHuman : 0) | (seat.Host ? SeatHost : 0) | (seat.Yours ? SeatYours : 0)));
+                w.U8((byte)((seat.Human ? SeatHuman : 0) | (seat.Host ? SeatHost : 0) | (seat.Yours ? SeatYours : 0) |
+                            (seat.Ai ? SeatAi : 0) | (seat.Kept ? SeatKept : 0)));
                 Write(w, seat.Loadout);
             }
         }
@@ -199,6 +218,8 @@ namespace RushAhead.Net
                     Human = (flags & SeatHuman) != 0,
                     Host = (flags & SeatHost) != 0,
                     Yours = (flags & SeatYours) != 0,
+                    Ai = (flags & SeatAi) != 0,
+                    Kept = (flags & SeatKept) != 0,
                     Loadout = ReadLoadout(r),
                 };
             }
@@ -222,21 +243,43 @@ namespace RushAhead.Net
             return m;
         }
 
-        public static void WriteProfile(ByteWriter w, in Loadout loadout)
+        /// <param name="device">A random id this device keeps, so the host recognises a player who drops out and comes back.</param>
+        public static void WriteProfile(ByteWriter w, in Loadout loadout, ulong device)
         {
             w.U8((byte)MessageType.Profile);
             w.U8(Version);
             Write(w, loadout);
+            w.U32((uint)device);
+            w.U32((uint)(device >> 32));
         }
 
-        public static Loadout ReadProfile(ByteReader r)
+        public static Loadout ReadProfile(ByteReader r, out ulong device)
         {
             Expect(r, MessageType.Profile);
             var version = r.U8();
             if (version != Version) throw new VersionMismatchException(version);
             var loadout = ReadLoadout(r);
+            device = r.U32() | (ulong)r.U32() << 32;
             ExpectEnd(r, "profile");
             return loadout;
+        }
+
+        public static void Write(ByteWriter w, in OrderMessage m)
+        {
+            w.U8((byte)MessageType.Order);
+            w.U8((byte)m.Order);
+            w.I32(Quantize.Position(m.Point.x));
+            w.I32(Quantize.Position(m.Point.y));
+        }
+
+        public static OrderMessage ReadOrder(ByteReader r)
+        {
+            Expect(r, MessageType.Order);
+            var order = r.U8();
+            if (order > (byte)CrewOrder.PushHere) throw new ProtocolException($"Unknown crew order {order}.");
+            var m = new OrderMessage { Order = (CrewOrder)order, Point = new Vector2(Quantize.Position(r.I32()), Quantize.Position(r.I32())) };
+            ExpectEnd(r, "order");
+            return m;
         }
 
         public static void WriteClaimSeat(ByteWriter w, int seat)

@@ -212,14 +212,14 @@ namespace RushAhead.Tests
                 world.WaterVelocity = course.WaterVelocityAt;
                 world.Drifting.AddRange(course.BarrelBodies);
                 var boat = world.SpawnBoat(course.SpawnPosition, course.SpawnAngleRad, new[] { leafBlower, leafBlower, leafBlower, leafBlower });
-                var autopilot = new CourseAutopilot(boat, course.River);
+                var autopilot = SteadyCrew(boat, course, config, cruiseSpeed: 3.2f);
                 var race = new Race(course, boat, world.Tick, config.tickRate);
 
                 var limit = race.StartTick + Mathf.CeilToInt(def.parSeconds * 1.5f * config.tickRate);
                 var furthest = 0f;
                 while (race.Phase != RacePhase.Finished && world.Tick < limit)
                 {
-                    autopilot.Update();
+                    autopilot.Update(Dt);
                     world.Advance(Dt);
                     race.Step(world.Tick);
                     furthest = Mathf.Max(furthest, course.River.Project(boat.Body.Position).Distance);
@@ -253,12 +253,12 @@ namespace RushAhead.Tests
                 world.WaterVelocity = course.WaterVelocityAt;
                 world.Drifting.AddRange(course.BarrelBodies);
                 var boat = world.SpawnBoat(course.SpawnPosition, course.SpawnAngleRad, new[] { blower, blower, blower, blower });
-                var autopilot = new CourseAutopilot(boat, course.River) { CruiseSpeed = 6f };
+                var autopilot = SteadyCrew(boat, course, config, cruiseSpeed: 6f);
                 var race = new Race(course, boat, world.Tick, config.tickRate);
                 var limit = race.StartTick + Mathf.CeilToInt(def.parSeconds * 1.5f * config.tickRate);
                 while (race.Phase != RacePhase.Finished && world.Tick < limit)
                 {
-                    autopilot.Update();
+                    autopilot.Update(Dt);
                     world.Advance(Dt);
                     race.Step(world.Tick);
                 }
@@ -273,7 +273,17 @@ namespace RushAhead.Tests
             }
         }
 
-        static IEnumerable<CourseDef> AllCourses()
+        /// <summary>The flawless AI crew in every seat: no reaction delay, no wobble, perfect air discipline.</summary>
+        internal static AiCrew SteadyCrew(Boat boat, Course course, SimConfig config, float cruiseSpeed)
+        {
+            var profile = AiProfile.Preset(AiSkill.Steady);
+            profile.cruiseSpeed = cruiseSpeed;
+            var crew = new AiCrew(boat, profile, config.tickRate) { River = course.River };
+            crew.Drive(CrewSectors.DriveOrder(boat.Crew.Length));
+            return crew;
+        }
+
+        internal static IEnumerable<CourseDef> AllCourses()
         {
 #if UNITY_EDITOR
             foreach (var guid in UnityEditor.AssetDatabase.FindAssets("t:CourseDef", new[] { "Assets/_Project/Content" }))

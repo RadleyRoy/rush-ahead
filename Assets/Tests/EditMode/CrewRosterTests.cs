@@ -133,6 +133,66 @@ namespace RushAhead.Tests
         }
 
         [Test]
+        public void WithAiCrewmates_TheHostDrivesOnlyItsOwnSeat_AndTheAiHasTheSpares()
+        {
+            var roster = new CrewRoster(catalog, 4) { SparesAreAi = true };
+            roster.AddHuman(1);
+            Assert.That(roster.LocalSeats(), Is.EqualTo(new[] { 2 }));
+            Assert.That(roster.AiSeats(), Is.EqualTo(new[] { 0, 1 }), "every seat no player holds");
+            var seen = roster.Describe(1);
+            Assert.That(seen[0].Ai && seen[1].Ai && !seen[2].Ai && !seen[3].Ai, Is.True);
+
+            roster.SparesAreAi = false;
+            Assert.That(roster.AiSeats(), Is.Empty);
+            Assert.That(roster.LocalSeats(), Is.EqualTo(new[] { 2, 0, 1 }), "AI off: the host's other controls drive the spares again");
+        }
+
+        [Test]
+        public void ADroppedPlayersSeat_IsKeptForThem_AndGivenBackWhenTheyReturn()
+        {
+            var roster = new CrewRoster(catalog, 4) { SparesAreAi = true, Now = 100.0 };
+            roster.AddHuman(1);
+            var otto = new Loadout { Species = 4, Fur = 9, Blower = 1, Name = "Otto" };
+            roster.SetProfile(1, otto, device: 77);
+            Assert.That(roster.SeatOf(1), Is.EqualTo(3));
+
+            roster.RemoveHuman(1); // Otto's connection drops
+            Assert.That(roster.IsKept(3), Is.True);
+            var seen = roster.Describe(Peers.Host)[3];
+            Assert.That(seen.Kept && seen.Ai && !seen.Human, Is.True, "an AI keeps the seat warm...");
+            Assert.That(seen.Loadout, Is.EqualTo(otto), "...as Otto's own animal");
+            Assert.That(roster.AiSeats(), Does.Contain(3));
+
+            roster.Now = 120.0;
+            roster.AddHuman(2); // someone new joins meanwhile
+            Assert.That(roster.SeatOf(2), Is.EqualTo(0), "a newcomer is dealt another seat, not Otto's");
+
+            roster.AddHuman(3); // Otto reconnects: a new connection, the same device
+            roster.SetProfile(3, otto, device: 77);
+            Assert.That(roster.SeatOf(3), Is.EqualTo(3), "back in the seat that was kept");
+            Assert.That(roster.IsKept(3), Is.False);
+        }
+
+        [Test]
+        public void AKeptSeat_IsFreeAgainOnceTheWaitIsOver()
+        {
+            var roster = new CrewRoster(catalog, 2) { Now = 0.0 };
+            roster.AddHuman(1);
+            roster.SetProfile(1, catalog.DefaultLoadout(1), device: 5);
+            roster.RemoveHuman(1);
+            Assert.That(roster.IsKept(1), Is.True);
+
+            roster.Now = CrewRoster.KeepSeatSeconds + 1.0;
+            Assert.That(roster.IsKept(1), Is.False);
+            roster.AddHuman(2);
+            Assert.That(roster.SeatOf(2), Is.EqualTo(1), "too late: the seat goes to whoever joins");
+
+            roster.AddHuman(3);
+            roster.SetProfile(3, catalog.DefaultLoadout(1), device: 5);
+            Assert.That(roster.SeatOf(3), Is.EqualTo(-1), "the late returner watches until a seat frees up");
+        }
+
+        [Test]
         public void Names_AreTrimmedToPrintableCharacters_WithoutSplittingAnEmoji()
         {
             Assert.That(Loadout.CleanName(null), Is.EqualTo(""));

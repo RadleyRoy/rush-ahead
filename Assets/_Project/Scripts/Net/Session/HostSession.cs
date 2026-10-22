@@ -18,6 +18,7 @@ namespace RushAhead.Net
         readonly ByteWriter writer = new(256);
         readonly Snapshot snapshot = new();
         RaceMessage race;
+        OrderMessage order;
 
         public HostSession(INetTransport transport, CrewRoster roster, IReadOnlyList<Rigidbody2D> props)
         {
@@ -37,6 +38,23 @@ namespace RushAhead.Net
 
         /// <summary>Loose bodies every client should see, in an order all devices agree on (the venue's barrel list).</summary>
         public IReadOnlyList<Rigidbody2D> Props { get; set; }
+
+        /// <summary>A client asked the AI crew to do something. The host decides, then calls <see cref="SetOrder"/>.</summary>
+        public event Action<OrderMessage> OrderRequested;
+
+        /// <summary>Tells every client (and anyone who joins later) what the AI crew is doing, for their order buttons.</summary>
+        public void SetOrder(OrderMessage current)
+        {
+            order = current;
+            foreach (var client in clients) Send(client, order);
+        }
+
+        void Send(ulong client, in OrderMessage message)
+        {
+            writer.Reset();
+            Protocol.Write(writer, message);
+            transport.Send(client, writer.Written, reliable: true);
+        }
 
         /// <summary>Tells every client (and anyone who joins later) which venue is loaded and when its race starts.</summary>
         public void SetRace(int course, int startTick)
@@ -75,6 +93,7 @@ namespace RushAhead.Net
             if (clients.Contains(client)) return;
             clients.Add(client);
             SendRace(client); // first, so they build the right venue before the raft appears on it
+            Send(client, order);
             Roster.AddHuman(client); // they wear a default look until their profile arrives, a moment later
         }
 
@@ -142,7 +161,12 @@ namespace RushAhead.Net
                         break;
 
                     case MessageType.Profile:
-                        Roster.SetProfile(from, Protocol.ReadProfile(reader));
+                        var look = Protocol.ReadProfile(reader, out var device);
+                        Roster.SetProfile(from, look, device); // a returning player gets their kept seat back here
+                        break;
+
+                    case MessageType.Order:
+                        OrderRequested?.Invoke(Protocol.ReadOrder(reader));
                         break;
 
                     case MessageType.ClaimSeat:

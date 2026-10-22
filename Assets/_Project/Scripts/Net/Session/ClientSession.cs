@@ -15,17 +15,20 @@ namespace RushAhead.Net
         readonly Func<int, CrewInput> readLocalInput;
         readonly ByteWriter writer = new(64);
         readonly byte[] burstCounts = new byte[CrewSectors.MaxCrew];
+        readonly ulong device;
         Loadout profile;
         ushort sequence;
         float sendTimer;
 
         /// <param name="profile">This player's animal; the host may clamp it to what it has.</param>
+        /// <param name="device">This device's own random id: the host keeps a dropped player's seat for that id.</param>
         /// <param name="readLocalInput">This device's controls for a seat. Called once per send, so it may consume one-shot presses.</param>
-        public ClientSession(INetTransport transport, SimConfig config, CrewCatalog catalog, Loadout profile, Func<int, CrewInput> readLocalInput)
+        public ClientSession(INetTransport transport, SimConfig config, CrewCatalog catalog, Loadout profile, ulong device, Func<int, CrewInput> readLocalInput)
         {
             this.transport = transport;
             this.readLocalInput = readLocalInput;
             this.profile = profile;
+            this.device = device;
             Timeline = new SnapshotTimeline(config.tickRate, snapshotEveryTicks: 2);
             Boat = new InterpolatedBoat(config, catalog.blowers);
             transport.PeerConnected += OnConnected;
@@ -38,6 +41,9 @@ namespace RushAhead.Net
 
         /// <summary>The host loaded a venue or started a race.</summary>
         public event Action RaceChanged;
+
+        /// <summary>The AI crew's order, as last heard from the host.</summary>
+        public OrderMessage Order { get; private set; }
 
         public event Action Disconnected;
 
@@ -67,6 +73,15 @@ namespace RushAhead.Net
         }
 
         /// <summary>Asks to move to a free seat. The host refuses if someone sits there by the time it hears.</summary>
+        /// <summary>Asks the host's AI crew to do something. Everyone hears back what it's doing.</summary>
+        public void RequestOrder(CrewOrder order, Vector2 point)
+        {
+            if (!Connected) return;
+            writer.Reset();
+            Protocol.Write(writer, new OrderMessage { Order = order, Point = point });
+            transport.Send(Peers.Host, writer.Written, reliable: true);
+        }
+
         public void ClaimSeat(int seat)
         {
             if (!Connected) return;
@@ -114,7 +129,7 @@ namespace RushAhead.Net
         void SendProfile()
         {
             writer.Reset();
-            Protocol.WriteProfile(writer, profile);
+            Protocol.WriteProfile(writer, profile, device);
             transport.Send(Peers.Host, writer.Written, reliable: true);
         }
 
@@ -138,6 +153,10 @@ namespace RushAhead.Net
                         // Burst counts keep running across seat changes: the host baselines each seat on its first packet.
                         Seats = seats.ToArray();
                         RosterChanged?.Invoke();
+                        break;
+
+                    case MessageType.Order:
+                        Order = Protocol.ReadOrder(new ByteReader(message));
                         break;
 
                     case MessageType.Race:

@@ -46,7 +46,7 @@ namespace RushAhead.UI
         {
             var gui = new Vector2(screenPosition.x, Screen.height - screenPosition.y) / Scale;
             return crewButton.Contains(gui) || tuneButton.Contains(gui) || resetButton.Contains(gui) || helpButton.Contains(gui) ||
-                   (open != Panel.None && panel.Contains(gui)) || resultsCard.Contains(gui);
+                   (open != Panel.None && panel.Contains(gui)) || resultsCard.Contains(gui) || orderBar.Contains(gui) || pickingPoint;
         }
 
         void Update()
@@ -61,6 +61,7 @@ namespace RushAhead.UI
 
             Game.SetSearching(open == Panel.Crew); // only listen for rooms while someone's looking
             UpdateCrewPanel();
+            UpdateOrders();
         }
 
         void Later(Action action) => later.Add(action);
@@ -81,6 +82,7 @@ namespace RushAhead.UI
             DrawSticks(scale);
             DrawStatus();
             DrawRace(width, height);
+            DrawOrders(width, height);
 
             tuneButton = new Rect(width - 90f, 10f, 80f, 40f);
             resetButton = new Rect(width - 180f, 10f, 80f, 40f);
@@ -93,7 +95,7 @@ namespace RushAhead.UI
             GUI.enabled = true;
             if (GUI.Button(helpButton, help ? "Hide help" : "Help")) Later(() => help = !help);
 
-            if (help && open == Panel.None && !Game.Run.Finished) DrawHelp(height);
+            if (help && open == Panel.None && !Game.Run.Finished && !Game.HasAiCrew) DrawHelp(height);
             if (open == Panel.Crew) DrawCrew(width, height);
             if (open == Panel.Tune) DrawTuning(width, height);
 
@@ -125,13 +127,13 @@ namespace RushAhead.UI
         {
             var view = Game.RaftView;
             var camera = Camera.main;
-            if (Game.Mode == NetMode.Offline || view == null || camera == null) return;
+            if ((Game.Mode == NetMode.Offline && !Game.HasAiCrew) || view == null || camera == null) return;
 
             tagStyle ??= new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter, fontStyle = FontStyle.Bold, fontSize = 15 };
             var seats = Game.Seats;
             for (var seat = 0; seat < seats.Length && seat < Game.ViewedBoat.CrewCount; seat++)
             {
-                if (!seats[seat].Human) continue;
+                if (!seats[seat].Human && !seats[seat].Ai && !seats[seat].Kept) continue;
                 var screen = camera.WorldToScreenPoint(view.TagPosition(seat));
                 if (screen.z <= 0f) continue;
 
@@ -147,8 +149,12 @@ namespace RushAhead.UI
             GUI.color = Color.white;
         }
 
-        static string DisplayName(RosterSeat seat, int index) =>
-            string.IsNullOrEmpty(seat.Loadout.Name) ? $"P{index + 1}" : seat.Loadout.Name;
+        static string DisplayName(RosterSeat seat, int index)
+        {
+            var name = string.IsNullOrEmpty(seat.Loadout.Name) ? $"P{index + 1}" : seat.Loadout.Name;
+            if (seat.Kept) return $"{name} (away)";
+            return seat.Ai ? "AI" : name;
+        }
 
         void DrawSticks(float scale)
         {
@@ -176,7 +182,7 @@ namespace RushAhead.UI
                 "Touch: drag on the left or right half to drive the two main seats. Quick tap = burst.\n" +
                 "Keyboard: WASD (+L Shift burst, L Ctrl brace) and Arrows (+R Shift, R Ctrl) = main seats;\n" +
                 "   IJKL (+U, O) and Numpad 8456 (+0, .) = the rest. Gamepads: one pad = both sticks; more = one seat each.\n" +
-                "Crew: play together over Wi-Fi, choose seats, and pick your animal, colour and blower.";
+                "Crew: play together over Wi-Fi, choose seats, set the AI crewmates, and pick your animal, colour and blower.";
             GUI.Box(new Rect(10f, height - 130f, 640f, 120f), text, new GUIStyle(GUI.skin.box) { alignment = TextAnchor.UpperLeft, wordWrap = true });
         }
 

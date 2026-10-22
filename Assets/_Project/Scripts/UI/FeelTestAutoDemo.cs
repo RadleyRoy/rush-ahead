@@ -31,6 +31,7 @@ namespace RushAhead.UI
         };
 
         const float ResultsShotDelay = 2.5f;
+        const float BraceOrderAt = 34f;
 
         FeelTestBootstrap game;
         string outputFolder;
@@ -41,6 +42,7 @@ namespace RushAhead.UI
         bool crewPanelOpened;
         int mapState; // 0 to take, 1 taken this frame (restore next), 2 done
         float finishedAt = -1f;
+        bool braceOrdered;
         Vector3 savedPosition;
         Quaternion savedRotation;
 
@@ -118,6 +120,12 @@ namespace RushAhead.UI
             if (mapState == 0 && elapsed > 0.3f && game.CurrentCourse != null) MapShot(Path.Combine(outputFolder, "0-map.png"));
 
             var run = game.Run;
+            if (!braceOrdered && elapsed >= BraceOrderAt && game.HasAiCrew && game.Mode != NetMode.Joined)
+            {
+                braceOrdered = true; // shows the order bar at work in the next shot
+                game.GiveOrder(Sim.CrewOrder.Brace);
+            }
+
             if (nextShot < CourseShots.Length && elapsed >= CourseShots[nextShot].time && !run.Finished)
                 Shot(CourseShots[nextShot++].name, run);
 
@@ -137,7 +145,7 @@ namespace RushAhead.UI
             var boat = game.ViewedBoat;
             Debug.Log($"[RushAhead] {name}: t={elapsed:0.0}s mode={game.Mode} pos={boat.RenderPosition} speed={boat.Velocity.magnitude:0.00} " +
                       $"course={run.Course?.displayName} clock={run.Seconds:0.0} gates={run.GatesPassed} finished={run.Finished} stars={run.Stars} " +
-                      $"capsizes={run.Capsizes} {game.NetStatus}");
+                      $"capsizes={run.Capsizes} order={game.CurrentOrder.Order} {game.NetStatus} crew=[{CrewSummary()}]");
         }
 
         /// <summary>Looks straight down on the whole course for one frame, without the HUD or haze, and saves that frame.</summary>
@@ -186,7 +194,7 @@ namespace RushAhead.UI
             for (var i = 0; i < seats.Length; i++)
             {
                 var s = seats[i];
-                var who = !s.Human ? "spare" : s.Loadout.Name + (s.Yours ? "(you)" : s.Host ? "(host)" : "");
+                var who = s.Kept ? $"kept-for-{s.Loadout.Name}" : s.Ai ? "AI" : !s.Human ? "spare" : s.Loadout.Name + (s.Yours ? "(you)" : s.Host ? "(host)" : "");
                 parts[i] = $"P{i + 1} {who} {game.Catalog.SpeciesOf(s.Loadout).displayName}/fur{s.Loadout.Fur}/{game.Catalog.BlowerOf(s.Loadout).displayName}";
             }
 

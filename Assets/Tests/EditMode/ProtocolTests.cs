@@ -102,10 +102,11 @@ namespace RushAhead.Tests
         {
             new RosterSeat { Human = true, Host = true, Loadout = new Loadout { Species = 0, Fur = 0, Blower = 0, Name = "Skipper" } },
             new RosterSeat { Human = true, Yours = true, Loadout = new Loadout { Species = 4, Fur = 9, Blower = 1, Name = "Ötter" } },
-            new RosterSeat { Loadout = new Loadout { Species = 2, Fur = 2, Blower = 3, Name = "" } },
+            new RosterSeat { Ai = true, Loadout = new Loadout { Species = 2, Fur = 2, Blower = 3, Name = "" } },
         };
 
         static readonly Loadout SampleProfile = new() { Species = 5, Fur = 7, Blower = 4, Name = "Radley" };
+        const ulong SampleDevice = 0x0123456789ABCDEF;
 
         static readonly RoomAdvert SampleAdvert = new()
         {
@@ -136,8 +137,16 @@ namespace RushAhead.Tests
         [Test]
         public void ProfileAndSeatClaim_RoundTrip()
         {
-            var profile = Encode(w => Protocol.WriteProfile(w, SampleProfile));
-            Assert.That(Protocol.ReadProfile(new ByteReader(new ArraySegment<byte>(profile))), Is.EqualTo(SampleProfile));
+            var profile = Encode(w => Protocol.WriteProfile(w, SampleProfile, SampleDevice));
+            Assert.That(Protocol.ReadProfile(new ByteReader(new ArraySegment<byte>(profile)), out var device), Is.EqualTo(SampleProfile));
+            Assert.That(device, Is.EqualTo(SampleDevice), "the id a host recognises a returning player by");
+
+            var order = Encode(w => Protocol.Write(w, new OrderMessage { Order = CrewOrder.PushHere, Point = new Vector2(10.5f, -2.25f) }));
+            var readOrder = Protocol.ReadOrder(new ByteReader(new ArraySegment<byte>(order)));
+            Assert.That(readOrder.Order, Is.EqualTo(CrewOrder.PushHere));
+            Assert.That(readOrder.Point, Is.EqualTo(new Vector2(10.5f, -2.25f)));
+            order[1] = 9;
+            Assert.Throws<ProtocolException>(() => Protocol.ReadOrder(new ByteReader(new ArraySegment<byte>(order))), "no such order");
 
             var claim = Encode(w => Protocol.WriteClaimSeat(w, 3));
             Assert.That(Protocol.ReadClaimSeat(new ByteReader(new ArraySegment<byte>(claim))), Is.EqualTo(3));
@@ -147,13 +156,13 @@ namespace RushAhead.Tests
         public void Names_AreCleanedOnTheWay_AndAnOverlongOneIsRefused()
         {
             var messy = new Loadout { Name = "  Bob\n\tthe\u0007Great Skipper of the Lagoon  " };
-            var bytes = Encode(w => Protocol.WriteProfile(w, messy));
-            var read = Protocol.ReadProfile(new ByteReader(new ArraySegment<byte>(bytes)));
+            var bytes = Encode(w => Protocol.WriteProfile(w, messy, 1));
+            var read = Protocol.ReadProfile(new ByteReader(new ArraySegment<byte>(bytes)), out _);
             Assert.That(read.Name, Is.EqualTo("BobtheGreat"), "control characters dropped, trimmed, at most 12 characters");
 
             // A hand-made profile claiming a 200-byte name must not be believed.
             var hostile = new byte[] { (byte)MessageType.Profile, Protocol.Version, 0, 0, 0, 200 }.Concat(new byte[200]).ToArray();
-            Assert.Throws<ProtocolException>(() => Protocol.ReadProfile(new ByteReader(new ArraySegment<byte>(hostile))));
+            Assert.Throws<ProtocolException>(() => Protocol.ReadProfile(new ByteReader(new ArraySegment<byte>(hostile)), out _));
         }
 
         [Test]
@@ -184,9 +193,10 @@ namespace RushAhead.Tests
         // Committed wire bytes: if these change, the protocol changed. Bump Protocol.Version and re-record.
         const string InputGolden = "2002feff0080bf0107";
         const string SnapshotGolden = "10d20400000180e9ffff40030000ee32800240ff00ffec0185ff00020334120000050400a000ff00000000e040cc010301002080990006020060bf660009030200f1ffff4dfdffff5f14cdf2ffff33feffffb8cb";
-        const string RosterGolden = "0203030300000007536b69707065720504090106c396747465720002020300";
-        const string ProfileGolden = "2103050704065261646c6579";
-        const string AdvertGolden = "5255534803efbeadde611e020407536b6970706572";
+        const string RosterGolden = "0204030300000007536b69707065720504090106c396747465720802020300";
+        const string ProfileGolden = "2104050704065261646c6579efcdab8967452301";
+        const string AdvertGolden = "5255534804efbeadde611e020407536b6970706572";
+        const string OrderGolden = "0403800a0000c0fdffff";
         const string RaceGolden = "0302d2040000";
 
         [Test]
@@ -195,12 +205,13 @@ namespace RushAhead.Tests
             var input = Hex(Encode(w => Protocol.Write(w, SampleInput)));
             var snapshot = Hex(Encode(w => Protocol.Write(w, SampleSnapshot())));
             var roster = Hex(Encode(w => Protocol.Write(w, SampleRoster())));
-            var profile = Hex(Encode(w => Protocol.WriteProfile(w, SampleProfile)));
+            var profile = Hex(Encode(w => Protocol.WriteProfile(w, SampleProfile, SampleDevice)));
+            var order = Hex(Encode(w => Protocol.Write(w, new OrderMessage { Order = CrewOrder.PushHere, Point = new Vector2(10.5f, -2.25f) })));
             var advert = Hex(Encode(w => Protocol.Write(w, SampleAdvert)));
             var race = Hex(Encode(w => Protocol.Write(w, new RaceMessage { Course = 2, StartTick = 1234 })));
             var recording = $"InputGolden = \"{input}\";\nSnapshotGolden = \"{snapshot}\";\nRosterGolden = \"{roster}\";\n" +
-                            $"ProfileGolden = \"{profile}\";\nAdvertGolden = \"{advert}\";\nRaceGolden = \"{race}\";";
-            Assert.That(input == InputGolden && snapshot == SnapshotGolden && roster == RosterGolden && profile == ProfileGolden && advert == AdvertGolden && race == RaceGolden,
+                            $"ProfileGolden = \"{profile}\";\nAdvertGolden = \"{advert}\";\nRaceGolden = \"{race}\";\nOrderGolden = \"{order}\";";
+            Assert.That(input == InputGolden && snapshot == SnapshotGolden && roster == RosterGolden && profile == ProfileGolden && advert == AdvertGolden && race == RaceGolden && order == OrderGolden,
                 Is.True, $"Wire bytes changed. If deliberate, bump Protocol.Version and re-record:\n{recording}");
         }
 
@@ -223,7 +234,7 @@ namespace RushAhead.Tests
             {
                 var bytes = new byte[random.Next(0, 120)];
                 random.NextBytes(bytes);
-                if (bytes.Length > 0) bytes[0] = (byte)(random.Next(6) switch { 0 => 0x02, 1 => 0x10, 2 => 0x20, 3 => 0x21, 4 => 0x03, _ => 0x22 }); // aim at real decoders
+                if (bytes.Length > 0) bytes[0] = (byte)(random.Next(7) switch { 0 => 0x02, 1 => 0x10, 2 => 0x20, 3 => 0x21, 4 => 0x03, 5 => 0x04, _ => 0x22 }); // aim at real decoders
                 if (bytes.Length > 1 && random.Next(2) == 0) bytes[1] = Protocol.Version; // and get past the version check half the time
                 var message = new ArraySegment<byte>(bytes);
                 Protocol.TryReadAdvert(message, out _); // must never throw at all
@@ -233,9 +244,10 @@ namespace RushAhead.Tests
                     {
                         case 0x02: Protocol.ReadRoster(new ByteReader(message)); break;
                         case 0x03: Protocol.ReadRace(new ByteReader(message)); break;
+                        case 0x04: Protocol.ReadOrder(new ByteReader(message)); break;
                         case 0x10: Protocol.ReadSnapshot(new ByteReader(message), new Snapshot()); break;
                         case 0x20: Protocol.ReadInput(new ByteReader(message)); break;
-                        case 0x21: Protocol.ReadProfile(new ByteReader(message)); break;
+                        case 0x21: Protocol.ReadProfile(new ByteReader(message), out _); break;
                         case 0x22: Protocol.ReadClaimSeat(new ByteReader(message)); break;
                         default: Protocol.PeekType(message); break;
                     }
