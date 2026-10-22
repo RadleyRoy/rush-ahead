@@ -145,9 +145,15 @@ namespace RushAhead.Sim
 
             // Turning at speed heels the boat toward the outside of the turn.
             var turnHeel = new Vector2(-config.turnHeelCoupling * ForwardSpeed * Body.AngularVelocityRad, 0f);
-            var damping = config.tiltDamping * Mathf.Lerp(1f, config.braceDampingMultiplier, bracedCount / (float)Crew.Length);
 
-            if (!Tilt.Step(heelAccel + turnHeel, config.tiltStiffness, damping, config.capsizeAngle, config.capsizeHoldSeconds, dt))
+            // Pitch is stiffer than roll. Scaling its damping by sqrt(stiffness ratio) keeps the same
+            // damping ratio on both axes, so the stiffer pitch spring doesn't turn into a bouncing bow.
+            var pitchMultiplier = config.pitchStiffnessMultiplier;
+            var stiffness = new Vector2(config.tiltStiffness, config.tiltStiffness * pitchMultiplier);
+            var rollDamping = config.tiltDamping * Mathf.Lerp(1f, config.braceDampingMultiplier, bracedCount / (float)Crew.Length);
+            var damping = new Vector2(rollDamping, rollDamping * Mathf.Sqrt(pitchMultiplier));
+
+            if (!Tilt.Step(heelAccel + turnHeel, stiffness, damping, config.capsizeAngle, config.capsizeHoldSeconds, dt))
                 return;
 
             State = BoatState.Capsized;

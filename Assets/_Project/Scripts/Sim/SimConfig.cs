@@ -48,7 +48,11 @@ namespace RushAhead.Sim
 
         [Header("Tilt: visual lean and capsize (radians)")]
         [Min(0.1f)] public float tiltInertia = 40f;
+        [Tooltip("Roll stiffness: how hard the boat rights itself from a sideways lean.")]
         [Min(0f)] public float tiltStiffness = 6f;
+        [Tooltip("Pitch stiffness as a multiple of roll stiffness. A long hull is far harder to tip end over end, " +
+                 "so forward thrust shouldn't lean the boat anywhere near capsizing.")]
+        [Min(1f)] public float pitchStiffnessMultiplier = 3f;
         [Min(0f)] public float tiltDamping = 1.7f;
         [Tooltip("Height of the blowers above the waterline: horizontal thrust up there heels the boat.")]
         [Min(0f)] public float heelArm = 0.5f;

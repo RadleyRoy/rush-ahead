@@ -154,6 +154,24 @@ namespace RushAhead.Tests
         }
 
         [Test]
+        public void CruisingStraightAhead_StaysFarFromCapsize()
+        {
+            var boat = SpawnBoat();
+            Blow(boat, 2, Backward);
+            Blow(boat, 3, Backward);
+
+            var worst = 0f;
+            for (var t = 0f; t < 3f; t += Dt)
+            {
+                world.Advance(Dt);
+                worst = Mathf.Max(worst, boat.TiltDanger);
+            }
+
+            // Forward thrust pitches the bow down, but a hull is far stiffer in pitch than in roll.
+            Assert.That(worst, Is.LessThan(0.2f), "ordinary cruising must not read as nearly capsizing");
+        }
+
+        [Test]
         public void Bracing_PreventsTheSameCapsize()
         {
             config.capsizeAngle = 0.15f;

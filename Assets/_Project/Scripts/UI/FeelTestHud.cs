@@ -130,6 +130,7 @@ namespace RushAhead.UI
 
             GUILayout.Label("Lean and capsize");
             c.tiltStiffness = Slider("Righting stiffness", c.tiltStiffness, 1f, 20f);
+            c.pitchStiffnessMultiplier = Slider("Fore-aft stiffness x", c.pitchStiffnessMultiplier, 1f, 6f);
             c.tiltDamping = Slider("Lean damping", c.tiltDamping, 0.2f, 8f);
             c.heelArm = Slider("Thrust heels boat", c.heelArm, 0f, 1.5f);
             c.turnHeelCoupling = Slider("Turns heel boat", c.turnHeelCoupling, 0f, 0.6f);

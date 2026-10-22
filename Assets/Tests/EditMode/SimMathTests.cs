@@ -176,7 +176,7 @@ namespace RushAhead.Tests
     {
         const float Dt = 1f / 60f;
 
-        static TiltModel Run(Vector2 forcing, float stiffness, float damping, float seconds, float capsizeAngle = 10f, float hold = 0.4f)
+        static TiltModel Run(Vector2 forcing, Vector2 stiffness, Vector2 damping, float seconds, float capsizeAngle = 10f, float hold = 0.4f)
         {
             var tilt = new TiltModel();
             for (var t = 0f; t < seconds; t += Dt) tilt.Step(forcing, stiffness, damping, capsizeAngle, hold, Dt);
@@ -188,14 +188,14 @@ namespace RushAhead.Tests
         {
             var tilt = new TiltModel();
             tilt.Kick(new Vector2(1f, 0.5f));
-            for (var i = 0; i < 600; i++) tilt.Step(Vector2.zero, 6f, 1.7f, 10f, 0.4f, Dt);
+            for (var i = 0; i < 600; i++) tilt.Step(Vector2.zero, Vector2.one * 6f, Vector2.one * 1.7f, 10f, 0.4f, Dt);
             Assert.That(tilt.Tilt.magnitude, Is.LessThan(0.01f));
         }
 
         [Test]
         public void SteadyForcing_SettlesAtForcingOverStiffness()
         {
-            var tilt = Run(new Vector2(1.2f, 0f), stiffness: 6f, damping: 3f, seconds: 10f);
+            var tilt = Run(new Vector2(1.2f, 0f), stiffness: Vector2.one * 6f, damping: Vector2.one * 3f, seconds: 10f);
             Assert.That(tilt.Tilt.x, Is.EqualTo(0.2f).Within(0.01f));
         }
 
@@ -208,13 +208,41 @@ namespace RushAhead.Tests
                 var peak = 0f;
                 for (var i = 0; i < 300; i++)
                 {
-                    tilt.Step(new Vector2(1.2f, 0f), 6f, damping, 10f, 0.4f, Dt);
+                    tilt.Step(new Vector2(1.2f, 0f), Vector2.one * 6f, Vector2.one * damping, 10f, 0.4f, Dt);
                     peak = Mathf.Max(peak, tilt.Tilt.x);
                 }
                 return peak;
             }
 
             Assert.That(Peak(5f), Is.LessThan(Peak(1f)));
+        }
+
+        [Test]
+        public void StifferPitch_LeansLessForTheSameForcing()
+        {
+            var tilt = Run(new Vector2(1.2f, 1.2f), stiffness: new Vector2(6f, 18f), damping: new Vector2(3f, 3f * Mathf.Sqrt(3f)), seconds: 10f);
+
+            Assert.That(tilt.Tilt.x, Is.EqualTo(0.2f).Within(0.01f), "roll settles at forcing / roll stiffness");
+            Assert.That(tilt.Tilt.y, Is.EqualTo(0.2f / 3f).Within(0.01f), "pitch, three times stiffer, leans a third as far");
+        }
+
+        [Test]
+        public void SqrtScaledPitchDamping_KeepsTheSameOvershootAsRoll()
+        {
+            // Damping ratio = c / (2 * sqrt(k)), so scaling c by sqrt(k ratio) keeps the response shape identical.
+            float Overshoot(float stiffness, float damping)
+            {
+                var tilt = new TiltModel();
+                var peak = 0f;
+                for (var i = 0; i < 600; i++)
+                {
+                    tilt.Step(new Vector2(1.2f, 0f), new Vector2(stiffness, stiffness), new Vector2(damping, damping), 10f, 0.4f, Dt);
+                    peak = Mathf.Max(peak, tilt.Tilt.x);
+                }
+                return peak / (1.2f / stiffness) - 1f;
+            }
+
+            Assert.That(Overshoot(18f, 1.7f * Mathf.Sqrt(3f)), Is.EqualTo(Overshoot(6f, 1.7f)).Within(0.03f));
         }
 
         [Test]
@@ -226,7 +254,7 @@ namespace RushAhead.Tests
             var capsizedAt = -1f;
             for (var i = 0; i < 300 && capsizedAt < 0f; i++)
             {
-                tilt.Step(forcing, 6f, 1.7f, 0.5f, 0.4f, Dt);
+                tilt.Step(forcing, Vector2.one * 6f, Vector2.one * 1.7f, 0.5f, 0.4f, Dt);
                 if (tilt.Tilt.magnitude > 0.5f) secondsOver += Dt;
                 if (tilt.Capsized) capsizedAt = secondsOver;
             }
