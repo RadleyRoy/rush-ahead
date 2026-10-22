@@ -30,6 +30,9 @@ namespace RushAhead.UI
     ///
     /// Command line (for testing several copies on one PC):
     ///   -rushahead-host [listen address]   host; listen on 127.0.0.1 for same-machine tests, 0.0.0.0 (default) for LAN
+    ///   -rushahead-host-online               host an online game (needs the build linked to a Unity Cloud project)
+    ///   -rushahead-join-code &lt;code&gt;        join an online game by its code
+    ///   -rushahead-auth-profile &lt;name&gt;     sign in online as a separate anonymous player (copies on one PC)
     ///   -rushahead-join &lt;address&gt;          join a host by address
     ///   -rushahead-find [listen address]   look for a room on the LAN and join the first one heard
     ///   -rushahead-port &lt;port&gt;             default 7777
@@ -79,6 +82,8 @@ namespace RushAhead.UI
         HostSession host;
         ClientSession client;
         LanBeacon beacon;
+        OnlineRoom onlineRoom;
+        bool goingOnline;
         LanDiscovery discovery;
         AndroidMulticastLock multicastLock;
         bool joinFirstRoomHeard;
@@ -121,7 +126,18 @@ namespace RushAhead.UI
         /// <summary>The AI crew's current order and its push-here point, as this device last heard.</summary>
         public OrderMessage CurrentOrder => Mode == NetMode.Joined ? client.Order : ai != null ? new OrderMessage { Order = ai.Order, Point = ai.PushPoint } : default;
         public CrewInputRouter Router { get; private set; }
+
+        /// <summary>The start page while it's up; null once it has faded away.</summary>
+        public TitleScreen Title { get; private set; }
         public NetMode Mode { get; private set; }
+
+        /// <summary>The join code of the online game this device is in, or null (offline, or on a LAN).</summary>
+        public string OnlineCode => onlineRoom?.Code;
+
+        /// <summary>Busy setting up or joining an online game (signing in, finding the session, connecting to Relay).</summary>
+        public bool GoingOnline => goingOnline;
+
+        public bool OnlineAvailable => OnlineRooms.Available;
         public string NetStatus { get; private set; } = "";
 
         /// <summary>The animals this device brings: its player's own, and the spare seats' looks.</summary>
@@ -155,6 +171,7 @@ namespace RushAhead.UI
         {
             Application.targetFrameRate = 60; // mobile defaults to 30
             Screen.sleepTimeout = SleepTimeout.NeverSleep;
+            Title = TitleScreen.Show(gameObject); // the start page covers the first frames while everything is built
 
             runner = gameObject.AddComponent<SimRunner>();
             runner.Init(config);
@@ -204,13 +221,17 @@ namespace RushAhead.UI
                 host?.SetOrder(shownOrder);
             }
 
-            if (Mode == NetMode.Hosting)
+            if (Mode == NetMode.Hosting && beacon != null)
             {
                 NetStatus = $"Hosting on {LocalAddress()}:{port}. {host.Clients.Count} joined.";
                 beacon.Advert.Players = (byte)SeatedPlayers();
                 beacon.Advert.Seats = (byte)roster.CrewCount;
                 beacon.Advert.HostName = Local.Profile.Name;
                 beacon.Update(Time.unscaledDeltaTime);
+            }
+            else if (Mode == NetMode.Hosting)
+            {
+                NetStatus = $"Online game {onlineRoom?.Code}. {host.Clients.Count} joined.";
             }
 
             if (Mode == NetMode.Joined) UpdateJoined();
@@ -224,7 +245,7 @@ namespace RushAhead.UI
             if (client.Error != null) hostLost = true; // leave next frame, showing why
             ShowHostsBarrels();
             RebuildJoinedViewIfNeeded();
-            NetStatus = !client.Connected ? $"Connecting to {hostAddress}..."
+            NetStatus = !client.Connected ? $"Connecting to {(onlineRoom != null ? "the online game" : hostAddress)}..."
                 : client.Seats.Length == 0 ? "Joined. The raft is full, so you're watching."
                 : $"Joined as P{client.Seats[0] + 1}.";
         }
@@ -363,7 +384,7 @@ namespace RushAhead.UI
 
         public void StartHosting(string listen = "0.0.0.0")
         {
-            if (Mode != NetMode.Offline) return;
+            if (Mode != NetMode.Offline || goingOnline) return;
             try
             {
                 transport = NgoTransport.StartHost(port, listen);
@@ -374,13 +395,7 @@ namespace RushAhead.UI
                 return;
             }
 
-            StopSearching();
-            host = new HostSession(transport, roster, barrelBodies);
-            host.OrderRequested += ApplyOrder; // any player can order the AI crew about
-            runner.Ticked += host.OnTick;
-            Mode = NetMode.Hosting;
-            host.UseBoat(Boat);
-            host.SetRace(venue, race?.StartTick ?? 0);
+            BeginHosting();
 
             // Same-machine tests listen on loopback only, so they advertise there too and never touch the real network.
             var loopbackOnly = listen == IPAddress.Loopback.ToString();
@@ -390,6 +405,82 @@ namespace RushAhead.UI
             };
         }
 
+        /// <summary>Hosts an online game through Unity Relay. Others join with the code it shows; no Wi-Fi in common needed.</summary>
+        public async void StartHostingOnline()
+        {
+            if (Mode != NetMode.Offline || goingOnline) return;
+            goingOnline = true;
+            NetStatus = "Setting up an online game...";
+            try
+            {
+                var (relayTransport, room) = await OnlineRooms.HostAsync();
+                if (this == null || Mode != NetMode.Offline) // closed, or something else started while we waited
+                {
+                    relayTransport.Shutdown();
+                    _ = room.LeaveAsync();
+                    return;
+                }
+
+                transport = relayTransport;
+                onlineRoom = room;
+                BeginHosting();
+                Debug.Log($"[RushAhead] Hosting online game {room.Code}");
+            }
+            catch (Exception e)
+            {
+                NetStatus = OnlineRooms.Explain(e);
+                Debug.LogWarning($"[RushAhead] Hosting online failed: {e}");
+            }
+            finally
+            {
+                goingOnline = false;
+            }
+        }
+
+        /// <summary>Joins an online game by the code its host sees.</summary>
+        public async void JoinOnline(string code)
+        {
+            if (Mode != NetMode.Offline || goingOnline) return;
+            goingOnline = true;
+            NetStatus = "Finding the online game...";
+            try
+            {
+                var (relayTransport, room) = await OnlineRooms.JoinAsync(code);
+                if (this == null || Mode != NetMode.Offline)
+                {
+                    relayTransport.Shutdown();
+                    _ = room.LeaveAsync();
+                    return;
+                }
+
+                onlineRoom = room;
+                hostAddress = $"online game {room.Code}";
+                BeginJoining(relayTransport);
+                Debug.Log($"[RushAhead] Joined online game {room.Code}");
+            }
+            catch (Exception e)
+            {
+                NetStatus = OnlineRooms.Explain(e);
+                Debug.LogWarning($"[RushAhead] Joining online failed: {e}");
+            }
+            finally
+            {
+                goingOnline = false;
+            }
+        }
+
+        /// <summary>Starts serving this device's raft over a transport that's already listening.</summary>
+        void BeginHosting()
+        {
+            StopSearching();
+            host = new HostSession(transport, roster, barrelBodies);
+            host.OrderRequested += ApplyOrder; // any player can order the AI crew about
+            runner.Ticked += host.OnTick;
+            Mode = NetMode.Hosting;
+            host.UseBoat(Boat);
+            host.SetRace(venue, race?.StartTick ?? 0);
+        }
+
         public void Join(DiscoveredRoom room)
         {
             if (room.Advert.Compatible) Join(room.Address, room.Advert.GamePort);
@@ -397,11 +488,12 @@ namespace RushAhead.UI
 
         public void Join(string address, ushort gamePort = 0)
         {
-            if (Mode != NetMode.Offline || string.IsNullOrWhiteSpace(address)) return;
+            if (Mode != NetMode.Offline || goingOnline || string.IsNullOrWhiteSpace(address)) return;
             hostAddress = address.Trim();
+            NgoTransport direct;
             try
             {
-                transport = NgoTransport.StartClient(hostAddress, gamePort != 0 ? gamePort : port);
+                direct = NgoTransport.StartClient(hostAddress, gamePort != 0 ? gamePort : port);
             }
             catch (Exception e)
             {
@@ -409,6 +501,13 @@ namespace RushAhead.UI
                 return;
             }
 
+            BeginJoining(direct);
+        }
+
+        /// <summary>Becomes a joined player over a transport that's connecting to a host.</summary>
+        void BeginJoining(NgoTransport connecting)
+        {
+            transport = connecting;
             StopSearching();
 
             // The host runs the only simulation: drop our raft and race, and stop simulating our barrels.
@@ -461,6 +560,12 @@ namespace RushAhead.UI
             beacon = null;
             transport?.Shutdown();
             transport = null;
+            if (onlineRoom != null)
+            {
+                _ = onlineRoom.LeaveAsync(); // tell the service too, so the code stops working; never blocks leaving
+                onlineRoom = null;
+            }
+
             Mode = NetMode.Offline;
             NetStatus = "";
         }
@@ -567,7 +672,10 @@ namespace RushAhead.UI
             if (ushort.TryParse(CommandLine.After("-rushahead-port"), out var customPort)) port = customPort;
 
             if (int.TryParse(CommandLine.After("-rushahead-course"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var startCourse)) ChooseVenue(startCourse);
-            if (CommandLine.Has("-rushahead-host")) StartHosting(CommandLine.After("-rushahead-host") ?? "0.0.0.0");
+            OnlineRooms.Profile = CommandLine.After("-rushahead-auth-profile"); // several copies on one PC need different players
+            if (CommandLine.Has("-rushahead-host-online")) StartHostingOnline();
+            else if (CommandLine.After("-rushahead-join-code") is { } code) JoinOnline(code);
+            else if (CommandLine.Has("-rushahead-host")) StartHosting(CommandLine.After("-rushahead-host") ?? "0.0.0.0");
             else if (CommandLine.After("-rushahead-join") is { } address) Join(address);
             else if (CommandLine.Has("-rushahead-find"))
             {

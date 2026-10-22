@@ -14,6 +14,8 @@ namespace RushAhead.UI
         const int SwatchesPerRow = 6;
 
         string joinAddress = "192.168.";
+        string joinCode = "";
+        GUIStyle codeStyle;
         int dressSeat = -1; // the seat whose look is being edited; -1 means the player's own
         string nameDraft;
         float nameEditedAt = -1f;
@@ -59,8 +61,12 @@ namespace RushAhead.UI
             switch (Game.Mode)
             {
                 case NetMode.Offline:
-                    GUILayout.Label("Everyone on the same Wi-Fi, or on one phone's hotspot.", small);
-                    if (GUILayout.Button("Host a game", GUILayout.Height(36f))) Later(() => Game.StartHosting());
+                    DrawOnline();
+                    GUILayout.Space(8f);
+                    GUILayout.Label("On the same Wi-Fi, or one phone's hotspot (no internet needed)", small);
+                    GUI.enabled = !Game.GoingOnline;
+                    if (GUILayout.Button("Host on Wi-Fi", GUILayout.Height(36f))) Later(() => Game.StartHosting());
+                    GUI.enabled = true;
 
                     GUILayout.Label("Games nearby");
                     var rooms = Game.RoomsNearby;
@@ -85,6 +91,21 @@ namespace RushAhead.UI
                     GUILayout.EndHorizontal();
                     break;
 
+                case NetMode.Hosting when Game.OnlineCode != null:
+                    codeStyle ??= new GUIStyle(GUI.skin.label) { fontSize = 34, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter };
+                    GUILayout.Label("Online game. Friends join anywhere with this code:", small);
+                    GUILayout.Label(Game.OnlineCode, codeStyle, GUILayout.Height(48f));
+                    GUILayout.BeginHorizontal();
+                    if (GUILayout.Button("Copy code", GUILayout.Height(36f)))
+                    {
+                        GUIUtility.systemCopyBuffer = Game.OnlineCode;
+                        Toast("Join code copied");
+                    }
+
+                    if (GUILayout.Button("Stop hosting", GUILayout.Height(36f))) Later(Game.LeaveNetwork);
+                    GUILayout.EndHorizontal();
+                    break;
+
                 case NetMode.Hosting:
                     GUILayout.Label("Others find this raft under Games nearby, or join this device's address (top left).", small);
                     if (GUILayout.Button("Stop hosting", GUILayout.Height(36f))) Later(Game.LeaveNetwork);
@@ -94,6 +115,25 @@ namespace RushAhead.UI
                     if (GUILayout.Button("Leave game", GUILayout.Height(36f))) Later(Game.LeaveNetwork);
                     break;
             }
+        }
+
+        /// <summary>Online play: host and get a code, or type a friend's code. Works over mobile data or any Wi-Fi.</summary>
+        void DrawOnline()
+        {
+            GUILayout.Label("Online, anywhere (join with a code)", small);
+            if (!Game.OnlineAvailable)
+            {
+                GUILayout.Label("Not set up in this build yet: it needs linking to Unity's online services.", small);
+                return;
+            }
+
+            GUI.enabled = !Game.GoingOnline;
+            if (GUILayout.Button(Game.GoingOnline ? "Connecting..." : "Host online", GUILayout.Height(36f))) Later(Game.StartHostingOnline);
+            GUILayout.BeginHorizontal();
+            joinCode = GUILayout.TextField(joinCode, 12, GUILayout.MinWidth(220f));
+            if (GUILayout.Button("Join", GUILayout.Width(70f))) Later(() => Game.JoinOnline(joinCode));
+            GUILayout.EndHorizontal();
+            GUI.enabled = true;
         }
 
         void DrawSeats()

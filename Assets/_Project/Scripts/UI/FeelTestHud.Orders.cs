@@ -53,7 +53,7 @@ namespace RushAhead.UI
         void DrawOrders(float width, float height)
         {
             orderBar = Rect.zero;
-            if (!Game.HasAiCrew || Game.Run.Finished) return;
+            if (!Game.HasAiCrew || Game.Run.Finished || open != Panel.None) return; // panels have the screen for now
 
             orderHint ??= new GUIStyle(GUI.skin.box) { fontSize = 14, alignment = TextAnchor.MiddleCenter };
             const float button = 92f;

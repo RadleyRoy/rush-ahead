@@ -43,6 +43,7 @@ namespace RushAhead.UI
         int mapState; // 0 to take, 1 taken this frame (restore next), 2 done
         float finishedAt = -1f;
         bool braceOrdered;
+        bool titleShot;
         Vector3 savedPosition;
         Quaternion savedRotation;
 
@@ -75,6 +76,13 @@ namespace RushAhead.UI
         void Update()
         {
             elapsed += Time.deltaTime;
+            if (!titleShot && elapsed >= 0.5f)
+            {
+                titleShot = true;
+                ScreenCapture.CaptureScreenshot(Path.Combine(outputFolder, "0-title.png"));
+            }
+
+            if (elapsed >= 0.9f && game.Title != null) Destroy(game.Title); // the shots that follow are of the game
             if (game.Venue > 0)
             {
                 UpdateCourseDemo();
@@ -117,7 +125,7 @@ namespace RushAhead.UI
         void UpdateCourseDemo()
         {
             if (mapState == 1) RestoreCamera();
-            if (mapState == 0 && elapsed > 0.3f && game.CurrentCourse != null) MapShot(Path.Combine(outputFolder, "0-map.png"));
+            if (mapState == 0 && elapsed > 1.1f && game.CurrentCourse != null) MapShot(Path.Combine(outputFolder, "0-map.png"));
 
             var run = game.Run;
             if (!braceOrdered && elapsed >= BraceOrderAt && game.HasAiCrew && game.Mode != NetMode.Joined)

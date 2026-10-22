@@ -1,7 +1,8 @@
 {
     "name": "RushAhead.Net",
     "rootNamespace": "RushAhead.Net",
-    "references": ["RushAhead.Sim", "RushAhead.Content", "Unity.Netcode.Runtime", "Unity.Networking.Transport", "Unity.Collections"],
+    "references": ["RushAhead.Sim", "RushAhead.Content", "Unity.Netcode.Runtime", "Unity.Networking.Transport", "Unity.Collections",
+                   "Unity.Services.Core", "Unity.Services.Authentication", "Unity.Services.Multiplayer"],
     "includePlatforms": [],
     "excludePlatforms": [],
     "allowUnsafeCode": false,

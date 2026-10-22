@@ -43,6 +43,9 @@ namespace RushAhead.EditorTools
             // LAN play opens UDP sockets; don't rely on Unity spotting that and adding the permission itself.
             PlayerSettings.Android.forceInternetPermission = true;
 
+            // The game opens on its own start page ("Rush Ahead, created by Radley"); Unity 6 lets every plan turn its splash off.
+            PlayerSettings.SplashScreen.show = false;
+
             // Landscape only: two thumbs on a wide screen.
             PlayerSettings.defaultInterfaceOrientation = UIOrientation.AutoRotation;
             PlayerSettings.allowedAutorotateToPortrait = false;

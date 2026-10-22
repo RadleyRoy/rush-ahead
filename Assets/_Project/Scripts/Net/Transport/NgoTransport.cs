@@ -2,14 +2,15 @@ using System;
 using Unity.Collections;
 using Unity.Netcode;
 using Unity.Netcode.Transports.UTP;
+using Unity.Networking.Transport.Relay;
 using UnityEngine;
 
 namespace RushAhead.Net
 {
     /// <summary>
-    /// Real networking over Netcode for GameObjects and Unity Transport (UDP). NGO is used purely as a connection and
-    /// delivery layer through one named-message channel; there are no NetworkObjects, so the game's compact snapshot
-    /// stays in charge of what goes over the wire.
+    /// Real networking over Netcode for GameObjects and Unity Transport (UDP), either directly on a LAN or through Unity
+    /// Relay for online play. NGO is used purely as a connection and delivery layer through one named-message channel;
+    /// there are no NetworkObjects, so the game's compact snapshot stays in charge of what goes over the wire.
     /// </summary>
     public sealed class NgoTransport : MonoBehaviour, INetTransport
     {
@@ -49,6 +50,37 @@ namespace RushAhead.Net
             {
                 Destroy(transport.gameObject);
                 throw new InvalidOperationException($"Could not start connecting to {hostAddress}:{port}.");
+            }
+
+            transport.Listen();
+            return transport;
+        }
+
+        /// <summary>Hosts through a Unity Relay server, for online play: nobody needs the host's address or an open port.</summary>
+        public static NgoTransport StartHost(RelayServerData relay)
+        {
+            var transport = Create("Network (online host)");
+            transport.IsHost = true;
+            transport.unityTransport.SetRelayServerData(relay);
+            if (!transport.manager.StartHost())
+            {
+                Destroy(transport.gameObject);
+                throw new InvalidOperationException("Could not start hosting through Unity Relay.");
+            }
+
+            transport.Listen();
+            return transport;
+        }
+
+        /// <summary>Joins an online host through its Unity Relay server.</summary>
+        public static NgoTransport StartClient(RelayServerData relay)
+        {
+            var transport = Create("Network (online client)");
+            transport.unityTransport.SetRelayServerData(relay);
+            if (!transport.manager.StartClient())
+            {
+                Destroy(transport.gameObject);
+                throw new InvalidOperationException("Could not start connecting through Unity Relay.");
             }
 
             transport.Listen();

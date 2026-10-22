@@ -44,6 +44,7 @@ namespace RushAhead.UI
         /// <summary>Whether a touch starting at this screen position (y-up) is on an on-screen control.</summary>
         public bool IsOverUi(Vector2 screenPosition)
         {
+            if (Game.Title != null) return true; // the start page takes every tap while it's up
             var gui = new Vector2(screenPosition.x, Screen.height - screenPosition.y) / Scale;
             return crewButton.Contains(gui) || tuneButton.Contains(gui) || resetButton.Contains(gui) || helpButton.Contains(gui) ||
                    (open != Panel.None && panel.Contains(gui)) || resultsCard.Contains(gui) || orderBar.Contains(gui) || pickingPoint;
