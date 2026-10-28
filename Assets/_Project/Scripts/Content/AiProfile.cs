@@ -32,7 +32,7 @@ namespace RushAhead.Content
         [Tooltip("How far its aim wanders either side of where it means to blow.")]
         [Range(0f, 40f)] public float aimWobbleDeg = 10f;
 
-        [Tooltip("0: blows whenever it can and runs dry at the worst moment. 1: takes turns and only blows when it helps.")]
+        [Tooltip("0: blows even when its slice barely helps, shoving the raft off line. 1: only blows when its push really helps.")]
         [Range(0f, 1f)] public float airDiscipline = 0.6f;
 
         [Tooltip("How readily it braces when the raft leans hard.")]

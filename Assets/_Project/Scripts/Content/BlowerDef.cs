@@ -12,7 +12,8 @@ namespace RushAhead.Content
 
     /// <summary>
     /// A hand-held air blower. Every field except <see cref="color"/> maps onto a term in the simulation.
-    /// Infinite air is <c>drainPerSec = 0</c>; no burst is <c>burstImpulse = 0</c>; burst-only is <c>thrustNewtons = 0</c>.
+    /// Steady blowing never runs out; the air tank only feeds bursts. No burst is <c>burstImpulse = 0</c>; burst-only is
+    /// <c>thrustNewtons = 0</c>.
     /// </summary>
     [CreateAssetMenu(menuName = "Rush Ahead/Blower", fileName = "Blower")]
     public sealed class BlowerDef : ScriptableObject
@@ -35,10 +36,10 @@ namespace RushAhead.Content
         [Min(0.1f)] public float range = 4.5f;
         [Min(0.1f)] public float falloffExp = 1.6f;
 
-        [Header("Air tank")]
+        [Header("Air tank (bursts only: steady blowing is free)")]
         [Min(0f)] public float airCapacity = 100f;
-        [Min(0f)] public float drainPerSec = 22f;
         [Min(0f)] public float rechargePerSec = 18f;
+        [Tooltip("How long after a burst the tank starts refilling.")]
         [Min(0f)] public float rechargeDelayMs = 450f;
 
         [Header("Burst")]
@@ -47,7 +48,6 @@ namespace RushAhead.Content
 
         public BlowerSpecial special = BlowerSpecial.None;
 
-        public bool HasInfiniteAir => drainPerSec <= 0f;
         public bool CanBurst => burstImpulse > 0f;
     }
 }

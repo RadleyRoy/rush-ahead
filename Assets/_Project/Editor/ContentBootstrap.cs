@@ -66,11 +66,11 @@ namespace RushAhead.EditorTools
             var blowers = new[]
             {
                 Blower("LeafBlower", "Leaf Blower", "The all-rounder: strong push, slow to wind up.", new Color(1f, 0.55f, 0.15f), _ => { }), // BlowerDef's defaults
-                Blower("HairDryer", "Hair Dryer", "Quick and precise: a narrow, long jet that saves air.", new Color(1f, 0.45f, 0.72f), b =>
+                Blower("HairDryer", "Hair Dryer", "Quick and precise: a narrow, long jet.", new Color(1f, 0.45f, 0.72f), b =>
                 {
                     b.thrustNewtons = 30f; b.spoolUpMs = 140f; b.spoolDownMs = 120f;
                     b.coneHalfAngleDeg = 9f; b.range = 6.5f; b.falloffExp = 1.1f;
-                    b.airCapacity = 140f; b.drainPerSec = 14f;
+                    b.airCapacity = 140f;
                     b.burstImpulse = 30f; b.burstCost = 20f;
                 }),
                 Blower("Bellows", "Bellows", "No steady air at all: big puffs only (tap to burst).", new Color(0.62f, 0.4f, 0.22f), b =>
@@ -81,19 +81,18 @@ namespace RushAhead.EditorTools
                     b.rechargePerSec = 30f; b.rechargeDelayMs = 200f;
                     b.burstImpulse = 110f; b.burstCost = 26f;
                 }),
-                Blower("HandFan", "Hand Fan", "Weak and wide, but it never runs out of air.", new Color(0.9f, 0.25f, 0.28f), b =>
+                Blower("HandFan", "Hand Fan", "Weak and wide, but instant: no wind-up at all.", new Color(0.9f, 0.25f, 0.28f), b =>
                 {
-                    // Weak, wide, instant, and never runs out.
+                    // Weak, wide and instant.
                     b.thrustNewtons = 18f; b.spoolUpMs = 90f; b.spoolDownMs = 90f;
                     b.coneHalfAngleDeg = 34f; b.range = 2.6f;
-                    b.drainPerSec = 0f;
                     b.burstImpulse = 0f;
                 }),
                 Blower("ShopVac", "Shop Vac", "Sucks instead of blows: pulls the raft where it points.", new Color(1f, 0.85f, 0.2f), b =>
                 {
                     b.thrustNewtons = 40f; b.spoolUpMs = 400f; b.spoolDownMs = 200f;
                     b.coneHalfAngleDeg = 22f; b.range = 5f;
-                    b.airCapacity = 110f; b.drainPerSec = 26f;
+                    b.airCapacity = 110f;
                     b.burstImpulse = 0f;
                     b.special = BlowerSpecial.Vacuum;
                 }),

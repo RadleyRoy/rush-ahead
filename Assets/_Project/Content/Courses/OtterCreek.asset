@@ -92,6 +92,6 @@ MonoBehaviour:
   - from: 161.14226
     to: 184.20012
     speed: -0.5
-  parSeconds: 150
-  twoStarSeconds: 120
-  threeStarSeconds: 100
+  parSeconds: 125
+  twoStarSeconds: 105
+  threeStarSeconds: 92

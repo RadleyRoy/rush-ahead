@@ -22,7 +22,6 @@ MonoBehaviour:
   range: 3
   falloffExp: 1.6
   airCapacity: 100
-  drainPerSec: 22
   rechargePerSec: 30
   rechargeDelayMs: 200
   burstImpulse: 110

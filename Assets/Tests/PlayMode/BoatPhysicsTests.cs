@@ -110,7 +110,6 @@ namespace RushAhead.Tests
         [Test]
         public void TopSpeed_IsBoundedByWaterDrag()
         {
-            leafBlower.drainPerSec = 0f; // infinite air: a real tank empties in ~4.5 s, long before terminal speed
             var boat = SpawnBoat();
             Blow(boat, 2, Backward); // only the rear two own the directions that drive the raft forward
             Blow(boat, 3, Backward);
@@ -172,6 +171,20 @@ namespace RushAhead.Tests
 
             Assert.That(boat.Crew[2].AimShare, Is.EqualTo(1f), "rear-left may blow astern wherever the raft points");
             Assert.That(boat.Crew[2].LocalAimDeg, Is.EqualTo(180f).Within(1e-3f).Or.EqualTo(-180f).Within(1e-3f));
+        }
+
+        [Test]
+        public void SteadyBlowing_NeverRunsOut()
+        {
+            var boat = SpawnBoat();
+            Blow(boat, 2, Backward);
+            Blow(boat, 3, Backward);
+
+            Run(30f);
+
+            Assert.That(boat.Crew[2].IsBlowing, Is.True, "still blowing after holding the trigger for 30 s");
+            Assert.That(boat.Crew[2].Spool, Is.GreaterThan(0.95f), "at full power");
+            Assert.That(boat.Crew[2].Tank.Air, Is.EqualTo(leafBlower.airCapacity), "steady air doesn't touch the burst tank");
         }
 
         [Test]

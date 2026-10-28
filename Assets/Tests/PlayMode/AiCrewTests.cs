@@ -180,17 +180,16 @@ namespace RushAhead.Tests
         }
 
         [Test]
-        public void Hold_StopsTheAiBlowing_SoTheirTanksRefill()
+        public void Hold_StopsTheAiBlowing_UntilToldToGo()
         {
             var (boat, ai, player) = OpenWater();
             player.Input = new CrewInput { AimAngle = Mathf.PI, HasAim = true, Throttle = 1f };
             Run(ai, 2f);
-            var air = boat.Crew[3].AirFraction;
+            Assert.That(boat.Crew[3].IsBlowing, Is.True);
 
             ai.Give(CrewOrder.Hold);
             Run(ai, 2.5f);
             Assert.That(boat.Crew[3].IsBlowing, Is.False);
-            Assert.That(boat.Crew[3].AirFraction, Is.GreaterThan(air), "refilling while it holds");
             Assert.That(ai.Order, Is.EqualTo(CrewOrder.Hold), "hold lasts until someone says go");
         }
 

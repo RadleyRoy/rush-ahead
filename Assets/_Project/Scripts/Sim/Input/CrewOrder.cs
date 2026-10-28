@@ -9,7 +9,7 @@ namespace RushAhead.Sim
         /// <summary>Push the raft along: down the racing line on a course, or the way the players are pushing.</summary>
         Go = 0,
 
-        /// <summary>Stop blowing and refill the tanks, until told to go again.</summary>
+        /// <summary>Stop blowing and let the raft drift, until told to go again.</summary>
         Hold = 1,
 
         /// <summary>Stop blowing and steady the raft for a few seconds, then carry on.</summary>

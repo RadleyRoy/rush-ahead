@@ -33,7 +33,6 @@ namespace RushAhead.Tests
             Physics2D.simulationMode = SimulationMode2D.Script;
             config = ScriptableObject.CreateInstance<SimConfig>();
             blower = ScriptableObject.CreateInstance<BlowerDef>();
-            blower.drainPerSec = 0f; // endless air keeps these tests about the rules, not air management
 
             def = ScriptableObject.CreateInstance<CourseDef>();
             def.river = new[] { new RiverPoint(0f, 0f, 14f), new RiverPoint(40f, 0f, 14f), new RiverPoint(80f, 0f, 14f) };
@@ -204,7 +203,7 @@ namespace RushAhead.Tests
             var previousMode = Physics2D.simulationMode;
             Physics2D.simulationMode = SimulationMode2D.Script;
             var config = ScriptableObject.CreateInstance<SimConfig>();
-            var leafBlower = ScriptableObject.CreateInstance<BlowerDef>(); // the default blower, with real air limits
+            var leafBlower = ScriptableObject.CreateInstance<BlowerDef>(); // the default blower
             var world = new SimWorld(config);
             var course = Course.Build(def);
             try

@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: HairDryer
   m_EditorClassIdentifier: RushAhead.Content::RushAhead.Content.BlowerDef
   displayName: Hair Dryer
-  blurb: 'Quick and precise: a narrow, long jet that saves air.'
+  blurb: 'Quick and precise: a narrow, long jet.'
   color: {r: 1, g: 0.45, b: 0.72, a: 1}
   thrustNewtons: 30
   spoolUpMs: 140
@@ -22,7 +22,6 @@ MonoBehaviour:
   range: 6.5
   falloffExp: 1.1
   airCapacity: 140
-  drainPerSec: 14
   rechargePerSec: 18
   rechargeDelayMs: 450
   burstImpulse: 30

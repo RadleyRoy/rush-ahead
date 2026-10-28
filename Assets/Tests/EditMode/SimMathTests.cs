@@ -108,7 +108,6 @@ namespace RushAhead.Tests
         {
             blower = ScriptableObject.CreateInstance<BlowerDef>();
             blower.airCapacity = 100f;
-            blower.drainPerSec = 20f;
             blower.rechargePerSec = 10f;
             blower.rechargeDelayMs = 500f;
             blower.burstImpulse = 60f;
@@ -121,40 +120,6 @@ namespace RushAhead.Tests
         public void TearDown() => Object.DestroyImmediate(blower);
 
         [Test]
-        public void Drain_IsProportionalToThrottle()
-        {
-            tank.Tick(0.5f, 1f);
-            Assert.That(tank.Air, Is.EqualTo(90f).Within(1e-3f));
-        }
-
-        [Test]
-        public void EmptyTank_GivesNoThrottle()
-        {
-            tank.Tick(1f, 5f);
-            Assert.That(tank.IsEmpty, Is.True);
-            Assert.That(tank.Tick(1f, 0.1f), Is.EqualTo(0f));
-        }
-
-        [Test]
-        public void HoldingTheTrigger_BlocksRechargeEvenWhenEmpty()
-        {
-            tank.Tick(1f, 5f);
-            for (var i = 0; i < 120; i++) tank.Tick(1f, 1f / 60f);
-            Assert.That(tank.Air, Is.EqualTo(0f), "you have to let go to recharge");
-        }
-
-        [Test]
-        public void Recharge_StartsOnlyAfterTheDelay()
-        {
-            tank.Tick(1f, 1f); // 80 left
-            tank.Tick(0f, 0.4f);
-            Assert.That(tank.Air, Is.EqualTo(80f).Within(1e-3f), "still inside the delay");
-            tank.Tick(0f, 0.2f);
-            tank.Tick(0f, 1f);
-            Assert.That(tank.Air, Is.GreaterThan(80f));
-        }
-
-        [Test]
         public void Burst_SpendsItsCostAndFailsWhenShort()
         {
             for (var i = 0; i < 4; i++) Assert.That(tank.TryBurst(), Is.True);
@@ -163,12 +128,32 @@ namespace RushAhead.Tests
         }
 
         [Test]
-        public void ZeroDrain_MeansInfiniteAir()
+        public void Refill_StartsOnlyAfterTheDelay()
         {
-            blower.drainPerSec = 0f;
-            tank.Reset(blower);
-            for (var i = 0; i < 600; i++) Assert.That(tank.Tick(1f, 1f / 60f), Is.EqualTo(1f));
+            tank.TryBurst(); // 75 left
+            tank.Tick(0.4f);
+            Assert.That(tank.Air, Is.EqualTo(75f).Within(1e-3f), "still inside the delay");
+            tank.Tick(0.2f);
+            tank.Tick(1f);
+            Assert.That(tank.Air, Is.GreaterThan(75f));
+        }
+
+        [Test]
+        public void Refill_StopsAtCapacity()
+        {
+            tank.TryBurst();
+            for (var i = 0; i < 600; i++) tank.Tick(1f / 60f);
+            Assert.That(tank.Air, Is.EqualTo(100f));
             Assert.That(tank.Fraction, Is.EqualTo(1f));
+        }
+
+        [Test]
+        public void ABlowerWithNoBurst_NeverSpendsAir()
+        {
+            blower.burstImpulse = 0f;
+            tank.Reset(blower);
+            Assert.That(tank.TryBurst(), Is.False);
+            Assert.That(tank.Air, Is.EqualTo(100f));
         }
     }
 

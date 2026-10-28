@@ -95,11 +95,12 @@ namespace RushAhead.EditorTools
                 new CurrentZone(DistanceNear(10) - 6f, DistanceNear(11) + 2f, -0.5f), // the gorge pushes back
             };
 
-            // Set from the course-solvability test: the steady AI crew finishes in about 104 s (2 stars); pushing flat out
-            // it runs dry and takes about 119 s. An all-Ace AI crew just makes 3 stars; Keen gets 1, Clumsy none.
-            c.parSeconds = 150f;
-            c.twoStarSeconds = 120f;
-            c.threeStarSeconds = 100f;
+            // Set from the course-solvability test, with unlimited steady air: the steady AI crew finishes in about 85 s and
+            // flat out in about 76 s. An all-Ace AI crew (about 91 s) just makes 3 stars; Keen (105 to 108 s) sits on the line between 1 and 2;
+            // Clumsy (146 s) gets none.
+            c.parSeconds = 125f;
+            c.twoStarSeconds = 105f;
+            c.threeStarSeconds = 92f;
         }
 
         static RockSpot Rock(Vector2 at, float radius) => new(at.x, at.y, radius);

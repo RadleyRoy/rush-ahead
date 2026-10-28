@@ -132,8 +132,8 @@ namespace RushAhead.Sim
 
             // Braced crew stop blowing; burst-only blowers (bellows) have no continuous airflow to draw.
             var requested = crew.Braced || thrust <= 0f ? 0f : Mathf.Clamp01(input.Throttle) * share;
-            var available = crew.Tank.Tick(requested, dt);
-            crew.Spool = BlowerMath.Spool(crew.Spool, available, dt, spec.spoolUpMs / 1000f, spec.spoolDownMs / 1000f);
+            crew.Tank.Tick(dt);
+            crew.Spool = BlowerMath.Spool(crew.Spool, requested, dt, spec.spoolUpMs / 1000f, spec.spoolDownMs / 1000f);
             crew.SecondsSinceBurst += dt;
 
             var airDirection = crew.AirDirection;

@@ -116,7 +116,6 @@ namespace RushAhead.AI
             var airAngle = Mathf.Atan2(-error.y, -error.x); // blow away from where the raft should go
             var requestedLocal = (airAngle - boat.Body.AngleRad) * Mathf.Rad2Deg;
             var minShare = Mathf.Lerp(0.05f, 0.35f, profile.airDiscipline);
-            var restUntil = Mathf.Lerp(0.15f, 0.6f, profile.airDiscipline);
             var turnRate = TurnRateWanted(desired, velocity, airAngle);
 
             foreach (var seat in seats)
@@ -147,9 +146,6 @@ namespace RushAhead.AI
                         seatThrottle *= Mathf.Clamp01(1f - (Mathf.Abs(boat.Body.AngularVelocityRad) - SpinDeadband) * 3f);
                 }
 
-                if (crew.Tank.IsEmpty) seat.Resting = true;
-                else if (seat.Resting && crew.AirFraction >= restUntil) seat.Resting = false;
-
                 // Now and then a crewmate drifts off for a couple of seconds and forgets to blow.
                 if (seat.Daydreaming > 0f) seat.Daydreaming -= dt;
                 else if (profile.daydream > 0f && random.NextDouble() < profile.daydream * dt) seat.Daydreaming = 1f + (float)random.NextDouble() * 2f;
@@ -160,7 +156,7 @@ namespace RushAhead.AI
                     HasAim = desired.HasValue,
                     Brace = Order == CrewOrder.Brace || Panicking(seat),
                 };
-                var blow = desired.HasValue && !seat.Resting && seat.Daydreaming <= 0f && share >= minShare && seatThrottle > 0.05f;
+                var blow = desired.HasValue && seat.Daydreaming <= 0f && share >= minShare && seatThrottle > 0.05f;
                 input.Throttle = blow && !input.Brace ? seatThrottle : 0f;
 
                 seat.SinceBurst += dt;
@@ -189,16 +185,12 @@ namespace RushAhead.AI
             // Aim the AI seats' slices, together, at the way the air must go: then they push side by side, with no
             // leftover twist. (Stopping as soon as one seat can just about push leaves it shoving alone, off-centre,
             // which spins the raft straight back.)
-            // Only crewmates with air count: while the rear seats rest, the front ones turn the raft and carry on.
             var best = 0f;
             var nearest = float.MaxValue;
             var together = Vector2.zero;
-            var anyWithAir = false;
-            foreach (var seat in seats)
-                anyWithAir |= seat != null && !seat.Resting;
             foreach (var seat in seats)
             {
-                if (seat == null || (anyWithAir && seat.Resting)) continue;
+                if (seat == null) continue;
                 var centre = boat.Body.AngleRad * Mathf.Rad2Deg + CrewSectors.CentreDeg(seat.Index, boat.Crew.Length);
                 var turn = Mathf.DeltaAngle(centre, airAngle * Mathf.Rad2Deg);
                 if (Mathf.Abs(turn) < Mathf.Abs(nearest)) nearest = turn;
@@ -307,7 +299,6 @@ namespace RushAhead.AI
 
             public int Index { get; }
             public float Noise { get; }
-            public bool Resting;
             public bool Leaning;
             public bool Bracing;
             public float Daydreaming;
