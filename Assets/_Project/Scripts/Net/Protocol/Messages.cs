@@ -87,6 +87,9 @@ namespace RushAhead.Net
         public ushort GamePort;
         public byte Players;
         public byte Seats;
+
+        /// <summary>Whether the room is choosing a race, racing, or looking at results, so joiners know what they'd walk into.</summary>
+        public RoomPhase Phase;
         public string HostName;
 
         public bool Compatible => Version == Protocol.Version;
@@ -121,13 +124,35 @@ namespace RushAhead.Net
         public readonly List<CrewSnapshot> Crew = new();
     }
 
-    /// <summary>The venue and race everyone is in. Course 0 is the practice lagoon (no race); course n is the host's n-th course.</summary>
+    /// <summary>Where a room is in the round of play. The host decides; everyone else follows.</summary>
+    public enum RoomPhase : byte
+    {
+        /// <summary>Choosing the course, mode and seats; the rafts wait on the start line.</summary>
+        Lobby = 0,
+        Racing = 1,
+
+        /// <summary>The race is over and everyone is looking at the times.</summary>
+        Results = 2,
+    }
+
+    /// <summary>
+    /// What's on in the room: the venue, the race and where the room is in the round of play. Course 0 is the practice
+    /// lagoon (no race); course n is the host's n-th course. Sent to each joiner first and again on every change.
+    /// </summary>
     public struct RaceMessage
     {
+        /// <summary>The AI crewmates' skill when there are none.</summary>
+        public const byte AiOff = 0xFF;
+
         public byte Course;
 
         /// <summary>The host tick the countdown ends and the clock starts.</summary>
         public uint StartTick;
+
+        public RoomPhase Phase;
+
+        /// <summary>The host's AI crewmates: 0 Clumsy, 1 Keen, 2 Ace, or <see cref="AiOff"/>.</summary>
+        public byte AiSkill;
     }
 
     public struct PropSnapshot
@@ -147,7 +172,7 @@ namespace RushAhead.Net
     public static class Protocol
     {
         /// <summary>Bump on any wire-format change. Mismatched peers refuse each other.</summary>
-        public const byte Version = 5;
+        public const byte Version = 6;
 
         const byte FlagHasAim = 1, FlagBrace = 2;
         const byte BoatCapsized = 1;
@@ -242,12 +267,19 @@ namespace RushAhead.Net
             w.U8((byte)MessageType.Race);
             w.U8(m.Course);
             w.U32(m.StartTick);
+            w.U8((byte)m.Phase);
+            w.U8(m.AiSkill);
         }
 
         public static RaceMessage ReadRace(ByteReader r)
         {
             Expect(r, MessageType.Race);
             var m = new RaceMessage { Course = r.U8(), StartTick = r.U32() };
+            var phase = r.U8();
+            if (phase > (byte)RoomPhase.Results) throw new ProtocolException($"Unknown room phase {phase}.");
+            m.Phase = (RoomPhase)phase;
+            m.AiSkill = r.U8();
+            if (m.AiSkill > 2 && m.AiSkill != RaceMessage.AiOff) throw new ProtocolException($"Unknown AI skill {m.AiSkill}.");
             ExpectEnd(r, "race");
             return m;
         }
@@ -316,6 +348,7 @@ namespace RushAhead.Net
             w.U16(advert.GamePort);
             w.U8(advert.Players);
             w.U8(advert.Seats);
+            w.U8((byte)advert.Phase);
             WriteName(w, advert.HostName);
         }
 
@@ -338,6 +371,9 @@ namespace RushAhead.Net
                 advert.GamePort = r.U16();
                 advert.Players = r.U8();
                 advert.Seats = r.U8();
+                var phase = r.U8();
+                if (phase > (byte)RoomPhase.Results) return false;
+                advert.Phase = (RoomPhase)phase;
                 advert.HostName = ReadName(r);
                 return advert.GamePort != 0 && r.Remaining == 0;
             }

@@ -67,10 +67,10 @@ namespace RushAhead.Net
             transport.Send(client, writer.Written, reliable: true);
         }
 
-        /// <summary>Tells every client (and anyone who joins later) which venue is loaded and when its race starts.</summary>
-        public void SetRace(int course, int startTick)
+        /// <summary>Tells every client (and anyone who joins later) what's on: the venue, the race start and the room's phase.</summary>
+        public void SetRace(in RaceMessage message)
         {
-            race = new RaceMessage { Course = (byte)course, StartTick = (uint)Mathf.Max(0, startTick) };
+            race = message;
             foreach (var client in clients) SendRace(client);
         }
 

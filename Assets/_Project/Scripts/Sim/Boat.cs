@@ -240,5 +240,14 @@ namespace RushAhead.Sim
                 crew.AimAngle = angleRad + crew.LocalAimDeg * Mathf.Deg2Rad;
             }
         }
+
+        /// <summary>Wipes the last run's progress: no checkpoints, no finish, no capsizes counted.</summary>
+        public void ClearRun()
+        {
+            GatesPassed = 0;
+            FinishTick = 0;
+            CapsizeCount = 0;
+            CapsizeImmunitySeconds = 0f;
+        }
     }
 }

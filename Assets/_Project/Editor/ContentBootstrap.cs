@@ -43,7 +43,7 @@ namespace RushAhead.EditorTools
             new(0.86f, 0.74f, 0.57f), // sand
         };
         const string SceneFolder = "Assets/_Project/Scenes";
-        const string FeelTestScene = SceneFolder + "/FeelTest.unity";
+        const string GameScene = SceneFolder + "/Game.unity";
         const string TemplateScene = "Assets/Scenes/SampleScene.unity";
 
         [MenuItem("Rush Ahead/Create Default Content")]
@@ -59,7 +59,7 @@ namespace RushAhead.EditorTools
 
             // Open the scene before loading any assets: opening a scene unloads assets nothing references yet,
             // which would leave the references below pointing at destroyed objects (saved as null).
-            var scene = OpenFeelTestScene();
+            var scene = OpenGameScene();
             var palette = ArtBootstrap.CreatePalette();
             var sky = ArtBootstrap.Sky();
 
@@ -120,9 +120,9 @@ namespace RushAhead.EditorTools
 
             var config = LoadOrCreate<SimConfig>($"{ContentFolder}/SimConfig.asset");
             EditorUtility.SetDirty(config); // re-saving drops fields the code no longer has (the old fixed seat list)
-            WireFeelTestScene(scene, config, catalog, courses, aiProfiles, palette, sky);
+            WireGameScene(scene, config, catalog, courses, aiProfiles, palette, sky);
             AssetDatabase.SaveAssets();
-            Debug.Log("[RushAhead] Default content and FeelTest scene ready.");
+            Debug.Log("[RushAhead] Default content and Game scene ready.");
         }
 
         /// <summary>Creates a blower with its tuning, or keeps an existing one's tuning. Name, blurb and colour are cosmetic and always applied.</summary>
@@ -177,18 +177,18 @@ namespace RushAhead.EditorTools
             return asset;
         }
 
-        static Scene OpenFeelTestScene()
+        static Scene OpenGameScene()
         {
-            if (!File.Exists(FeelTestScene) && !AssetDatabase.CopyAsset(TemplateScene, FeelTestScene))
-                throw new InvalidOperationException($"Could not create {FeelTestScene} from {TemplateScene}.");
+            if (!File.Exists(GameScene) && !AssetDatabase.CopyAsset(TemplateScene, GameScene))
+                throw new InvalidOperationException($"Could not create {GameScene} from {TemplateScene}.");
 
-            return EditorSceneManager.OpenScene(FeelTestScene, OpenSceneMode.Single);
+            return EditorSceneManager.OpenScene(GameScene, OpenSceneMode.Single);
         }
 
-        static void WireFeelTestScene(Scene scene, SimConfig config, CrewCatalog catalog, CourseDef[] courses, AiProfile[] aiProfiles, ArtPalette palette, Material sky)
+        static void WireGameScene(Scene scene, SimConfig config, CrewCatalog catalog, CourseDef[] courses, AiProfile[] aiProfiles, ArtPalette palette, Material sky)
         {
-            var bootstrap = Object.FindAnyObjectByType<FeelTestBootstrap>();
-            if (bootstrap == null) bootstrap = new GameObject("Feel Test").AddComponent<FeelTestBootstrap>();
+            var bootstrap = Object.FindAnyObjectByType<GameController>();
+            if (bootstrap == null) bootstrap = new GameObject("Game").AddComponent<GameController>();
 
             var serialized = new SerializedObject(bootstrap);
             serialized.FindProperty("config").objectReferenceValue = config;
@@ -201,6 +201,7 @@ namespace RushAhead.EditorTools
             ai.arraySize = aiProfiles.Length;
             for (var i = 0; i < aiProfiles.Length; i++) ai.GetArrayElementAtIndex(i).objectReferenceValue = aiProfiles[i];
             serialized.ApplyModifiedPropertiesWithoutUndo();
+            UiBootstrap.Wire(bootstrap);
 
             // The chase camera positions itself every frame; the scene only needs a perspective camera and a sky.
             var camera = Object.FindAnyObjectByType<Camera>();
@@ -211,7 +212,7 @@ namespace RushAhead.EditorTools
 
             EditorSceneManager.MarkSceneDirty(scene);
             EditorSceneManager.SaveScene(scene);
-            EditorBuildSettings.scenes = new[] { new EditorBuildSettingsScene(FeelTestScene, true) };
+            EditorBuildSettings.scenes = new[] { new EditorBuildSettingsScene(GameScene, true) };
         }
 
         internal static void EnsureFolder(string path)

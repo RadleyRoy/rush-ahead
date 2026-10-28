@@ -1,0 +1,343 @@
+/*
+ * Rush Ahead's look for every screen. The panel scales to a 1920x1080 reference matched on height, so on a phone
+ * 1 px here is about 0.4 dp: touch targets stay at 120 px or more, body text at 36 px or more.
+ */
+
+:root {
+    --sun: #FFC93C;
+    --sun-dark: #E0A10E;
+    --ink: #10203F;
+    --panel: rgba(9, 22, 48, 0.86);
+    --panel-light: rgba(255, 255, 255, 0.10);
+    --line: rgba(255, 255, 255, 0.16);
+    --text: #FFFFFF;
+    --muted: #B9C9E4;
+    --good: #5BE08A;
+    --bad: #FF6B5E;
+    --red: #FF6B5E;
+    --blue: #4FA3FF;
+    -unity-font-style: bold;
+    color: var(--text);
+}
+
+/* Layers */
+
+.layer {
+    position: absolute;
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+}
+
+.screen {
+    flex-grow: 1;
+    padding: 36px 48px;
+}
+
+.scrim {
+    background-color: rgba(4, 10, 26, 0.55);
+}
+
+/* Type */
+
+.wordmark {
+    font-size: 150px;
+    color: var(--text);
+    -unity-text-outline-width: 2px;
+    -unity-text-outline-color: rgba(8, 20, 44, 0.9);
+    text-shadow: 6px 8px 0 rgba(8, 20, 44, 0.55);
+    letter-spacing: 2px;
+}
+
+.byline {
+    font-size: 44px;
+    color: var(--sun);
+    text-shadow: 3px 4px 0 rgba(8, 20, 44, 0.6);
+}
+
+.h1 {
+    font-size: 76px;
+    color: var(--text);
+}
+
+.h2 {
+    font-size: 52px;
+    color: var(--text);
+}
+
+.h3 {
+    font-size: 40px;
+    color: var(--text);
+}
+
+.body {
+    font-size: 38px;
+    color: var(--text);
+    white-space: normal;
+}
+
+.muted {
+    color: var(--muted);
+}
+
+.small {
+    font-size: 32px;
+    -unity-font-style: normal;
+    white-space: normal;
+}
+
+.good { color: var(--good); }
+.bad { color: var(--bad); }
+.sun { color: var(--sun); }
+.team-red { color: var(--red); }
+.team-blue { color: var(--blue); }
+
+/* Layout helpers (UI Toolkit has no gap: spacing comes from margins) */
+
+.row {
+    flex-direction: row;
+    align-items: center;
+}
+
+.col {
+    flex-direction: column;
+}
+
+.grow {
+    flex-grow: 1;
+}
+
+.center {
+    align-items: center;
+    justify-content: center;
+}
+
+.spacer-s { height: 12px; width: 12px; }
+.spacer { height: 24px; width: 24px; }
+.spacer-l { height: 48px; width: 48px; }
+
+/* Panels and cards */
+
+.panel {
+    background-color: var(--panel);
+    border-radius: 36px;
+    padding: 36px 40px;
+    border-width: 2px;
+    border-color: var(--line);
+}
+
+.card {
+    background-color: var(--panel-light);
+    border-radius: 28px;
+    padding: 24px 28px;
+    margin-bottom: 16px;
+}
+
+.card--selected {
+    border-width: 5px;
+    border-color: var(--sun);
+}
+
+/* A seat in the lobby: one compact row per animal. */
+.seat {
+    padding: 14px 22px;
+    margin-bottom: 10px;
+}
+
+.ellipsis {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.chip {
+    background-color: var(--panel-light);
+    border-radius: 999px;
+    padding: 10px 26px;
+    font-size: 32px;
+    margin-right: 12px;
+}
+
+/* Buttons */
+
+.btn {
+    height: 124px;
+    min-width: 240px;
+    padding: 0 48px;
+    margin: 0 0 18px 0;
+    border-radius: 62px;
+    border-width: 0;
+    background-color: rgba(9, 22, 48, 0.78);
+    color: var(--text);
+    font-size: 46px;
+    -unity-font-style: bold;
+    -unity-text-align: middle-center;
+    white-space: nowrap;
+    flex-shrink: 0;
+    transition-property: scale, background-color;
+    transition-duration: 0.08s;
+}
+
+.btn:hover {
+    background-color: rgba(28, 52, 96, 0.88);
+}
+
+.btn:active {
+    scale: 0.96 0.96;
+    background-color: rgba(44, 74, 130, 0.92);
+}
+
+.panel .btn, .card .btn {
+    background-color: rgba(255, 255, 255, 0.14);
+}
+
+.panel .btn:hover, .card .btn:hover {
+    background-color: rgba(255, 255, 255, 0.22);
+}
+
+.panel .btn--primary, .card .btn--primary, .btn--primary {
+    background-color: var(--sun);
+    color: var(--ink);
+}
+
+.btn:disabled {
+    opacity: 0.35;
+}
+
+.btn--primary {
+    background-color: var(--sun);
+    color: var(--ink);
+}
+
+.btn--primary:hover {
+    background-color: #FFD566;
+}
+
+.btn--primary:active {
+    background-color: var(--sun-dark);
+}
+
+.btn--danger {
+    background-color: rgba(255, 107, 94, 0.85);
+}
+
+.btn--small {
+    height: 96px;
+    min-width: 0;
+    padding: 0 34px;
+    font-size: 38px;
+    border-radius: 48px;
+    margin: 0 14px 0 0;
+}
+
+.btn--icon {
+    width: 116px;
+    height: 116px;
+    min-width: 0;
+    padding: 0;
+    border-radius: 58px;
+    font-size: 56px;
+    margin: 0;
+}
+
+.btn--on, .panel .btn--on, .card .btn--on {
+    background-color: var(--sun);
+    color: var(--ink);
+}
+
+/* Segmented choice (Co-op | Team Race, 1 2 3 4, Off Clumsy Keen Ace) */
+
+.segmented {
+    flex-direction: row;
+    flex-shrink: 0;
+    background-color: rgba(255, 255, 255, 0.08);
+    border-radius: 48px;
+    padding: 6px;
+    align-self: flex-start;
+}
+
+.segment {
+    white-space: nowrap;
+    flex-shrink: 0;
+    height: 88px;
+    min-width: 96px;
+    padding: 0 30px;
+    margin: 0;
+    border-radius: 44px;
+    border-width: 0;
+    background-color: rgba(0, 0, 0, 0);
+    color: var(--muted);
+    font-size: 36px;
+    -unity-font-style: bold;
+    -unity-text-align: middle-center;
+}
+
+.segment--on {
+    background-color: var(--sun);
+    color: var(--ink);
+}
+
+.segment:disabled {
+    opacity: 0.35;
+}
+
+/* Text fields */
+
+.field {
+    height: 104px;
+    margin: 0 0 16px 0;
+    font-size: 44px;
+}
+
+.field > .unity-text-field__input {
+    background-color: rgba(255, 255, 255, 0.92);
+    color: var(--ink);
+    border-radius: 24px;
+    border-width: 0;
+    padding: 0 28px;
+    -unity-text-align: middle-left;
+}
+
+/* Banner, toast and confirm */
+
+.banner {
+    position: absolute;
+    top: 28px;
+    left: 25%;
+    right: 25%;
+    background-color: rgba(255, 107, 94, 0.95);
+    border-radius: 28px;
+    padding: 18px 24px 18px 36px;
+    flex-direction: row;
+    align-items: center;
+}
+
+.toast {
+    position: absolute;
+    bottom: 200px;
+    left: 30%;
+    right: 30%;
+    background-color: rgba(9, 22, 48, 0.92);
+    border-radius: 28px;
+    padding: 20px 30px;
+    -unity-text-align: middle-center;
+    font-size: 38px;
+    white-space: normal;
+}
+
+.dialog {
+    width: 980px;
+    align-self: center;
+}
+
+/* Scrolling lists */
+
+.scroll {
+    flex-grow: 1;
+}
+
+.scroll .unity-scroller--vertical {
+    width: 10px;
+    opacity: 0.4;
+}

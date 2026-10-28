@@ -110,7 +110,7 @@ namespace RushAhead.Tests
 
         static readonly RoomAdvert SampleAdvert = new()
         {
-            RoomId = 0xDEADBEEF, Version = Protocol.Version, GamePort = 7777, Players = 2, Seats = 4, HostName = "Skipper",
+            RoomId = 0xDEADBEEF, Version = Protocol.Version, GamePort = 7777, Players = 2, Seats = 4, Phase = RoomPhase.Racing, HostName = "Skipper",
         };
 
         [Test]
@@ -126,12 +126,24 @@ namespace RushAhead.Tests
         }
 
         [Test]
-        public void Race_RoundTrips()
+        public void Race_RoundTrips_WithTheRoomPhaseAndAi_AndRejectsUnknownValues()
         {
-            var bytes = Encode(w => Protocol.Write(w, new RaceMessage { Course = 1, StartTick = 987654 }));
+            var bytes = Encode(w => Protocol.Write(w, new RaceMessage { Course = 1, StartTick = 987654, Phase = RoomPhase.Results, AiSkill = 2 }));
             var read = Protocol.ReadRace(new ByteReader(new ArraySegment<byte>(bytes)));
             Assert.That(read.Course, Is.EqualTo(1));
             Assert.That(read.StartTick, Is.EqualTo(987654u));
+            Assert.That(read.Phase, Is.EqualTo(RoomPhase.Results));
+            Assert.That(read.AiSkill, Is.EqualTo(2));
+
+            var off = Encode(w => Protocol.Write(w, new RaceMessage { Phase = RoomPhase.Lobby, AiSkill = RaceMessage.AiOff }));
+            Assert.That(Protocol.ReadRace(new ByteReader(new ArraySegment<byte>(off))).AiSkill, Is.EqualTo(RaceMessage.AiOff));
+
+            var badPhase = (byte[])bytes.Clone();
+            badPhase[6] = 3;
+            Assert.Throws<ProtocolException>(() => Protocol.ReadRace(new ByteReader(new ArraySegment<byte>(badPhase))), "no such phase");
+            var badAi = (byte[])bytes.Clone();
+            badAi[7] = 3;
+            Assert.Throws<ProtocolException>(() => Protocol.ReadRace(new ByteReader(new ArraySegment<byte>(badAi))), "no such skill");
         }
 
         [Test]
@@ -190,7 +202,12 @@ namespace RushAhead.Tests
             Assert.That(read.Players, Is.EqualTo(2));
             Assert.That(read.Seats, Is.EqualTo(4));
             Assert.That(read.HostName, Is.EqualTo("Skipper"));
+            Assert.That(read.Phase, Is.EqualTo(RoomPhase.Racing));
             Assert.That(read.Compatible, Is.True);
+
+            var oddPhase = (byte[])bytes.Clone();
+            oddPhase[13] = 7;
+            Assert.That(Protocol.TryReadAdvert(new ArraySegment<byte>(oddPhase), out _), Is.False, "no such phase");
 
             // Other apps' traffic on the same port, truncations and trailing junk are all just "not an advert".
             Assert.That(Protocol.TryReadAdvert(new ArraySegment<byte>(System.Text.Encoding.ASCII.GetBytes("M-SEARCH * HTTP/1.1")), out _), Is.False);
@@ -208,11 +225,11 @@ namespace RushAhead.Tests
         // Committed wire bytes: if these change, the protocol changed. Bump Protocol.Version and re-record.
         const string InputGolden = "2002feff0080bf0107";
         const string SnapshotGolden = "10d20400000180e9ffff40030000ee32800240ff00ffec0185ff00020334120000050400a000ff00000000e040cc010301002080990006020060bf660009030200f1ffff4dfdffff5f14cdf2ffff33feffffb8cb";
-        const string RosterGolden = "020501030300000007536b69707065720504090106c396747465720802020300";
-        const string ProfileGolden = "2105050704065261646c6579efcdab8967452301";
-        const string AdvertGolden = "5255534805efbeadde611e020407536b6970706572";
+        const string RosterGolden = "020601030300000007536b69707065720504090106c396747465720802020300";
+        const string ProfileGolden = "2106050704065261646c6579efcdab8967452301";
+        const string AdvertGolden = "5255534806efbeadde611e02040107536b6970706572";
         const string OrderGolden = "040300800a0000c0fdffff";
-        const string RaceGolden = "0302d2040000";
+        const string RaceGolden = "0302d20400000101";
 
         [Test]
         public void WireFormat_MatchesTheCommittedBytes()
@@ -223,7 +240,7 @@ namespace RushAhead.Tests
             var profile = Hex(Encode(w => Protocol.WriteProfile(w, SampleProfile, SampleDevice)));
             var order = Hex(Encode(w => Protocol.Write(w, new OrderMessage { Order = CrewOrder.PushHere, Point = new Vector2(10.5f, -2.25f) })));
             var advert = Hex(Encode(w => Protocol.Write(w, SampleAdvert)));
-            var race = Hex(Encode(w => Protocol.Write(w, new RaceMessage { Course = 2, StartTick = 1234 })));
+            var race = Hex(Encode(w => Protocol.Write(w, new RaceMessage { Course = 2, StartTick = 1234, Phase = RoomPhase.Racing, AiSkill = 1 })));
             var recording = $"InputGolden = \"{input}\";\nSnapshotGolden = \"{snapshot}\";\nRosterGolden = \"{roster}\";\n" +
                             $"ProfileGolden = \"{profile}\";\nAdvertGolden = \"{advert}\";\nRaceGolden = \"{race}\";\nOrderGolden = \"{order}\";";
             Assert.That(input == InputGolden && snapshot == SnapshotGolden && roster == RosterGolden && profile == ProfileGolden && advert == AdvertGolden && race == RaceGolden && order == OrderGolden,

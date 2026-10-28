@@ -40,4 +40,30 @@ UNITY="D:/Unity/Editors/6000.3.27f1/Editor/Unity.exe"
 
 # Android debug APK -> Builds/Android/RushAhead-debug.apk
 "$UNITY" -batchmode -quit -projectPath . -buildTarget Android -executeMethod RushAhead.EditorTools.BuildScript.AndroidDebug -logFile -
+
+# Windows dev build -> Builds/Windows/RushAhead.exe
+"$UNITY" -batchmode -quit -projectPath . -buildTarget Win64 -executeMethod RushAhead.EditorTools.BuildScript.WindowsDev -logFile -
 ```
+
+## Screens
+
+The whole game is one scene, `Assets/_Project/Scenes/Game.unity`, run by `GameController`
+(`Scripts/UI/Game`). Its screens are built in code with UI Toolkit (`Scripts/UI/Screens`), styled by
+`Assets/_Project/UI/Game.uss`, and moved between by `AppFlow`: title, main menu, host, join,
+connecting, lobby, race, results, your animal and settings. During a race the HUD only draws; every
+touch goes through `CrewInputRouter` and `TouchControls`, so steering with one thumb never stops the
+other from pressing Burst or Brace.
+
+## Checking it without a phone
+
+A player build walks every screen by itself and saves a screenshot of each:
+
+```bash
+Builds/Windows/RushAhead.exe -screen-fullscreen 0 -screen-width 1200 -screen-height 540 -rushahead-tour Logs/tour -rushahead-ai-all ace -rushahead-demo-speed 3
+```
+
+- `-rushahead-safe-area 70,0,70,0` fakes a phone's notch (left, top, right, bottom, in pixels).
+- Two copies, one with `-rushahead-host 127.0.0.1` and one with `-rushahead-join 127.0.0.1`, each with
+  its own `-rushahead-tour` folder: the host picks a course and starts, and the joiner follows it.
+- `-rushahead-course 1` skips the menus and races straight away; `-rushahead-dev` shows the tuning sliders.
+- The tour saves best times like any race. Settings > Reset best times clears them.

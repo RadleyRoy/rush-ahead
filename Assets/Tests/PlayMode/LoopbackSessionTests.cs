@@ -274,5 +274,59 @@ namespace RushAhead.Tests
             host.Dispose();
             foreach (var s in sessions) s.Dispose();
         }
+
+        [Test]
+        public void AJoiner_SeesTheHostsLobby_AndFollowsItThroughARace()
+        {
+            var network = new LoopbackNetwork(seed: 33, latencySeconds: 0.06f, jitterSeconds: 0.02f, lossRate: 0.05f);
+            var roster = new CrewRoster(catalog, 4) { SparesAreAi = true };
+            var boat = world.SpawnBoat(Vector2.zero, 0f, roster.Blowers());
+            var host = new HostSession(network.Host, roster, new Rigidbody2D[0]);
+            host.UseBoat(boat);
+            host.SetRace(new RaceMessage { Course = 1, Phase = RoomPhase.Lobby, AiSkill = 2 });
+            var sessions = new List<ClientSession>();
+
+            ClientSession Connect()
+            {
+                var session = new ClientSession(network.Connect(), config, catalog, catalog.DefaultLoadout(1), device: (ulong)(900 + sessions.Count), _ => CrewInput.Idle);
+                sessions.Add(session);
+                return session;
+            }
+
+            void Run(float seconds)
+            {
+                for (var t = 0f; t < seconds; t += Dt)
+                {
+                    network.Advance(Dt);
+                    foreach (var s in sessions) s.Update(Dt);
+                    world.Advance(Dt);
+                    host.OnTick(world.Tick);
+                }
+            }
+
+            var joiner = Connect();
+            Assert.That(joiner.HasRace, Is.False, "nothing heard yet");
+            Run(1f);
+            Assert.That(joiner.HasRace, Is.True);
+            Assert.That(joiner.Race.Phase, Is.EqualTo(RoomPhase.Lobby), "sees the lobby");
+            Assert.That(joiner.Race.Course, Is.EqualTo(1), "and the course the host chose");
+            Assert.That(joiner.Race.AiSkill, Is.EqualTo(2), "and the AI crewmates' skill");
+
+            host.SetRace(new RaceMessage { Course = 1, StartTick = (uint)world.Tick + 180, Phase = RoomPhase.Racing, AiSkill = 2 });
+            Run(0.5f);
+            Assert.That(joiner.Race.Phase, Is.EqualTo(RoomPhase.Racing), "follows the host into the race");
+            Assert.That(joiner.Race.StartTick, Is.GreaterThan(0u));
+
+            var late = Connect();
+            Run(1f);
+            Assert.That(late.Race.Phase, Is.EqualTo(RoomPhase.Racing), "a late joiner lands straight in the race");
+
+            host.SetRace(new RaceMessage { Course = 1, StartTick = joiner.Race.StartTick, Phase = RoomPhase.Results, AiSkill = 2 });
+            Run(0.5f);
+            Assert.That(sessions.All(s => s.Race.Phase == RoomPhase.Results), Is.True, "everyone sees the results");
+
+            host.Dispose();
+            foreach (var s in sessions) s.Dispose();
+        }
     }
 }

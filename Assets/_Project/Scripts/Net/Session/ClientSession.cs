@@ -66,8 +66,11 @@ namespace RushAhead.Net
         public bool Connected { get; private set; }
         public RosterSeat[] Roster { get; private set; } = Array.Empty<RosterSeat>();
 
-        /// <summary>The host's venue and race start, as last heard.</summary>
+        /// <summary>The host's venue, race start and room phase, as last heard.</summary>
         public RaceMessage Race { get; private set; }
+
+        /// <summary>Whether the host has said what's on yet: until then the venue and phase above are only defaults.</summary>
+        public bool HasRace { get; private set; }
         /// <summary>Animals per raft.</summary>
         public int CrewCount => Rafts > 0 ? Roster.Length / Rafts : 0;
 
@@ -178,6 +181,7 @@ namespace RushAhead.Net
 
                     case MessageType.Race:
                         Race = Protocol.ReadRace(new ByteReader(message));
+                        HasRace = true;
                         RaceChanged?.Invoke();
                         break;
 

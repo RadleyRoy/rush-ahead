@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: Ace
   m_EditorClassIdentifier: RushAhead.Content::RushAhead.Content.AiProfile
   displayName: Ace
-  blurb: Sharp, takes turns with the air, braces in time.
+  blurb: "Sharp: holds a clean line, bursts when stuck, braces in time."
   cruiseSpeed: 3.4
   reactionSeconds: 0.15
   aimWobbleDeg: 4

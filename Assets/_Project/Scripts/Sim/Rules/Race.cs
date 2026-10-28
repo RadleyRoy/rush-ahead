@@ -42,10 +42,7 @@ namespace RushAhead.Sim
             var (start, heading) = course.RespawnPose(0, lane, lanes);
             boat.ResetTo(start, heading);
             boat.ControlsLocked = true;
-            boat.GatesPassed = 0;
-            boat.FinishTick = 0;
-            boat.CapsizeCount = 0;
-            boat.CapsizeImmunitySeconds = 0f;
+            boat.ClearRun();
             lastPosition = boat.Body.Position;
             boat.Recovered += OnRecovered;
         }

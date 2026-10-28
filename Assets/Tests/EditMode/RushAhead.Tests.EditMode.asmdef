@@ -6,7 +6,8 @@
         "UnityEditor.TestRunner",
         "RushAhead.Content",
         "RushAhead.Sim",
-        "RushAhead.Net"
+        "RushAhead.Net",
+        "RushAhead.UI"
     ],
     "includePlatforms": ["Editor"],
     "excludePlatforms": [],

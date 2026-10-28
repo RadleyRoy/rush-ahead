@@ -66,7 +66,7 @@ namespace RushAhead.Content
                     p.airDiscipline = 0.55f; p.braceInstinct = 0.55f; p.panicLean = 0.7f; p.burstWhenStuck = 0.5f; p.daydream = 0.06f;
                     break;
                 case AiSkill.Ace:
-                    p.blurb = "Sharp, takes turns with the air, braces in time.";
+                    p.blurb = "Sharp: holds a clean line, bursts when stuck, braces in time.";
                     p.cruiseSpeed = 3.4f; p.reactionSeconds = 0.15f; p.aimWobbleDeg = 4f;
                     p.airDiscipline = 0.9f; p.braceInstinct = 0.85f; p.panicLean = 0.6f; p.burstWhenStuck = 0.9f; p.daydream = 0f;
                     break;
