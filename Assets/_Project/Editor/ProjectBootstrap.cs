@@ -56,6 +56,8 @@ namespace RushAhead.EditorTools
             // Top-down water game: no gravity anywhere in 2D physics.
             SetProjectSetting("ProjectSettings/Physics2DSettings.asset", "m_Gravity", so => so.vector2Value = Vector2.zero);
 
+            AppIcons.Install(); // the icon drawn by Design/app_icon.py, for every platform
+
             AssetDatabase.SaveAssets();
             Debug.Log($"[RushAhead] Project settings applied: {ProductName} ({BundleId}), IL2CPP/ARM64, landscape, ForceText, 2D physics gravity off.");
         }

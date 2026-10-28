@@ -12,8 +12,9 @@ from PIL import Image, ImageDraw, ImageFont, ImageFilter
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUT_DIR = os.path.join(HERE, "Icon options")
-S = 2048          # drawing size
-K = S / 1024      # design coordinates are in a 1024 square
+S = 2048          # drawing size in pixels
+K = S / 1024      # pixels per design unit; designs are laid out in a 1024 square
+OFFSET = 0        # design units added before scaling, so a layer can extend past the icon (Android adaptive layers)
 
 INK = (42, 34, 56, 255)          # outline
 WHITE = (255, 255, 255, 255)
@@ -32,6 +33,12 @@ PLAYERS = [(255, 97, 77, 255), (77, 140, 255, 255), (255, 214, 51, 255), (102, 2
 
 
 def p(v):
+    """A position in design units, as pixels."""
+    return (v + OFFSET) * K
+
+
+def q(v):
+    """A length (a width or a size) in design units, as pixels."""
     return v * K
 
 
@@ -80,15 +87,15 @@ class Icon:
     def polygon(self, points, fill, line=8, ink=INK):
         pts = [(p(x), p(y)) for x, y in points]
         if line:
-            self.d.polygon(pts, fill=ink, outline=ink, width=int(p(line) * 2))
+            self.d.polygon(pts, fill=ink, outline=ink, width=int(q(line) * 2))
         self.d.polygon(pts, fill=fill)
 
     def stroke(self, points, color, width, round_caps=True):
         pts = [(p(x), p(y)) for x, y in points]
-        self.d.line(pts, fill=color, width=int(p(width)), joint="curve")
+        self.d.line(pts, fill=color, width=int(q(width)), joint="curve")
         if round_caps:
             for x, y in (pts[0], pts[-1]):
-                r = p(width) / 2
+                r = q(width) / 2
                 self.d.ellipse([x - r, y - r, x + r, y + r], fill=color)
 
     def arc(self, cx, cy, r, start, end, color, width):
@@ -114,11 +121,11 @@ class Icon:
 
     def text(self, x, y, words, size, color, font="seguibl.ttf", anchor="mm", outline=0):
         try:
-            f = ImageFont.truetype(os.path.join("C:\\Windows\\Fonts", font), int(p(size)))
+            f = ImageFont.truetype(os.path.join("C:\\Windows\\Fonts", font), int(q(size)))
         except OSError:
-            f = ImageFont.truetype("arialbd.ttf", int(p(size)))
+            f = ImageFont.truetype("arialbd.ttf", int(q(size)))
         self.d.text((p(x), p(y)), words, font=f, fill=color, anchor=anchor,
-                    stroke_width=int(p(outline)), stroke_fill=INK)
+                    stroke_width=int(q(outline)), stroke_fill=INK)
 
     # --- the game's things --------------------------------------------------------------------------------------
     def eyes(self, cx, cy, r, look=(0.0, 0.0)):
@@ -183,8 +190,8 @@ class Icon:
         self.circle(x - math.cos(a) * 0.02 * length, y - math.sin(a) * 0.02 * length, 26 * scale, darken(body, 0.25), line=0)
         return nx, ny
 
-    def gust(self, x, y, angle, length, spread=40, width=26, color=WHITE, lines=3):
-        """Curvy air streaks leaving a nozzle at (x, y) along angle."""
+    def gust(self, x, y, angle, length, spread=40, width=26, color=WHITE, lines=3, puff=1.0):
+        """Curvy air streaks leaving a nozzle at (x, y) along angle, ending in puffs (scaled by puff; 0 for none)."""
         a = math.radians(angle)
         for i in range(lines):
             off = (i - (lines - 1) / 2) * spread
@@ -196,9 +203,11 @@ class Icon:
                 pts.append((x + math.cos(a) * along - math.sin(a) * wob, y + math.sin(a) * along + math.cos(a) * wob))
             self.stroke(pts, color, width * (1 - 0.25 * abs(off) / max(1, spread)))
         # puffs at the end
-        ex, ey = x + math.cos(a) * (length + 30), y + math.sin(a) * (length + 30)
+        if puff <= 0:
+            return
+        ex, ey = x + math.cos(a) * (length + 30 * puff), y + math.sin(a) * (length + 30 * puff)
         for k, (dx, dy, rr) in enumerate([(0, 0, 46), (-38, -26, 32), (34, -30, 30), (30, 30, 26)]):
-            self.circle(ex + dx, ey + dy, rr, color, line=0)
+            self.circle(ex + dx * puff, ey + dy * puff, rr * puff, color, line=0)
 
     def cloud(self, x, y, r, color=WHITE, line=0):
         for dx, dy, rr in [(-0.7, 0.1, 0.55), (0.7, 0.15, 0.5), (0, -0.2, 0.75), (-0.25, 0.35, 0.5), (0.35, 0.35, 0.5)]:
