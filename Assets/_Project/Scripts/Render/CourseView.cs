@@ -13,7 +13,6 @@ namespace RushAhead.Render
     public sealed class CourseView : MonoBehaviour
     {
         const float LandWidth = 26f; // grass beyond each bank
-        const float PlainHeight = 1.25f; // the flat country beyond the banks, a little below the lowest bank top
         const float PlainCell = 4f;
         const float GateHeight = 7.2f; // high enough for the chase camera to pass under the banner
 
@@ -23,8 +22,13 @@ namespace RushAhead.Render
 
         Course course;
         ArtPalette palette;
+        BankStyle style;
         readonly List<Renderer[]> gateBanners = new();
         readonly List<Chevron> chevrons = new();
+        readonly List<(Transform spiral, float degreesPerSecond)> whirlpools = new();
+
+        /// <summary>The flat country beyond the banks, a little below the lowest bank top.</summary>
+        float PlainHeight => style.Height - 0.25f;
         int shownProgress = -1;
 
         sealed class Chevron
@@ -45,6 +49,7 @@ namespace RushAhead.Render
             var view = new GameObject($"Course view: {course.Def.displayName}").AddComponent<CourseView>();
             view.course = course;
             view.palette = palette;
+            view.style = BankStyle.For(course.Def.scene, palette);
             var random = new System.Random(StableSeed(course.Def.name)); // the same trees on every device
 
             var scenery = Shapes3D.Group(view.transform, "Scenery");
@@ -54,12 +59,19 @@ namespace RushAhead.Render
             view.BuildEnds(scenery, random);
             view.BuildPlain(scenery);
             foreach (var rock in course.Def.rocks) CourseDressing.Rock(scenery, rock.position, rock.radius, palette, random);
+            if (view.style.LilyPads) view.BuildLilyPads(scenery, random);
             StaticBatchingUtility.Combine(scenery.gameObject); // hundreds of primitives that never move: draw them in a few batches
 
             var moving = Shapes3D.Group(view.transform, "Moving");
-            foreach (var barrel in course.Barrels) CourseDressing.Barrel(moving, barrel.transform, Course.BarrelRadius, palette);
+            for (var i = 0; i < course.Barrels.Count; i++)
+            {
+                if (!course.IsLog(i)) CourseDressing.Barrel(moving, course.Barrels[i].transform, Course.BarrelRadius, palette);
+                else CourseDressing.Log(moving, course.Barrels[i].transform, course.Def.logs[i - course.Def.barrels.Length].length, Course.LogRadius, palette);
+            }
+
             view.BuildGates(moving);
             view.BuildCurrents(moving, random);
+            view.BuildWhirlpools(moving);
             view.ShowProgress(0);
             return view;
         }
@@ -80,6 +92,8 @@ namespace RushAhead.Render
 
         void Update()
         {
+            foreach (var (spiral, rate) in whirlpools) spiral.Rotate(0f, rate * Time.deltaTime, 0f);
+
             var river = course.River;
             foreach (var chevron in chevrons)
             {
@@ -128,7 +142,7 @@ namespace RushAhead.Render
                 var s = samples[i];
                 outward[i] = left ? s.Left : -s.Left;
                 edge[i] = s.Centre + outward[i] * s.HalfWidth;
-                height[i] = 1.5f + 1.3f * Mathf.PerlinNoise(seed, s.Distance * 0.05f);
+                height[i] = style.Height + style.HeightRange * Mathf.PerlinNoise(seed, s.Distance * 0.05f);
 
                 // Bending toward this bank puts the centre of the bend on this side, 1/curvature from the middle.
                 var towardThisBank = left ? s.Curvature : -s.Curvature;
@@ -157,21 +171,21 @@ namespace RushAhead.Render
             }
 
             var side = left ? "Left" : "Right";
-            Shapes3D.MeshObject($"{side} cliff", cliff.Build($"{side} cliff"), parent, Vector3.zero, palette.cliff);
-            Shapes3D.MeshObject($"{side} grass", grass.Build($"{side} grass"), parent, Vector3.zero, palette.grass);
+            Shapes3D.MeshObject($"{side} cliff", cliff.Build($"{side} cliff"), parent, Vector3.zero, style.Cliff);
+            Shapes3D.MeshObject($"{side} grass", grass.Build($"{side} grass"), parent, Vector3.zero, style.Ground);
 
-            // Trees and bamboo: a fringe along the edge, then sparser woods further back.
+            // Plants: a fringe along the edge (bamboo, reeds or pines), then sparser woods further back.
             for (var i = 0; i < count; i += 3)
             {
                 var ground = height[i] + 0.1f;
                 var roll = random.NextDouble();
                 if (roll < 0.45 && depth[i] > 3f)
-                    CourseDressing.Tree(parent, edge[i] + outward[i] * (2f + (float)random.NextDouble() * Mathf.Min(5f, depth[i] - 2.5f)), ground, palette, random);
+                    style.Plant(parent, edge[i] + outward[i] * (2f + (float)random.NextDouble() * Mathf.Min(5f, depth[i] - 2.5f)), ground, palette, random);
                 else if (roll < 0.7)
-                    CourseDressing.Bamboo(parent, edge[i] + outward[i] * 1f, ground, palette, random);
+                    style.Fringe(parent, edge[i] + outward[i] * 1f, ground, palette, random);
 
                 if (i % 6 == 0 && depth[i] > 12f)
-                    CourseDressing.Tree(parent, edge[i] + outward[i] * (8f + (float)random.NextDouble() * (depth[i] - 10f)), ground, palette, random);
+                    style.Plant(parent, edge[i] + outward[i] * (8f + (float)random.NextDouble() * (depth[i] - 10f)), ground, palette, random);
             }
         }
 
@@ -207,7 +221,7 @@ namespace RushAhead.Render
                     SimSpace.ToWorld(new Vector2(x + PlainCell, y + PlainCell), PlainHeight), SimSpace.ToWorld(new Vector2(x, y + PlainCell), PlainHeight), Vector3.up);
             }
 
-            Shapes3D.MeshObject("Plain", plain.Build("Plain"), parent, Vector3.zero, palette.grass);
+            Shapes3D.MeshObject("Plain", plain.Build("Plain"), parent, Vector3.zero, style.Ground);
         }
 
         Vector2 ClosestEnd(Vector2 point)
@@ -223,8 +237,54 @@ namespace RushAhead.Render
             var first = samples[0];
             var last = samples[^1];
             // CliffBank builds to the right of its direction: across the start from the left bank, across the end from the right.
-            CourseDressing.CliffBank(parent, first.LeftBank + first.Left * LandWidth, first.RightBank - first.Left * LandWidth, 12f, palette, random);
-            CourseDressing.CliffBank(parent, last.RightBank - last.Left * LandWidth, last.LeftBank + last.Left * LandWidth, 12f, palette, random);
+            CourseDressing.CliffBank(parent, first.LeftBank + first.Left * LandWidth, first.RightBank - first.Left * LandWidth, 12f, palette, random, style);
+            CourseDressing.CliffBank(parent, last.RightBank - last.Left * LandWidth, last.LeftBank + last.Left * LandWidth, 12f, palette, random, style);
+        }
+
+        /// <summary>Lily pads in the still water along both shores, clear of the middle where the rafts race.</summary>
+        void BuildLilyPads(Transform parent, System.Random random)
+        {
+            var river = course.River;
+            for (var distance = 4f; distance < river.Length - 4f; distance += 3.2f)
+            {
+                var at = river.At(distance);
+                foreach (var side in new[] { -1f, 1f })
+                {
+                    if (random.NextDouble() > 0.45) continue;
+                    var across = at.HalfWidth - 0.9f - (float)random.NextDouble() * Mathf.Min(2.5f, at.HalfWidth * 0.25f);
+                    CourseDressing.LilyPad(parent, at.Centre + at.Left * (side * across) + at.Tangent * ((float)random.NextDouble() - 0.5f) * 2f, palette, random);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Each whirlpool: a patch of darker water and three foam arms spiralling in, turning the way the water goes
+        /// (anticlockwise from above for a positive spin), about as fast as the water halfway out.
+        /// </summary>
+        void BuildWhirlpools(Transform parent)
+        {
+            var deep = palette.Tinted(palette.water, new Color(0.05f, 0.38f, 0.62f));
+            foreach (var pool in course.Def.whirlpools)
+            {
+                var root = Shapes3D.Group(parent, "Whirlpool", SimSpace.ToWorld(pool.position, 0f));
+                Shapes3D.MeshObject("Deep water", Shapes3D.Disc(pool.radius, 32), root, new Vector3(0f, 0.01f, 0f), deep);
+                var spiral = Shapes3D.Group(root, "Spiral");
+                const int arms = 3, pieces = 12;
+                for (var arm = 0; arm < arms; arm++)
+                for (var k = 0; k < pieces; k++)
+                {
+                    var t = k / (pieces - 1f);
+                    var angle = (arm * 360f / arms + t * 300f) * Mathf.Deg2Rad;
+                    var radius = pool.radius * (0.12f + 0.8f * t);
+                    var at = new Vector3(Mathf.Cos(angle), 0f, Mathf.Sin(angle)) * radius;
+                    var along = Quaternion.LookRotation(new Vector3(-Mathf.Sin(angle), 0f, Mathf.Cos(angle)));
+                    Shapes3D.Primitive(PrimitiveType.Cube, spiral, at + Vector3.up * 0.04f, new Vector3(0.12f + 0.1f * t, 0.02f, 0.5f + 0.5f * t), palette.foam, along, "Foam");
+                }
+
+                // A positive spin turns sim x toward sim y, which in the world is x toward z: a negative turn about y.
+                var degreesPerSecond = -pool.spin / Mathf.Max(0.5f, pool.radius * 0.5f) * Mathf.Rad2Deg;
+                whirlpools.Add((spiral, degreesPerSecond));
+            }
         }
 
         void BuildGates(Transform parent)

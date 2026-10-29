@@ -36,6 +36,9 @@ namespace RushAhead.UI
         /// <summary>The best time before this run finished, to show the improvement (or the gap); 0 if there was none.</summary>
         public float PreviousBest;
 
+        /// <summary>Courses this run's stars opened, or null.</summary>
+        public string Opened;
+
         /// <summary>The best run's time at each checkpoint (the last is the finish); empty without one.</summary>
         public IReadOnlyList<float> BestSplits;
 

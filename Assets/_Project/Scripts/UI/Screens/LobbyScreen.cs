@@ -196,7 +196,7 @@ namespace RushAhead.UI
             {
                 var def = Game.Courses[venue - 1];
                 Ui.Set(courseName, def.displayName);
-                Ui.Set(courseBlurb, def.blurb);
+                Ui.Set(courseBlurb, $"{Facts(def)}. {def.blurb}");
                 Ui.Show(courseStars, true);
                 var best = Records.BestTime(def, team);
                 courseStars.Count = Records.BestStars(def, team);
@@ -290,33 +290,55 @@ namespace RushAhead.UI
         {
             picker.Clear();
             var panel = Ui.El("panel col");
-            panel.style.width = 1100;
-            panel.Add(Ui.Text("Choose a course", "h1"));
-            panel.Add(Ui.Spacer());
-            panel.Add(VenueCard(0, "Practice lagoon", "Free play round the lagoon: no clock, no finish.", null));
+            panel.style.width = 1240;
+            panel.style.maxHeight = new Length(96, LengthUnit.Percent);
+            var total = Game.TotalStars;
+            var heading = Ui.El("row", Ui.Text("Choose a course", "h1"), Ui.Grow(), Ui.Text($"{total} of {Game.Courses.Count * 3} stars", "h3 sun"));
+            heading.style.flexShrink = 0; // the list scrolls; the heading and Close keep their size
+            heading.style.marginBottom = 12;
+            panel.Add(heading);
+            var scroll = new ScrollView(ScrollViewMode.Vertical) { horizontalScrollerVisibility = ScrollerVisibility.Hidden };
+            scroll.AddToClassList("scroll");
             for (var i = 0; i < Game.Courses.Count; i++)
             {
                 var def = Game.Courses[i];
-                panel.Add(VenueCard(i + 1, def.displayName, def.blurb, def));
+                scroll.Add(VenueCard(i + 1, def.displayName, def.blurb, def));
             }
 
-            panel.Add(Ui.Spacer("spacer-s"));
-            panel.Add(Ui.El("row", Ui.Btn("Close", () => Ui.Show(picker, false), "btn btn--small")));
+            scroll.Add(VenueCard(0, "Practice lagoon", "Free play round the lagoon: no clock, no finish.", null));
+            panel.Add(scroll);
+            var footer = Ui.El("row", Ui.Btn("Close", () => Ui.Show(picker, false), "btn btn--small"));
+            footer.style.flexShrink = 0;
+            footer.style.marginTop = 12;
+            panel.Add(footer);
             picker.Add(panel);
             Ui.Show(picker, true);
         }
 
         VisualElement VenueCard(int venue, string name, string blurb, Content.CourseDef def)
         {
+            var open = Game.IsOpen(venue);
             var card = Ui.El("card row" + (venue == Game.Venue ? " card--selected" : ""));
-            var info = Ui.El("col grow", Ui.Text(name, "h2"), Ui.Text(blurb, "small muted"));
+            if (!open) card.style.opacity = 0.55f;
+            var info = Ui.El("col grow", Ui.Text(name, "h2"));
+            info.style.flexShrink = 1;
+            if (def != null) info.Add(Ui.Text(Facts(def), "small sun"));
+            info.Add(Ui.Text(blurb, "small muted"));
             card.Add(info);
-            if (def != null)
+            if (def != null && open)
             {
                 var stars = new StarRow(36f) { Count = Records.BestStars(def, Game.TeamRace) };
                 var best = Records.BestTime(def, Game.TeamRace);
                 card.Add(Ui.El("col", stars, Ui.Text(best > 0f ? Ui.Time(best) : "--", "h3")));
                 card.Add(Ui.Spacer());
+            }
+
+            if (!open)
+            {
+                var needs = Ui.Text($"{def.starsToUnlock} stars to open", "body");
+                needs.style.marginLeft = 24;
+                card.Add(needs);
+                return card;
             }
 
             card.Add(Btn($"venue-{venue}", "Choose", () =>
@@ -325,6 +347,19 @@ namespace RushAhead.UI
                 Ui.Show(picker, false);
             }, "btn btn--small btn--primary"));
             return card;
+        }
+
+        /// <summary>Where it is, how long, and what's in the water: "Rapids, 290 m: currents, whirlpools, logs".</summary>
+        static string Facts(Content.CourseDef def)
+        {
+            var hazards = new System.Collections.Generic.List<string>();
+            if (def.currents.Length > 0) hazards.Add("currents");
+            if (def.whirlpools.Length > 0) hazards.Add("whirlpools");
+            if (def.logs.Length > 0) hazards.Add("logs");
+            if (def.barrels.Length > 0) hazards.Add("barrels");
+            if (def.rocks.Length > 0) hazards.Add("rocks");
+            var facts = $"{def.scene}, {def.FinishDistance:0} m";
+            return hazards.Count > 0 ? $"{facts}: {string.Join(", ", hazards)}" : facts;
         }
     }
 }

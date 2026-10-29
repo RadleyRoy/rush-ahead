@@ -1,0 +1,144 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 110f1613fe645bf43965f6081c1bcce4, type: 3}
+  m_Name: WhitewaterRun
+  m_EditorClassIdentifier: RushAhead.Content::RushAhead.Content.CourseDef
+  displayName: Whitewater Run
+  blurb: 'The big one: a rock slalom, two whirlpools, a gorge that pushes back and
+    a pool full of logs.'
+  scene: 2
+  starsToUnlock: 11
+  river:
+  - position: {x: 0, y: 0}
+    width: 16
+    lineOffset: 0
+  - position: {x: 18, y: 0}
+    width: 15
+    lineOffset: 0
+  - position: {x: 34, y: 8}
+    width: 14
+    lineOffset: 0
+  - position: {x: 46, y: 22}
+    width: 12
+    lineOffset: 0.4
+  - position: {x: 52, y: 38}
+    width: 12
+    lineOffset: -0.4
+  - position: {x: 62, y: 52}
+    width: 13
+    lineOffset: 0.4
+  - position: {x: 78, y: 60}
+    width: 13
+    lineOffset: 0
+  - position: {x: 96, y: 60}
+    width: 14
+    lineOffset: 0
+  - position: {x: 112, y: 52}
+    width: 22
+    lineOffset: -0.5
+  - position: {x: 124, y: 40}
+    width: 10
+    lineOffset: 0
+  - position: {x: 134, y: 26}
+    width: 10
+    lineOffset: 0
+  - position: {x: 148, y: 18}
+    width: 13
+    lineOffset: 0
+  - position: {x: 166, y: 16}
+    width: 18
+    lineOffset: 0
+  - position: {x: 184, y: 20}
+    width: 13
+    lineOffset: 0
+  - position: {x: 198, y: 30}
+    width: 12
+    lineOffset: 0
+  - position: {x: 208, y: 44}
+    width: 12
+    lineOffset: 0.4
+  - position: {x: 222, y: 54}
+    width: 13
+    lineOffset: 0
+  - position: {x: 240, y: 58}
+    width: 18
+    lineOffset: 0.5
+  - position: {x: 258, y: 56}
+    width: 15
+    lineOffset: 0
+  - position: {x: 274, y: 54}
+    width: 16
+    lineOffset: 0
+  - position: {x: 290, y: 54}
+    width: 16
+    lineOffset: 0
+  startDistance: 8
+  gates:
+  - 48.620422
+  - 109.09816
+  - 164.26204
+  - 219.96066
+  - 282.3421
+  - 335.15366
+  rocks:
+  - position: {x: 48.601902, y: 20.506645}
+    radius: 1.1
+  - position: {x: 49.330902, y: 39.36964}
+    radius: 1.1
+  - position: {x: 64.085556, y: 49.57297}
+    radius: 1.2
+  - position: {x: 210.15034, y: 41.90811}
+    radius: 1
+  barrels:
+  - {x: 166, y: 16}
+  - {x: 170.22295, y: 14.36372}
+  logs:
+  - position: {x: 35.640076, y: 12.068739}
+    angleDeg: 113.61772
+    length: 3.5
+  - position: {x: 160.91426, y: 12.942764}
+    angleDeg: 38.32727
+    length: 4
+  - position: {x: 164.85164, y: 19.954794}
+    angleDeg: -57.86142
+    length: 4.5
+  - position: {x: 169.50612, y: 11.264259}
+    angleDeg: 90.92159
+    length: 4
+  - position: {x: 171.66034, y: 18.597937}
+    angleDeg: 23.769943
+    length: 3.5
+  currents:
+  - from: 22.059847
+    to: 54.620422
+    speed: 1.1
+  - from: 89.05349
+    to: 125.24874
+    speed: 1.2
+  - from: 158.26204
+    to: 181.5128
+    speed: -0.7
+  - from: 230.49667
+    to: 282.3421
+    speed: 1
+  whirlpools:
+  - position: {x: 114.35408, y: 55.23393}
+    radius: 6.5
+    spin: -1.8
+    pull: 0.9
+  - position: {x: 240.19102, y: 54.004562}
+    radius: 6
+    spin: 1.6
+    pull: 0.8
+  parSeconds: 187
+  twoStarSeconds: 158
+  threeStarSeconds: 134

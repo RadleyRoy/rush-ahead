@@ -95,10 +95,12 @@ namespace RushAhead.Tests
             }
         }
 
-        [Test]
-        public void ATeamRaceOfTwoAiRafts_EndsWithAWinner()
+        static IEnumerable<TestCaseData> EveryCourse() =>
+            CourseSolvabilityTests.AllCourses().Select(c => new TestCaseData(c).SetName($"{c.name}: a Team Race of two AI rafts ends with a winner"));
+
+        [TestCaseSource(nameof(EveryCourse))]
+        public void ATeamRaceOfTwoAiRafts_EndsWithAWinner(CourseDef def)
         {
-            var def = CourseSolvabilityTests.AllCourses().First();
             var course = Course.Build(def);
             try
             {

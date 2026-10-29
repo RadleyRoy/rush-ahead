@@ -20,6 +20,16 @@ namespace RushAhead.UI
             return best > 0f ? course.Stars(best) : 0;
         }
 
+        /// <summary>A course's stars toward opening the next ones: the better of its Co-op and Team Race bests.</summary>
+        public static int StarsOn(CourseDef course) => Mathf.Max(BestStars(course, false), BestStars(course, true));
+
+        public static int TotalStars(IEnumerable<CourseDef> courses)
+        {
+            var total = 0;
+            foreach (var course in courses) total += StarsOn(course);
+            return total;
+        }
+
         /// <summary>The best run's time at each checkpoint (the last is the finish), or empty.</summary>
         public static float[] BestSplits(CourseDef course, bool teamRace)
         {

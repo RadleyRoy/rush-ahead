@@ -18,6 +18,7 @@ namespace RushAhead.UI
         (int venue, bool team) bestSplitsFor = (-1, false);
         float lastSplitShownAt = float.NegativeInfinity;
         float previousBest;
+        string opened;
         int lastSplitGate;
 
         /// <summary>Where the room is in the round of play. The host decides; joined players follow.</summary>
@@ -37,6 +38,7 @@ namespace RushAhead.UI
             LoadVenue(index);
             phase = RoomPhase.Lobby;
             Stage();
+            if (index > 0 && Session != SessionKind.None) PlayerPrefs.SetInt(LastVenueKey, index);
         }
 
         /// <summary>Everyone to the line: 3, 2, 1, go. In the practice lagoon it just lets the rafts loose, with no clock.</summary>
@@ -238,7 +240,9 @@ namespace RushAhead.UI
                 // Every device keeps its own best for each course, from the host's time.
                 recordedRun = (venue, start);
                 previousBest = info.Best;
+                var starsBefore = TotalStars;
                 info.NewBest = Records.Submit(def, team, info.Seconds, tracker.Splits);
+                opened = OpenedBetween(starsBefore, TotalStars);
                 if (info.NewBest) bestSplitsFor = (-1, false); // the next run compares against this one
             }
             else
@@ -247,8 +251,41 @@ namespace RushAhead.UI
             }
 
             info.PreviousBest = info.Finished && racing ? previousBest : info.Best;
+            info.Opened = info.Finished && racing ? opened : null;
             Run = info;
         }
+
+        /// <summary>Every star this device has won, best of Co-op and Team Race on each course: they open the later courses.</summary>
+        public int TotalStars => Records.TotalStars(courses);
+
+        /// <summary>
+        /// Whether a venue can be chosen: the lagoon and the first course always; a later course once this device has
+        /// its stars. The developer tools open everything. In a game together, the host's stars decide.
+        /// </summary>
+        public bool IsOpen(int index)
+        {
+            if (index <= 0 || index > courses.Length) return index == 0;
+            if (Ui != null && Ui.Settings.developerTools) return true;
+            return TotalStars >= courses[index - 1].starsToUnlock;
+        }
+
+        string OpenedBetween(int before, int after)
+        {
+            if (Ui != null && Ui.Settings.developerTools) return null;
+            var names = new List<string>();
+            foreach (var def in courses)
+                if (def.starsToUnlock > before && def.starsToUnlock <= after) names.Add(def.displayName);
+            return names.Count > 0 ? string.Join(" and ", names) : null;
+        }
+
+        /// <summary>The course a new game starts on: the last one chosen, if it's open, or the first.</summary>
+        int PreferredVenue()
+        {
+            var last = PlayerPrefs.GetInt(LastVenueKey, 1);
+            return last >= 1 && last <= courses.Length && IsOpen(last) ? last : Mathf.Min(1, courses.Length);
+        }
+
+        const string LastVenueKey = "rushahead.venue.v1";
 
         /// <summary>How far down the course a raft is, 0 at the start to 1 at the finish.</summary>
         float Progress(IBoatState boat)

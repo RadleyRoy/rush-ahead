@@ -145,5 +145,30 @@ namespace RushAhead.Render
             mesh.RecalculateBounds();
             return mesh;
         }
+
+        /// <summary>A cone standing on the origin, its point <paramref name="height"/> up: pine trees.</summary>
+        public static Mesh Cone(float radius, float height, int segments = 12)
+        {
+            // Each side is its own triangle with its own normals, for the faceted look of the rest of the scenery.
+            var vertices = new Vector3[segments * 3];
+            var triangles = new int[segments * 3];
+            var apex = new Vector3(0f, height, 0f);
+            for (var i = 0; i < segments; i++)
+            {
+                var a = 2f * Mathf.PI * i / segments;
+                var b = 2f * Mathf.PI * (i + 1) / segments;
+                vertices[i * 3] = new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a)) * radius;
+                vertices[i * 3 + 1] = apex;
+                vertices[i * 3 + 2] = new Vector3(Mathf.Cos(b), 0f, Mathf.Sin(b)) * radius;
+                triangles[i * 3] = i * 3;
+                triangles[i * 3 + 1] = i * 3 + 1;
+                triangles[i * 3 + 2] = i * 3 + 2;
+            }
+
+            var mesh = new Mesh { name = "Cone", vertices = vertices, triangles = triangles };
+            mesh.RecalculateNormals();
+            mesh.RecalculateBounds();
+            return mesh;
+        }
     }
 }

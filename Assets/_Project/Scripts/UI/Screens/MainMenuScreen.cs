@@ -9,7 +9,8 @@ namespace RushAhead.UI
     /// </summary>
     public sealed class MainMenuScreen : GameScreen
     {
-        readonly List<(StarRow stars, Label time)> bests = new();
+        readonly List<(StarRow stars, Label time, Label name)> bests = new();
+        Label starTotal;
         Label playerName;
         Label playerDetail;
         Swatch playerFur;
@@ -34,7 +35,9 @@ namespace RushAhead.UI
             var records = Ui.El("panel");
             records.style.alignSelf = Align.FlexStart;
             records.style.minWidth = 640;
-            records.Add(Ui.Text("Your best times", "h3 muted"));
+            starTotal = Ui.Text("", "body sun");
+            starTotal.style.marginLeft = 24;
+            records.Add(Ui.El("row", Ui.Text("Your best times", "h3 muted"), Ui.Grow(), starTotal));
             records.Add(Ui.Spacer("spacer-s"));
             foreach (var course in Game.Courses)
             {
@@ -46,9 +49,9 @@ namespace RushAhead.UI
                 name.style.flexGrow = 1;
                 name.style.marginRight = 32;
                 var row = Ui.El("row", name, stars, Ui.Spacer(), time);
-                row.style.marginTop = 10;
+                row.style.marginTop = 8;
                 records.Add(row);
-                bests.Add((stars, time));
+                bests.Add((stars, time, name));
             }
 
             left.Add(records);
@@ -89,11 +92,18 @@ namespace RushAhead.UI
         public override void OnShow()
         {
             var courses = Game.Courses;
+            var total = Game.TotalStars;
+            starTotal.text = $"{total} of {courses.Count * 3} stars";
             for (var i = 0; i < bests.Count && i < courses.Count; i++)
             {
+                var open = Game.IsOpen(i + 1);
                 var best = Records.BestTime(courses[i], false);
-                bests[i].time.text = Ui.Time(best);
-                bests[i].stars.Count = Records.BestStars(courses[i], false);
+                bests[i].time.text = open ? Ui.Time(best) : $"{courses[i].starsToUnlock} stars to open";
+                bests[i].stars.Count = Records.StarsOn(courses[i]);
+                Ui.Show(bests[i].stars, open);
+                Ui.SetClass(bests[i].name, "muted", !open);
+                Ui.SetClass(bests[i].time, "muted", !open);
+                Ui.SetClass(bests[i].time, "small", !open);
             }
         }
 

@@ -53,6 +53,55 @@ namespace RushAhead.Content
         }
     }
 
+    /// <summary>A log floating loose: it drifts with the current, and rafts (and air) shove it about.</summary>
+    [Serializable]
+    public struct LogSpot
+    {
+        public Vector2 position;
+        [Tooltip("Which way it lies, in degrees (0 points along +x).")] public float angleDeg;
+        [Min(1f)] public float length;
+
+        public LogSpot(Vector2 position, float angleDeg, float length)
+        {
+            this.position = position;
+            this.angleDeg = angleDeg;
+            this.length = length;
+        }
+    }
+
+    /// <summary>Water turning round a point: it carries a raft round and draws it toward the middle.</summary>
+    [Serializable]
+    public struct WhirlpoolSpot
+    {
+        public Vector2 position;
+        [Min(1f)] public float radius;
+        [Tooltip("Metres per second round at its strongest, halfway out. Positive turns anticlockwise seen from above.")]
+        public float spin;
+        [Tooltip("Metres per second toward the middle at its strongest.")]
+        [Min(0f)] public float pull;
+
+        public WhirlpoolSpot(Vector2 position, float radius, float spin, float pull)
+        {
+            this.position = position;
+            this.radius = radius;
+            this.spin = spin;
+            this.pull = pull;
+        }
+    }
+
+    /// <summary>Where a course is: it sets the look of the banks, not the rules.</summary>
+    public enum CourseScene
+    {
+        /// <summary>Red earth cliffs, grass, trees and bamboo.</summary>
+        Creek,
+
+        /// <summary>Low sandy shores, reeds and lily pads.</summary>
+        Lake,
+
+        /// <summary>Tall grey rock, pines and white water.</summary>
+        Rapids,
+    }
+
     /// <summary>
     /// A river course. Everything is laid out along a smooth centreline through <see cref="river"/>: the banks, the
     /// checkpoint gates (by distance down the river), the racing line the autopilot follows, and the currents.
@@ -63,6 +112,10 @@ namespace RushAhead.Content
     {
         public string displayName = "Course";
         [TextArea] public string blurb = "";
+        public CourseScene scene = CourseScene.Creek;
+
+        [Tooltip("Stars a player needs, across every course, before this one opens.")]
+        [Min(0)] public int starsToUnlock;
 
         [Header("River")]
         public RiverPoint[] river = Array.Empty<RiverPoint>();
@@ -76,7 +129,9 @@ namespace RushAhead.Content
         [Header("Water")]
         public RockSpot[] rocks = Array.Empty<RockSpot>();
         public Vector2[] barrels = Array.Empty<Vector2>();
+        public LogSpot[] logs = Array.Empty<LogSpot>();
         public CurrentZone[] currents = Array.Empty<CurrentZone>();
+        public WhirlpoolSpot[] whirlpools = Array.Empty<WhirlpoolSpot>();
 
         [Header("Scoring (seconds)")]
         [Tooltip("Finish within par for one star.")]

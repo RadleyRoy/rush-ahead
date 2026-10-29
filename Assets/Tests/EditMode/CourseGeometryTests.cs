@@ -111,6 +111,56 @@ namespace RushAhead.Tests
                 foreach (var rock in def.rocks)
                     Assert.That(Vector2.Distance(gate.Centre, rock.position), Is.GreaterThan(rock.radius + raftRadius + 3f),
                         "a rock right where a capsized raft respawns");
+
+            foreach (var log in def.logs)
+            {
+                var at = river.Project(log.position);
+                Assert.That(Mathf.Abs(at.Lateral) + log.length * 0.5f, Is.LessThan(at.HalfWidth + 1f), $"log at {log.position} is in the water");
+            }
+
+            foreach (var pool in def.whirlpools)
+            {
+                var at = river.Project(pool.position);
+                Assert.That(Mathf.Abs(at.Lateral), Is.LessThan(at.HalfWidth - 1f), $"whirlpool at {pool.position} is in the water");
+                var line = river.At(at.Distance).RacingPoint;
+                Assert.That(Vector2.Distance(line, pool.position), Is.GreaterThan(pool.radius + raftRadius),
+                    $"whirlpool at {pool.position} sits on the racing line; steer the line round it");
+            }
+
+            Assert.That(def.whirlpools.Length + def.logs.Length + def.barrels.Length, Is.LessThanOrEqualTo(64), "snapshots carry at most 64 loose things");
+
+            // The river never comes back near itself, or one stretch's banks would stand in another's water.
+            var samples = river.Samples;
+            for (var i = 0; i < samples.Count; i += 4)
+            for (var j = i + 4; j < samples.Count; j += 4)
+            {
+                if (samples[j].Distance - samples[i].Distance < 60f) continue;
+                var gap = Vector2.Distance(samples[i].Centre, samples[j].Centre) - samples[i].HalfWidth - samples[j].HalfWidth;
+                Assert.That(gap, Is.GreaterThan(12f), $"the river passes within {gap:0} m of itself at {samples[i].Distance:0} m and {samples[j].Distance:0} m");
+            }
+        }
+
+        [Test]
+        public void AWhirlpool_CarriesWaterRoundAndIn_AndIsStillAtItsMiddleAndRim()
+        {
+            var def = ScriptableObject.CreateInstance<CourseDef>();
+            try
+            {
+                def.river = new[] { new RiverPoint(0f, 0f, 30f), new RiverPoint(60f, 0f, 30f) };
+                def.gates = new[] { 30f, 50f };
+                def.whirlpools = new[] { new WhirlpoolSpot(new Vector2(30f, 0f), 6f, 2f, 1f) };
+                var course = new Course(def);
+
+                var east = course.WaterVelocityAt(new Vector2(33f, 0f)); // halfway out, east of the middle
+                Assert.That(east.y, Is.EqualTo(2f).Within(0.01f), "anticlockwise: north on the east side");
+                Assert.That(east.x, Is.EqualTo(-1f).Within(0.01f), "and drawn in toward the middle");
+                Assert.That(course.WaterVelocityAt(new Vector2(30f, 0f)).magnitude, Is.LessThan(0.01f), "still at the middle");
+                Assert.That(course.WaterVelocityAt(new Vector2(36.5f, 0f)).magnitude, Is.LessThan(0.01f), "and beyond the rim");
+            }
+            finally
+            {
+                Object.DestroyImmediate(def);
+            }
         }
 
         static float Cross(Vector2 a, Vector2 b) => a.x * b.y - a.y * b.x;

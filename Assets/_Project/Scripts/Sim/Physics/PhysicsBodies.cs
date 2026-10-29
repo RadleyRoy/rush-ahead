@@ -44,6 +44,27 @@ namespace RushAhead.Sim
             return go;
         }
 
+        /// <summary>A log lying on the water: long, heavy and slow to turn, so it takes a real shove to move.</summary>
+        public static GameObject CreateLog(Vector2 position, float angleRad, float length, float radius, float mass, string name = "Log")
+        {
+            var go = new GameObject(name);
+            go.transform.SetPositionAndRotation(position, Quaternion.Euler(0f, 0f, angleRad * Mathf.Rad2Deg));
+
+            var body = go.AddComponent<Rigidbody2D>();
+            body.gravityScale = 0f;
+            body.useAutoMass = false;
+            body.mass = mass;
+            body.linearDamping = 1.0f; // floating in water
+            body.angularDamping = 2.5f;
+            body.interpolation = RigidbodyInterpolation2D.Interpolate;
+
+            var capsule = go.AddComponent<CapsuleCollider2D>();
+            capsule.direction = CapsuleDirection2D.Horizontal;
+            capsule.size = new Vector2(length, 2f * radius);
+            capsule.sharedMaterial = new PhysicsMaterial2D("Log") { bounciness = 0.15f, friction = 0.4f };
+            return go;
+        }
+
         /// <summary>
         /// Takes a loose body out of the local simulation, for a network client that only shows where the host says it is.
         /// </summary>
@@ -61,6 +82,15 @@ namespace RushAhead.Sim
             body.angularVelocity = 0f;
             body.position = position;
             go.transform.position = position;
+        }
+
+        /// <summary>Puts a loose body back at rest, turned to <paramref name="angleRad"/>.</summary>
+        public static void Reset(GameObject go, Vector2 position, float angleRad)
+        {
+            Reset(go, position);
+            var body = go.GetComponent<Rigidbody2D>();
+            body.rotation = angleRad * Mathf.Rad2Deg;
+            go.transform.rotation = Quaternion.Euler(0f, 0f, angleRad * Mathf.Rad2Deg);
         }
     }
 }

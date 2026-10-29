@@ -386,6 +386,11 @@ MonoBehaviour:
   catalog: {fileID: 11400000, guid: add57eca14e67204a99be8e82d068219, type: 2}
   courses:
   - {fileID: 11400000, guid: c66589dbb6d609b46b21dd93c3eb2630, type: 2}
+  - {fileID: 11400000, guid: 0c41a3c0d85ba9149a209367dc773f43, type: 2}
+  - {fileID: 11400000, guid: 8c7e8880fe5b387468f39c7c1e95b17d, type: 2}
+  - {fileID: 11400000, guid: 3724c9961b076ec4cb9aa70c78b501dc, type: 2}
+  - {fileID: 11400000, guid: f5b8762dd3a66bb448c124464590a082, type: 2}
+  - {fileID: 11400000, guid: 5541cbfc33846984d982620da3073e3a, type: 2}
   palette: {fileID: 11400000, guid: 92d326366186d7e48bc562b8587f30fb, type: 2}
   aiProfiles:
   - {fileID: 11400000, guid: da6bb35901ffd4b43ababdab4632f1cd, type: 2}

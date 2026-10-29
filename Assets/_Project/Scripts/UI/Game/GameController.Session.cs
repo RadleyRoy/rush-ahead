@@ -42,7 +42,8 @@ namespace RushAhead.UI
         {
             if (Mode != NetMode.Offline || goingOnline) return;
             soloSession = true;
-            BackToLobby();
+            if (venue == 0) ChooseVenue(PreferredVenue()); // the menus float on the lagoon; a game starts on a course
+            else BackToLobby();
         }
 
         /// <summary>
@@ -192,6 +193,7 @@ namespace RushAhead.UI
             host.OrderRequested += ApplyOrder; // any player can order the AI crew about
             runner.Ticked += host.OnTick;
             Mode = NetMode.Hosting;
+            if (venue == 0) ChooseVenue(PreferredVenue());
             host.UseBoats(Boats());
             SendRace();
         }

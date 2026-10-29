@@ -14,6 +14,7 @@ namespace RushAhead.UI
         Label time;
         StarRow stars;
         Label versus;
+        Label opened;
         Label teams;
         Label splits;
         Label details;
@@ -44,6 +45,8 @@ namespace RushAhead.UI
             panel.Add(Ui.El("row", time, Ui.Grow(), stars));
             versus = Ui.Text("", "h3");
             panel.Add(versus);
+            opened = Ui.Text("", "h3 sun");
+            panel.Add(opened);
             teams = Ui.Text("", "h3");
             panel.Add(teams);
             panel.Add(Ui.Spacer());
@@ -94,6 +97,8 @@ namespace RushAhead.UI
                 : run.NewBest ? $"{previous - run.Seconds:0.0} s faster than your old best, {Ui.Time(previous)}"
                 : $"{run.Seconds - previous:0.0} s slower than your best, {Ui.Time(previous)}");
             Ui.SetClass(versus, "good", run.NewBest);
+            Ui.Show(opened, run.Opened != null);
+            if (run.Opened != null) Ui.Set(opened, $"Your stars opened {run.Opened}!");
 
             Ui.Show(teams, run.TeamRace);
             if (run.TeamRace)

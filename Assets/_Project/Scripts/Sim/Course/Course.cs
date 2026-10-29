@@ -43,7 +43,9 @@ namespace RushAhead.Sim
     public sealed class Course
     {
         public const float BarrelRadius = 0.4f;
+        public const float LogRadius = 0.35f;
         const float BarrelMass = 8f;
+        const float LogMassPerMetre = 7f;
         const float CurrentRampMetres = 6f; // currents ease in and out rather than starting at a line
         const float RespawnPastGate = 3f;
 
@@ -74,9 +76,15 @@ namespace RushAhead.Sim
         /// <summary>Everything physical, so the course can be removed in one go. Null until <see cref="BuildPhysics"/>.</summary>
         public GameObject Root { get; private set; }
 
-        /// <summary>Loose barrels, in the course's order: snapshots identify them by position in this list.</summary>
+        /// <summary>
+        /// Everything floating loose: the barrels in the course's order, then the logs. Snapshots identify them by
+        /// position in this list, so every device builds it the same way.
+        /// </summary>
         public IReadOnlyList<GameObject> Barrels => barrels;
         public IReadOnlyList<Rigidbody2D> BarrelBodies => barrelBodies;
+
+        /// <summary>Whether the loose body at this index is a log (the logs follow the barrels).</summary>
+        public bool IsLog(int index) => index >= Def.barrels.Length;
 
         public static Course Build(CourseDef def)
         {
@@ -96,6 +104,14 @@ namespace RushAhead.Sim
                 barrel.transform.SetParent(Root.transform, true);
                 barrels.Add(barrel);
                 barrelBodies.Add(barrel.GetComponent<Rigidbody2D>());
+            }
+
+            foreach (var log in Def.logs)
+            {
+                var body = PhysicsBodies.CreateLog(log.position, log.angleDeg * Mathf.Deg2Rad, log.length, LogRadius, LogMassPerMetre * log.length);
+                body.transform.SetParent(Root.transform, true);
+                barrels.Add(body);
+                barrelBodies.Add(body.GetComponent<Rigidbody2D>());
             }
         }
 
@@ -118,15 +134,18 @@ namespace RushAhead.Sim
             return lane == 0 ? offset : -offset;
         }
 
-        /// <summary>How fast the water itself moves here. Strongest mid-stream, easing off toward the banks and the zone's ends.</summary>
+        /// <summary>
+        /// How fast the water itself moves here. Currents are strongest mid-stream, easing off toward the banks and the
+        /// zone's ends; whirlpools add a swirl and a pull toward their middle.
+        /// </summary>
         public Vector2 WaterVelocityAt(Vector2 point)
         {
-            if (Def.currents.Length == 0) return Vector2.zero;
+            var velocity = Whirlpools(point);
+            if (Def.currents.Length == 0) return velocity;
 
             var at = River.Project(point);
             var across = at.HalfWidth > 0f ? at.Lateral / at.HalfWidth : 0f;
             var profile = Mathf.Clamp01(1f - across * across);
-            var velocity = Vector2.zero;
             foreach (var zone in Def.currents)
             {
                 var ramp = Mathf.Min((at.Distance - zone.from) / CurrentRampMetres, (zone.to - at.Distance) / CurrentRampMetres);
@@ -137,10 +156,38 @@ namespace RushAhead.Sim
             return velocity;
         }
 
-        /// <summary>Puts the barrels back where the course places them, at rest.</summary>
+        /// <summary>
+        /// A whirlpool's water goes round and in. Both are strongest halfway out and fade to nothing at the middle (so
+        /// nothing spins in place for ever) and at the rim (so it starts gently).
+        /// </summary>
+        Vector2 Whirlpools(Vector2 point)
+        {
+            var velocity = Vector2.zero;
+            foreach (var pool in Def.whirlpools)
+            {
+                var offset = point - pool.position;
+                var distance = offset.magnitude;
+                if (distance >= pool.radius || distance < 1e-3f) continue;
+                var outward = offset / distance;
+                var strength = Mathf.Sin(Mathf.PI * distance / pool.radius);
+                velocity += (new Vector2(-outward.y, outward.x) * pool.spin - outward * pool.pull) * strength;
+            }
+
+            return velocity;
+        }
+
+        /// <summary>Puts the barrels and logs back where the course places them, at rest.</summary>
         public void ResetBarrels()
         {
-            for (var i = 0; i < barrels.Count; i++) PhysicsBodies.Reset(barrels[i], Def.barrels[i]);
+            for (var i = 0; i < barrels.Count; i++)
+            {
+                if (!IsLog(i)) PhysicsBodies.Reset(barrels[i], Def.barrels[i]);
+                else
+                {
+                    var log = Def.logs[i - Def.barrels.Length];
+                    PhysicsBodies.Reset(barrels[i], log.position, log.angleDeg * Mathf.Deg2Rad);
+                }
+            }
         }
 
         public void Destroy()

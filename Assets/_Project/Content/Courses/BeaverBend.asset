@@ -1,0 +1,120 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 110f1613fe645bf43965f6081c1bcce4, type: 3}
+  m_Name: BeaverBend
+  m_EditorClassIdentifier: RushAhead.Content::RushAhead.Content.CourseDef
+  displayName: Beaver Bend
+  blurb: Switchbacks through beaver country. Shove the drifting logs aside, and bash
+    through the jam.
+  scene: 0
+  starsToUnlock: 3
+  river:
+  - position: {x: 0, y: 0}
+    width: 14
+    lineOffset: 0
+  - position: {x: 16, y: 0}
+    width: 14
+    lineOffset: 0
+  - position: {x: 30, y: 8}
+    width: 13
+    lineOffset: 0
+  - position: {x: 38, y: 22}
+    width: 12
+    lineOffset: 0
+  - position: {x: 37, y: 38}
+    width: 12
+    lineOffset: 0
+  - position: {x: 44, y: 53}
+    width: 12
+    lineOffset: 0
+  - position: {x: 58, y: 60}
+    width: 13
+    lineOffset: 0
+  - position: {x: 74, y: 56}
+    width: 12
+    lineOffset: 0
+  - position: {x: 84, y: 44}
+    width: 12
+    lineOffset: 0
+  - position: {x: 98, y: 37}
+    width: 14
+    lineOffset: 0
+  - position: {x: 115, y: 40}
+    width: 18
+    lineOffset: 0
+  - position: {x: 128, y: 50}
+    width: 13
+    lineOffset: 0
+  - position: {x: 136, y: 64}
+    width: 12
+    lineOffset: 0
+  - position: {x: 150, y: 73}
+    width: 13
+    lineOffset: 0
+  - position: {x: 166, y: 74}
+    width: 14
+    lineOffset: 0
+  - position: {x: 182, y: 72}
+    width: 14
+    lineOffset: 0
+  - position: {x: 196, y: 72}
+    width: 14
+    lineOffset: 0
+  startDistance: 8
+  gates:
+  - 42.675205
+  - 118.25967
+  - 175.26859
+  - 214.79008
+  - 243.04547
+  rocks:
+  - position: {x: 58.448875, y: 55.824055}
+    radius: 1.2
+  - position: {x: 133.19302, y: 66.56142}
+    radius: 1.1
+  barrels: []
+  logs:
+  - position: {x: 36.235973, y: 24.072788}
+    angleDeg: 177.42427
+    length: 3.5
+  - position: {x: 40.09514, y: 40.251728}
+    angleDeg: 149.5048
+    length: 4
+  - position: {x: 74.80563, y: 55.407585}
+    angleDeg: 21.803747
+    length: 3.5
+  - position: {x: 112.487946, y: 34.779343}
+    angleDeg: 37.87758
+    length: 4
+  - position: {x: 112.084145, y: 42.05464}
+    angleDeg: -14.258056
+    length: 4.5
+  - position: {x: 117.26204, y: 39.995552}
+    angleDeg: 107.815346
+    length: 4
+  - position: {x: 116.64323, y: 46.591976}
+    angleDeg: 43.14297
+    length: 3.5
+  - position: {x: 123.97829, y: 39.514572}
+    angleDeg: 86.27864
+    length: 4
+  currents:
+  - from: 64.81094
+    to: 97.50254
+    speed: 0.7
+  - from: 179.79495
+    to: 212.79008
+    speed: 0.6
+  whirlpools: []
+  parSeconds: 139
+  twoStarSeconds: 117
+  threeStarSeconds: 100
