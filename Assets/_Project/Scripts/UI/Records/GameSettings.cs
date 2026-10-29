@@ -24,6 +24,14 @@ namespace RushAhead.UI
         /// <summary>The live tuning sliders and the debug readout.</summary>
         public bool developerTools;
 
+        /// <summary>Sound effects and music, 0 to 1.</summary>
+        public float soundVolume = 1f;
+
+        public float musicVolume = 0.6f;
+
+        /// <summary>Buzzes on bumps, capsizes and bursts.</summary>
+        public bool vibration = true;
+
         public static GameSettings Load()
         {
             try
@@ -53,6 +61,11 @@ namespace RushAhead.UI
                 QualitySettings.SetQualityLevel(quality, true);
             router.DirectNozzleAim = directNozzleAim;
             router.Touch.LeftHanded = leftHanded;
+            Render.Haptics.Enabled = vibration;
+            var audio = Render.GameAudio.Instance;
+            if (audio == null) return;
+            audio.EffectsVolume = soundVolume;
+            audio.MusicVolume = musicVolume;
         }
 
         static GameSettings Sanitised(GameSettings s)
@@ -60,6 +73,8 @@ namespace RushAhead.UI
             s ??= new GameSettings();
             if (s.frameRate != 30) s.frameRate = 60;
             s.quality = Mathf.Clamp(s.quality, -1, 5);
+            s.soundVolume = Mathf.Clamp01(s.soundVolume);
+            s.musicVolume = Mathf.Clamp01(s.musicVolume);
             return s;
         }
     }

@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using RushAhead.Content;
 using RushAhead.Sim;
@@ -33,6 +34,24 @@ namespace RushAhead.Render
         BlowerDef[] shownBlower;
         int[] shownBursts;
         float capsize;
+        AudioSource[] blowerSounds;
+        readonly Queue<(float time, Vector2 velocity)> recent = new();
+        int shownTeleports;
+        bool wasCapsized;
+        float quietUntil;
+        float wakeDue;
+
+        const float BumpChange = 1.3f; // a change of speed (m/s) over BumpWindow that can only be a knock
+        const float BumpWindow = 0.1f;
+
+        /// <summary>The raft hit something: 0 a knock, 1 a crash. Read from sudden changes of speed, so it works when joined too.</summary>
+        public event Action<float> Bumped;
+
+        /// <summary>The raft just went over.</summary>
+        public event Action Capsized;
+
+        /// <summary>An animal (by seat) just fired a burst.</summary>
+        public event Action<int> Burst;
 
         /// <param name="boat">The live boat on the host, or a raft rebuilt from snapshots on a client.</param>
         /// <param name="looks">Each seat's chosen animal and fur; seats beyond the list get the catalog's defaults.</param>
@@ -48,8 +67,16 @@ namespace RushAhead.Render
             view.BuildRaft(config.hullRadius, tube.HasValue ? palette.Tinted(palette.raftTube, tube.Value) : palette.raftTube);
             view.BuildSlices(config.hullRadius);
             view.BuildCrew(looks);
+            view.shownTeleports = boat.TeleportCount;
             view.LateUpdate();
             return view;
+        }
+
+        /// <summary>Confetti, and the whole crew jumps for joy.</summary>
+        public void Celebrate()
+        {
+            Splashes.Confetti(transform.position, palette);
+            foreach (var animal in animals) animal.Cheer();
         }
 
         /// <summary>Re-dresses any animal whose species or fur changed, leaving the rest (and where they're aiming) alone.</summary>
@@ -95,6 +122,7 @@ namespace RushAhead.Render
             var count = boat.CrewCount;
             animals = new AnimalView[count];
             puffs = new AirPuffs[count];
+            blowerSounds = new AudioSource[count];
             shownLook = new Loadout[count];
             shownBlower = new BlowerDef[count];
             shownBursts = new int[count];
@@ -112,6 +140,10 @@ namespace RushAhead.Render
             var animal = animals[seat] = AnimalView.Build(hull, catalog.SpeciesOf(look).shape, catalog.FurOf(look), PlayerColor(seat), crew.Blower, palette);
             animal.transform.localPosition = SimSpace.HullLocal(config.SeatOffset(seat, boat.CrewCount) * 0.85f, FloorHeight);
             puffs[seat] = AirPuffs.Attach(animal.Nozzle, palette.air);
+            var sound = blowerSounds[seat] = animal.Nozzle.gameObject.AddComponent<AudioSource>();
+            GameAudio.Spatial(sound);
+            sound.loop = true;
+            sound.volume = 0f;
             shownLook[seat] = look;
             shownBlower[seat] = null; // the new figure's blower gets its colour and cone on the next frame
         }
@@ -158,22 +190,100 @@ namespace RushAhead.Render
 
             var airAllowed = !capsized && capsize < 0.05f;
             for (var i = 0; i < animals.Length; i++) UpdateCrew(i, boat.CrewAt(i), airAllowed, dt);
+
+            Feel(capsized, dt);
+        }
+
+        /// <summary>Bumps, capsizes and the wake: the sounds, splashes and events that go with them.</summary>
+        void Feel(bool capsized, float dt)
+        {
+            var audio = GameAudio.Instance;
+            var now = Time.time;
+            var velocity = boat.Velocity;
+
+            // A respawn or a restart moves the raft without anything hitting it.
+            if (boat.TeleportCount != shownTeleports)
+            {
+                shownTeleports = boat.TeleportCount;
+                recent.Clear();
+                quietUntil = now + 0.3f;
+            }
+
+            recent.Enqueue((now, velocity));
+            while (recent.Count > 1 && now - recent.Peek().time > BumpWindow) recent.Dequeue();
+            var change = velocity - recent.Peek().velocity;
+            if (change.magnitude > BumpChange && now >= quietUntil && !capsized)
+            {
+                quietUntil = now + 0.25f; // one bump, not one per frame of it
+                recent.Clear();
+                var strength = Mathf.Clamp01((change.magnitude - BumpChange) / 3f);
+                var hit = SimSpace.ToWorld(boat.RenderPosition - change.normalized * config.hullRadius, 0.2f);
+                Splashes.Splash(hit, 0.15f + 0.5f * strength, palette);
+                audio?.PlayAt(audio.Bank.Bump, hit, 0.5f + 0.5f * strength, UnityEngine.Random.Range(0.9f, 1.1f));
+                Bumped?.Invoke(strength);
+            }
+
+            if (capsized && !wasCapsized)
+            {
+                Splashes.Splash(transform.position, 1f, palette);
+                audio?.PlayAt(audio.Bank.Capsize, transform.position, 1f, UnityEngine.Random.Range(0.95f, 1.05f));
+                Capsized?.Invoke();
+            }
+            else if (!capsized && wasCapsized)
+            {
+                Splashes.Splash(transform.position, 0.35f, palette);
+                audio?.PlayAt(audio.Bank.Splash, transform.position, 0.6f);
+            }
+
+            wasCapsized = capsized;
+
+            // The wake: foam left behind the stern, more of it the faster the raft goes.
+            var speed = velocity.magnitude;
+            if (capsized || speed < 0.4f) return;
+            wakeDue += dt * Mathf.Min(24f, speed * 8f);
+            while (wakeDue >= 1f)
+            {
+                wakeDue -= 1f;
+                var behind = -velocity / speed;
+                var side = new Vector2(-behind.y, behind.x) * UnityEngine.Random.Range(-1.2f, 1.2f);
+                Splashes.Wake(SimSpace.ToWorld(boat.RenderPosition + behind * config.hullRadius + side), SimSpace.Direction(side * 0.3f), palette);
+            }
         }
 
         void UpdateCrew(int i, ICrewState crew, bool airAllowed, float dt)
         {
+            var audio = GameAudio.Instance;
             if (shownBlower[i] != crew.Blower)
             {
                 shownBlower[i] = crew.Blower;
                 animals[i].SetBlower(crew.Blower);
                 puffs[i].Configure(crew.Blower.coneHalfAngleDeg, crew.Blower.range);
+                blowerSounds[i].clip = audio != null ? audio.Bank.LoopFor(crew.Blower) : null;
             }
+
+            // The blower's motor follows its spool: quiet and low winding up, loud and high flat out.
+            var sound = blowerSounds[i];
+            if (sound.clip == null && audio != null) sound.clip = audio.Bank.LoopFor(crew.Blower); // the sounds may still be in the making
+            var on = airAllowed && crew.IsBlowing ? crew.Spool : 0f;
+            var level = audio != null && sound.clip != null ? on * 0.5f * audio.EffectsVolume : 0f;
+            sound.volume = Mathf.MoveTowards(sound.volume, level, dt * 3f);
+            sound.pitch = 0.8f + 0.35f * crew.Spool;
+            if (sound.volume > 0.001f && !sound.isPlaying && sound.clip != null) sound.Play();
+            else if (sound.volume <= 0.001f && sound.isPlaying) sound.Stop();
+            animals[i].Alarm(Mathf.InverseLerp(0.55f, 0.95f, boat.TiltDanger));
 
             animals[i].Pose(SimSpace.Direction(BlowerMath.Direction(crew.AimAngle)), hull.up, crew.Braced, dt);
             puffs[i].SetFlow(airAllowed && crew.IsBlowing ? crew.Spool : 0f);
 
             // Bursts are counted, so a change means a burst happened, however many frames or snapshots went by.
-            if (airAllowed && crew.BurstCount != shownBursts[i]) puffs[i].Burst();
+            if (airAllowed && crew.BurstCount != shownBursts[i])
+            {
+                puffs[i].Burst();
+                quietUntil = Time.time + 0.2f; // a burst's kick isn't a bump
+                audio?.PlayAt(audio.Bank.Burst, animals[i].Nozzle.position, 0.85f, crew.Blower.thrustNewtons <= 0f ? 0.8f : UnityEngine.Random.Range(0.95f, 1.1f));
+                Burst?.Invoke(i);
+            }
+
             shownBursts[i] = crew.BurstCount;
         }
     }

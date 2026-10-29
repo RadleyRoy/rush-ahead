@@ -22,10 +22,17 @@ namespace RushAhead.UI
             return label;
         }
 
+        /// <summary>Raised by every button press, for the click sound.</summary>
+        public static event Action Clicked;
+
         /// <summary>A button styled by Game.uss alone (Unity's own button look is dropped).</summary>
         public static Button Btn(string text, Action clicked, string classes = "btn")
         {
-            var button = new Button(clicked) { text = text };
+            var button = new Button(() =>
+            {
+                Clicked?.Invoke();
+                clicked();
+            }) { text = text };
             button.RemoveFromClassList(Button.ussClassName);
             AddClasses(button, classes);
             return button;

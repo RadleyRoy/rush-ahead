@@ -122,6 +122,7 @@ namespace RushAhead.UI
 
         void Change(System.Action<LoadoutBox> edit)
         {
+            GameAudio.Instance?.Play(GameAudio.Instance.Bank.Click, 0.5f);
             var box = new LoadoutBox { Look = Current() };
             edit(box);
             if (seat < 0) Game.DressMe(box.Look);

@@ -37,6 +37,9 @@ namespace RushAhead.UI
 
         public GameSettings Settings { get; private set; }
 
+        /// <summary>The race camera, for shaking.</summary>
+        public ChaseCamera Chase => chase;
+
         /// <summary>Nothing steers unless the race is on screen with no pause menu or dialog over it.</summary>
         public bool InputBlocked => Flow.Screen != AppScreen.Race || Flow.Paused || ModalOpen;
 
@@ -63,6 +66,8 @@ namespace RushAhead.UI
             ui.Game = game;
             ui.document = document;
             host.SetActive(true);
+            GameAudio.Create(); // the sound effects take a moment to make: done while the title shows
+            Ui.Clicked += () => GameAudio.Instance?.Play(GameAudio.Instance.Bank.Click, 0.5f);
             ui.Settings = GameSettings.Load();
             ui.ApplySettings();
             ui.BuildAll();
@@ -143,6 +148,12 @@ namespace RushAhead.UI
 
             shown?.Refresh();
             Time.timeScale = Flow.Paused && Game.Session == SessionKind.Solo ? 0f : DemoSpeed;
+            var audio = GameAudio.Instance;
+            if (audio != null)
+            {
+                audio.SetMusic(Flow.Screen == AppScreen.Race && !Flow.Paused);
+                audio.SetAmbience(audio.Bank.AmbienceFor(Game.CurrentCourse != null ? Game.CurrentCourse.Def.scene : null));
+            }
             UpdateSafeArea();
             UpdateCamera();
             if (Time.unscaledTime > toastUntil) Ui.Show(toast, false);

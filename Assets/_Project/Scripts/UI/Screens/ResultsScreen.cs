@@ -1,4 +1,5 @@
 using System.Text;
+using RushAhead.Render;
 using UnityEngine;
 using UnityEngine.UIElements;
 
@@ -23,8 +24,18 @@ namespace RushAhead.UI
         Label waiting;
         Button menu;
 
+        float shownFor;
+        bool jingled;
+
         public ResultsScreen(GameUi ui) : base(ui)
         {
+        }
+
+        public override void OnShow()
+        {
+            shownFor = 0f;
+            jingled = false;
+            stars.Count = 0;
         }
 
         public override void Build()
@@ -89,7 +100,22 @@ namespace RushAhead.UI
                 ? run.Winner < 0 ? "Nobody made it home!" : run.Winner == run.MyRaft ? $"{mine} raft wins! That's you!" : $"{GameController.TeamName(run.Winner)} raft wins!"
                 : !run.Finished ? "Out of time" : run.NewBest ? "New best!" : "Finished!");
             Ui.Set(time, run.Finished ? Ui.Time(run.Seconds) : "--");
-            stars.Count = run.Stars;
+            // The stars arrive one at a time, each with a ding a little higher than the last; then any fanfare.
+            shownFor += Time.unscaledDeltaTime;
+            var due = Mathf.Min(run.Stars, Mathf.FloorToInt((shownFor - 0.5f) / 0.35f) + 1);
+            while (stars.Count < due)
+            {
+                stars.Count++;
+                var audio = GameAudio.Instance;
+                audio?.Play(audio.Bank.Star, 0.8f, 1f + 0.12f * (stars.Count - 1));
+            }
+
+            if (!jingled && shownFor > 0.6f + run.Stars * 0.35f && (run.NewBest || run.Opened != null))
+            {
+                jingled = true;
+                var audio = GameAudio.Instance;
+                audio?.Play(audio.Bank.Jingle, 0.8f);
+            }
 
             var previous = run.PreviousBest;
             Ui.Set(versus, !run.Finished ? ""

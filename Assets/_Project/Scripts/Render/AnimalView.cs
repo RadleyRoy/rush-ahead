@@ -14,6 +14,13 @@ namespace RushAhead.Render
         Transform figure;
         Renderer blowerBody;
         ArtPalette palette;
+        Transform[] eyes;
+        Vector3[] eyeScales;
+        float nextBlink;
+        float blinking;
+        float cheering;
+        float panic;
+        float seed;
 
         /// <summary>The blower's tip. Its forward is the airflow direction.</summary>
         public Transform Nozzle { get; private set; }
@@ -35,6 +42,13 @@ namespace RushAhead.Render
                 palette.Tinted(palette.animal, playerColor), name: "Collar");
             view.BuildBlower();
             view.SetBlower(blower);
+
+            // The eyes (whites and pupils), for blinking and going wide with alarm.
+            var parts = view.figure.GetComponentsInChildren<Transform>();
+            view.eyes = System.Array.FindAll(parts, t => t.name is "Eye" or "Pupil");
+            view.eyeScales = System.Array.ConvertAll(view.eyes, t => t.localScale);
+            view.seed = Random.value * 100f;
+            view.nextBlink = Random.Range(1f, 4f);
             return view;
         }
 
@@ -136,6 +150,39 @@ namespace RushAhead.Render
 
             var crouch = braced ? 0.8f : 1f;
             figure.localScale = Vector3.Lerp(figure.localScale, new Vector3(1f, crouch, 1f), 1f - Mathf.Exp(-12f * dt));
+        }
+
+        /// <summary>How alarmed the animal is, 0 to 1: the raft heeling toward a capsize makes it tremble and stare.</summary>
+        public void Alarm(float danger) => panic = Mathf.Clamp01(danger);
+
+        /// <summary>Jumps for joy for a couple of seconds: the raft finished, or won.</summary>
+        public void Cheer() => cheering = 2.4f;
+
+        void Update()
+        {
+            var dt = Time.deltaTime;
+
+            // Blink every few seconds, quickly; not while staring in alarm.
+            nextBlink -= dt;
+            if (nextBlink <= 0f && panic < 0.5f)
+            {
+                blinking = 0.12f;
+                nextBlink = Random.Range(2f, 5.5f);
+            }
+
+            blinking = Mathf.Max(0f, blinking - dt);
+            var wide = 1f + 0.3f * panic;
+            var lid = blinking > 0f ? 0.12f : 1f;
+            for (var i = 0; i < eyes.Length; i++)
+                eyes[i].localScale = new Vector3(eyeScales[i].x * wide, eyeScales[i].y * wide * lid, eyeScales[i].z * wide);
+
+            // A cheer is a few happy hops; alarm is a tremble.
+            cheering = Mathf.Max(0f, cheering - dt);
+            var hop = cheering > 0f ? Mathf.Abs(Mathf.Sin((2.4f - cheering) * 9f + seed)) * 0.28f * Mathf.Min(1f, cheering) : 0f;
+            var t = Time.time * 30f + seed;
+            var shiver = panic * panic * 7f;
+            figure.localPosition = new Vector3(0f, hop, 0f);
+            figure.localRotation = Quaternion.Euler((Mathf.PerlinNoise(t, 0f) - 0.5f) * shiver, 0f, (Mathf.PerlinNoise(0f, t) - 0.5f) * shiver);
         }
     }
 }

@@ -18,6 +18,7 @@ namespace RushAhead.EditorTools
         {
             "android.permission.CHANGE_WIFI_MULTICAST_STATE",
             "android.permission.ACCESS_WIFI_STATE",
+            "android.permission.VIBRATE", // short buzzes on bumps, capsizes and bursts
         };
 
         public int callbackOrder => 0;

@@ -27,7 +27,7 @@ namespace RushAhead.EditorTools
             }
 
             // A bright, saturated toy palette, after the reference game.
-            palette.water = Lit("Water", new Color(0.13f, 0.66f, 0.95f), 0.85f);
+            palette.water = Water();
             palette.raftTube = Lit("RaftTube", new Color(1f, 0.72f, 0.56f), 0.45f);
             palette.raftBand = Lit("RaftBand", new Color(0.25f, 0.78f, 0.7f), 0.45f);
             palette.raftFloor = Lit("RaftFloor", new Color(0.55f, 0.85f, 0.45f), 0.2f);
@@ -61,6 +61,16 @@ namespace RushAhead.EditorTools
             sky.SetFloat("_SunSize", 0.03f);
             EditorUtility.SetDirty(sky);
             return sky;
+        }
+
+        /// <summary>The stylized water (Shaders/Water.shader): the reference's bright blue with drifting ripples and glints.</summary>
+        static Material Water()
+        {
+            var material = LoadOrCreateMaterial("Water", "RushAhead/Water");
+            material.SetColor("_BaseColor", new Color(0.13f, 0.66f, 0.95f));
+            material.SetColor("_RippleColor", new Color(0.62f, 0.9f, 1f));
+            EditorUtility.SetDirty(material);
+            return material;
         }
 
         static Material Lit(string name, Color color, float smoothness)

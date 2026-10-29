@@ -45,6 +45,14 @@ namespace RushAhead.Render
             view.farClipPlane = 400f;
         }
 
+        float trauma;
+
+        /// <summary>
+        /// Shakes the view for a bump or a capsize: 0.2 is a nudge, 1 a big crash. Shakes add up and die away over about
+        /// a second, and the shake grows with the square of what's left, so small knocks stay small.
+        /// </summary>
+        public void Shake(float amount) => trauma = Mathf.Min(1f, trauma + amount);
+
         public void SnapTo(Vector2 position, float headingRad)
         {
             yawRad = headingRad;
@@ -71,6 +79,14 @@ namespace RushAhead.Render
 
             focus = Vector3.Lerp(focus, Focus(TargetPosition()), 1f - Mathf.Exp(-FollowRate * dt));
             Place();
+
+            if (trauma <= 0f) return;
+            trauma = Mathf.Max(0f, trauma - dt * 1.4f);
+            var shake = trauma * trauma;
+            var t = Time.time * 24f;
+            transform.position += transform.right * ((Mathf.PerlinNoise(t, 0f) - 0.5f) * 0.7f * shake) +
+                                  transform.up * ((Mathf.PerlinNoise(0f, t) - 0.5f) * 0.5f * shake);
+            transform.rotation *= Quaternion.Euler(0f, 0f, (Mathf.PerlinNoise(t, t) - 0.5f) * 6f * shake);
         }
 
         Vector3 Focus(Vector2 position) => SimSpace.ToWorld(position + Forward * LookAhead, LookHeight);

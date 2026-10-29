@@ -7,7 +7,8 @@
         "RushAhead.Content",
         "RushAhead.Sim",
         "RushAhead.Net",
-        "RushAhead.UI"
+        "RushAhead.UI",
+        "RushAhead.Render"
     ],
     "includePlatforms": ["Editor"],
     "excludePlatforms": [],

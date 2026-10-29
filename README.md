@@ -54,6 +54,15 @@ connecting, lobby, race, results, your animal and settings. During a race the HU
 touch goes through `CrewInputRouter` and `TouchControls`, so steering with one thumb never stops the
 other from pressing Burst or Brace.
 
+## Sound
+
+Every sound is synthesized in code (`Scripts/Render/Audio`): no audio files to ship or license. To listen
+to them outside the game, export them as WAVs into `Logs/Sounds`:
+
+```bash
+"$UNITY" -batchmode -quit -projectPath . -executeMethod RushAhead.EditorTools.SoundExport.Export -logFile -
+```
+
 ## Checking it without a phone
 
 A player build walks every screen by itself and saves a screenshot of each:

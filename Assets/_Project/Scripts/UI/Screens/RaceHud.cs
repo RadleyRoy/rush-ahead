@@ -56,6 +56,11 @@ namespace RushAhead.UI
         float air = 1f;
         float finishedAt = -1f;
         bool subscribed;
+        int heardCountdown;
+        int heardGates;
+        bool heardGo;
+        bool heardFinish;
+        RaftView feeling;
 
         public RaceHud(GameUi ui) : base(ui)
         {
@@ -269,6 +274,10 @@ namespace RushAhead.UI
         public override void OnShow()
         {
             finishedAt = -1f;
+            heardCountdown = 0;
+            heardGates = Game.Run.GatesPassed;
+            heardGo = Game.Run.SinceStart >= 0f;
+            heardFinish = Game.Run.Finished;
             if (!subscribed) Game.Router.ButtonTapped += Tapped;
             subscribed = true;
         }
@@ -277,12 +286,14 @@ namespace RushAhead.UI
         {
             if (subscribed) Game.Router.ButtonTapped -= Tapped;
             subscribed = false;
+            Feel(null);
             Game.Router.Touch.ClearButtons();
             Game.Router.Touch.CancelCapture();
         }
 
         void Tapped(string id)
         {
+            GameAudio.Instance?.Play(GameAudio.Instance.Bank.Click, 0.5f);
             if (id == "pause")
             {
                 Flow.Pause();
@@ -395,10 +406,82 @@ namespace RushAhead.UI
             Ui.Show(pauseMenu, Flow.Paused);
             if (Flow.Paused) RefreshPauseMenu();
 
+            Feel(Game.RaftView);
+            UpdateSounds(run);
             UpdateKeys();
             UpdateTags();
             sticks.MarkDirtyRepaint();
             ReportButtons(controls && canBurst, controls, orders);
+        }
+
+        /// <summary>Your own raft's knocks, capsizes and bursts shake the camera and buzz the phone.</summary>
+        void Feel(RaftView view)
+        {
+            if (view == feeling) return;
+            if (feeling != null)
+            {
+                feeling.Bumped -= OnBumped;
+                feeling.Capsized -= OnCapsized;
+                feeling.Burst -= OnBurst;
+            }
+
+            feeling = view;
+            if (feeling == null) return;
+            feeling.Bumped += OnBumped;
+            feeling.Capsized += OnCapsized;
+            feeling.Burst += OnBurst;
+        }
+
+        void OnBumped(float strength)
+        {
+            App.Chase.Shake(0.2f + 0.55f * strength);
+            Haptics.Pulse(Mathf.RoundToInt(25f + 55f * strength), 0.35f + 0.65f * strength);
+        }
+
+        void OnCapsized()
+        {
+            App.Chase.Shake(0.85f);
+            Haptics.Pulse(320, 1f);
+        }
+
+        void OnBurst(int seat)
+        {
+            if (seat == Game.Router.SeatForSlot(0)) Haptics.Pulse(22, 0.45f);
+        }
+
+        /// <summary>3, 2, 1 beeps and GO, a chime at each checkpoint, a fanfare (and confetti) at the finish.</summary>
+        void UpdateSounds(RaceInfo run)
+        {
+            var audio = GameAudio.Instance;
+            if (!run.Active) return;
+            if (run.Countdown > 0 && run.Countdown != heardCountdown)
+            {
+                heardCountdown = run.Countdown;
+                heardGo = false;
+                heardFinish = false;
+                heardGates = 0;
+                audio?.Play(audio.Bank.Beep, 0.8f);
+            }
+
+            if (!heardGo && run.Countdown == 0 && run.SinceStart >= 0f && run.SinceStart < 1f)
+            {
+                heardGo = true;
+                audio?.Play(audio.Bank.Go, 0.9f);
+            }
+
+            if (run.GatesPassed > heardGates)
+            {
+                heardGates = run.GatesPassed;
+                if (!run.Finished) audio?.Play(audio.Bank.Chime, 0.7f);
+            }
+
+            if (run.Finished && !heardFinish)
+            {
+                heardFinish = true;
+                audio?.Play(audio.Bank.Fanfare, 0.85f);
+                if (Game.RaftView != null) Game.RaftView.Celebrate();
+                Haptics.Pulse(120, 0.6f);
+            }
         }
 
         void RefreshPauseMenu()

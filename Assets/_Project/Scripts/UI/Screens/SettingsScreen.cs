@@ -12,6 +12,9 @@ namespace RushAhead.UI
         Segmented frames;
         Segmented quality;
         Segmented dev;
+        Segmented sound;
+        Segmented music;
+        Segmented buzz;
 
         public SettingsScreen(GameUi ui) : base(ui)
         {
@@ -36,6 +39,15 @@ namespace RushAhead.UI
                 "settings-aim", new[] { "The raft", "The air" }, i => S.directNozzleAim = i == 1);
             hand = Option(body, "Stick on the", "Left-handed puts the stick on the right and Burst and Brace on the left.",
                 "settings-hand", new[] { "Left", "Right" }, i => S.leftHanded = i == 1);
+
+            body.Add(Ui.Spacer());
+            body.Add(Ui.Text("Sound", "h2"));
+            sound = Option(body, "Sound effects", "Blowers, splashes, bumps and the countdown.", "settings-sound", new[] { "Off", "Low", "Full" },
+                i => S.soundVolume = i * 0.5f);
+            music = Option(body, "Music", "The tunes in the menus and the race.", "settings-music", new[] { "Off", "Low", "Full" },
+                i => S.musicVolume = i * 0.5f);
+            buzz = Option(body, "Vibration", "A buzz when your raft bumps, capsizes or bursts.", "settings-vibration", new[] { "Off", "On" },
+                i => S.vibration = i == 1);
 
             body.Add(Ui.Spacer());
             body.Add(Ui.Text("Display", "h2"));
@@ -88,6 +100,9 @@ namespace RushAhead.UI
             frames.Selected = S.frameRate == 30 ? 0 : 1;
             quality.Selected = S.quality < 0 ? Mathf.Clamp(QualitySettings.GetQualityLevel() - 1, 0, 2) : Mathf.Clamp(S.quality - 1, 0, 2);
             dev.Selected = S.developerTools ? 1 : 0;
+            sound.Selected = Mathf.RoundToInt(S.soundVolume * 2f);
+            music.Selected = Mathf.RoundToInt(S.musicVolume * 2f);
+            buzz.Selected = S.vibration ? 1 : 0;
         }
     }
 }
