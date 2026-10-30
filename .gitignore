@@ -70,3 +70,8 @@ crashlytics-buildid.txt
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# Signing keys never go in the repository
+*.keystore
+*.jks
+*.keystore.env

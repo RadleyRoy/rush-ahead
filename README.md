@@ -54,6 +54,13 @@ connecting, lobby, race, results, your animal and settings. During a race the HU
 touch goes through `CrewInputRouter` and `TouchControls`, so steering with one thumb never stops the
 other from pressing Burst or Brace.
 
+## Releasing
+
+`Store/RELEASE.md` walks through publishing on Google Play: the package name, your upload key, the signed
+release bundle (`BuildScript.AndroidRelease`), and the Play Console steps. `Store/LISTING.md` has the store text
+and draft answers for Play's forms, `Store/PRIVACY.md` the privacy policy, and `Store/Graphics` the icon, feature
+graphic and screenshots (made by `Design/store_art.py` from a release build's captures).
+
 ## Sound
 
 Every sound is synthesized in code (`Scripts/Render/Audio`): no audio files to ship or license. To listen

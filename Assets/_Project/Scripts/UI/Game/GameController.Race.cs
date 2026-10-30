@@ -265,13 +265,13 @@ namespace RushAhead.UI
         public bool IsOpen(int index)
         {
             if (index <= 0 || index > courses.Length) return index == 0;
-            if (Ui != null && Ui.Settings.developerTools) return true;
+            if (Ui != null && Ui.DeveloperTools) return true;
             return TotalStars >= courses[index - 1].starsToUnlock;
         }
 
         string OpenedBetween(int before, int after)
         {
-            if (Ui != null && Ui.Settings.developerTools) return null;
+            if (Ui != null && Ui.DeveloperTools) return null;
             var names = new List<string>();
             foreach (var def in courses)
                 if (def.starsToUnlock > before && def.starsToUnlock <= after) names.Add(def.displayName);

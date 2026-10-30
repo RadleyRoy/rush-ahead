@@ -108,12 +108,15 @@ namespace RushAhead.UI
             showcase.enabled = false;
         }
 
+        /// <summary>The developer tools (tuning sliders, every course open): development builds only, never the store's.</summary>
+        public bool DeveloperTools => Settings.developerTools && Debug.isDebugBuild;
+
         /// <summary>Puts the settings into effect, and shows or hides the developer tools.</summary>
         public void ApplySettings()
         {
             Settings.Apply(Game.Router);
             var dev = Game.GetComponent<DevOverlay>();
-            var wanted = Settings.developerTools || CommandLine.Has("-rushahead-dev");
+            var wanted = DeveloperTools || CommandLine.Has("-rushahead-dev");
             if (wanted && dev == null) Game.gameObject.AddComponent<DevOverlay>().Game = Game;
             if (dev != null) dev.enabled = wanted;
         }

@@ -9,6 +9,7 @@ namespace RushAhead.UI
     /// <summary>
     /// Scripted run for checking the feel test without a human: launch a player build with
     /// <c>-rushahead-demo &lt;output folder&gt;</c> and it drives the boat, saves screenshots, logs state and quits.
+    /// Add <c>-rushahead-no-hud</c> for shots without the screens over the game (store art).
     /// Add <c>-rushahead-crew &lt;1-4&gt;</c> to run it with a smaller crew. On a course (<c>-rushahead-course n</c>), it
     /// photographs the course from above first, lets the autopilot (or the host's crew) race it, and quits after the results.
     /// </summary>
@@ -78,9 +79,12 @@ namespace RushAhead.UI
             Debug.Log($"[RushAhead] Auto demo writing to {demo.outputFolder}");
         }
 
+        static readonly bool NoHud = CommandLine.Has("-rushahead-no-hud"); // clean shots for store art
+
         void Update()
         {
             elapsed += Time.deltaTime;
+            if (NoHud && game.Ui.Visible && elapsed > 0.9f) game.Ui.Visible = false;
             if (!titleShot && elapsed >= 0.5f)
             {
                 titleShot = true;

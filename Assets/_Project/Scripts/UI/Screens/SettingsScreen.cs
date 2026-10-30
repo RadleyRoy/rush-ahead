@@ -57,8 +57,9 @@ namespace RushAhead.UI
 
             body.Add(Ui.Spacer());
             body.Add(Ui.Text("Advanced", "h2"));
-            dev = Option(body, "Developer tools", "Live tuning sliders and a frame-rate readout.", "settings-dev", new[] { "Off", "On" },
+            dev = Option(body, "Developer tools", "Live tuning sliders, a frame-rate readout and every course open.", "settings-dev", new[] { "Off", "On" },
                 i => S.developerTools = i == 1);
+            Ui.Show(dev.parent, Debug.isDebugBuild); // not in the store build
             var reset = Btn("settings-reset-bests", "Reset best times", () => App.Confirm("Forget every best time on this phone?", null, "Reset", () =>
             {
                 Records.Clear(Game.Courses);

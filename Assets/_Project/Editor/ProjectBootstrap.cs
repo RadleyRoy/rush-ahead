@@ -16,8 +16,7 @@ namespace RushAhead.EditorTools
         public const string ProductName = "Rush Ahead";
         public const string CompanyName = "Rush Ahead";
 
-        // Placeholder. The Android application id is permanent once published to Google Play,
-        // so confirm the final value before the first store upload.
+        // The store identity, chosen for good on 30 Oct 2026: Google Play never lets it change once a build is uploaded.
         public const string BundleId = "com.rushahead.game";
 
         [MenuItem("Rush Ahead/Apply Project Settings")]
@@ -39,6 +38,12 @@ namespace RushAhead.EditorTools
             // Google Play requires 64-bit; IL2CPP is required for ARM64.
             PlayerSettings.SetScriptingBackend(NamedBuildTarget.Android, ScriptingImplementation.IL2CPP);
             PlayerSettings.Android.targetArchitectures = AndroidArchitecture.ARM64;
+
+            // Google Play needs a recent target: Android 16 (API 36). Pinned rather than "highest installed", which could
+            // pick a preview SDK Play won't accept. The lowest is Android 7.1, which nearly every phone in use runs.
+            PlayerSettings.Android.targetSdkVersion = AndroidSdkVersions.AndroidApiLevel36;
+            PlayerSettings.Android.minSdkVersion = AndroidSdkVersions.AndroidApiLevel25;
+            PlayerSettings.bundleVersion = BuildScript.Version;
 
             // LAN play opens UDP sockets; don't rely on Unity spotting that and adding the permission itself.
             PlayerSettings.Android.forceInternetPermission = true;
