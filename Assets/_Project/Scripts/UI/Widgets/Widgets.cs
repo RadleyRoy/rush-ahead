@@ -56,6 +56,55 @@ namespace RushAhead.UI
         }
     }
 
+    /// <summary>A raft's lives as hearts, full or empty (the built-in font has no heart either).</summary>
+    public sealed class HeartRow : VisualElement
+    {
+        static readonly Color Full = new(1f, 0.36f, 0.42f);
+        static readonly Color Empty = new(1f, 1f, 1f, 0.2f);
+        readonly float size;
+        readonly int hearts;
+        int full;
+
+        public HeartRow(float size = 40f, int hearts = 3)
+        {
+            this.size = size;
+            this.hearts = hearts;
+            full = hearts;
+            style.width = size * hearts + size * 0.25f * (hearts - 1);
+            style.height = size;
+            style.flexShrink = 0;
+            generateVisualContent += Draw;
+        }
+
+        public int Count
+        {
+            get => full;
+            set
+            {
+                if (full == value) return;
+                full = value;
+                MarkDirtyRepaint();
+            }
+        }
+
+        void Draw(MeshGenerationContext context)
+        {
+            var painter = context.painter2D;
+            for (var i = 0; i < hearts; i++)
+            {
+                var c = new Vector2(size * 0.5f + i * size * 1.25f, size * 0.5f);
+                var s = size;
+                painter.fillColor = i < full ? Full : Empty;
+                painter.BeginPath();
+                painter.MoveTo(c + new Vector2(0f, s * 0.42f));
+                painter.BezierCurveTo(c + new Vector2(-s * 0.62f, s * 0.02f), c + new Vector2(-s * 0.5f, -s * 0.5f), c + new Vector2(0f, -s * 0.2f));
+                painter.BezierCurveTo(c + new Vector2(s * 0.5f, -s * 0.5f), c + new Vector2(s * 0.62f, s * 0.02f), c + new Vector2(0f, s * 0.42f));
+                painter.ClosePath();
+                painter.Fill();
+            }
+        }
+    }
+
     /// <summary>A round swatch of colour: fur colours and team colours.</summary>
     public sealed class Swatch : VisualElement
     {

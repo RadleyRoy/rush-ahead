@@ -54,6 +54,18 @@ connecting, lobby, race, results, your animal and settings. During a race the HU
 touch goes through `CrewInputRouter` and `TouchControls`, so steering with one thumb never stops the
 other from pressing Burst or Brace.
 
+## Courses
+
+The six courses are laid out in code (`Assets/_Project/Editor/CourseLibrary.cs`): the river, checkpoints, rocks,
+barrels and logs, currents and whirlpools, the river's flow, and the obstacles (paddle wheels, crocodiles, logs
+swinging under bridges, geysers). The assets in `Assets/_Project/Content/Courses` are made from it once and never
+overwritten, so edits in the Inspector stick. After changing a layout in code, put every course back to the code's
+layout (keeping the assets, so nothing pointing at them breaks):
+
+```bash
+"$UNITY" -batchmode -quit -projectPath . -executeMethod RushAhead.EditorTools.CourseLibrary.Rebuild -logFile -
+```
+
 ## Releasing
 
 `Store/RELEASE.md` walks through publishing on Google Play: the package name, your upload key, the signed

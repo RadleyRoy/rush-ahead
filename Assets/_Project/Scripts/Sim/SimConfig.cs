@@ -31,6 +31,9 @@ namespace RushAhead.Sim
                  "sliding; set it equal to forward drag for a free-spinning, puck-like ring.")]
         [Min(0f)] public float lateralDrag = 40f;
         [Min(0f)] public float angularDrag = 18f;
+        [Tooltip("How quickly moving water brings a raft that's slower than it up to its speed, per second. Drag alone takes " +
+                 "about ten seconds to get an idle raft drifting; this is what makes the river carry it. Never slows a faster raft.")]
+        [Min(0f)] public float waterCarry = 0.6f;
 
         [Header("Blowers")]
         [Tooltip("How fast an animal can swing its blower round, in degrees per second. Turns stick flicks and " +

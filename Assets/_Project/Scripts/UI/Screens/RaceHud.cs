@@ -33,11 +33,14 @@ namespace RushAhead.UI
         Label clock;
         Label checkpoint;
         Label split;
+        HeartRow hearts;
         Label best;
         VisualElement teamTrack;
         VisualElement redMarker;
         VisualElement blueMarker;
         Label teamLabel;
+        Label rivalLabel;
+        HeartRow rivalHearts;
         Label centre;
         Label capsized;
         Label watching;
@@ -55,6 +58,9 @@ namespace RushAhead.UI
         Button leave;
         float air = 1f;
         float finishedAt = -1f;
+        float outAt = -1f;
+        float heartsLostAt = -10f;
+        int shownLives = Race.MaxLives;
         bool subscribed;
         int heardCountdown;
         int heardGates;
@@ -111,8 +117,11 @@ namespace RushAhead.UI
             clock.style.fontSize = 88;
             checkpoint = Ui.Text("", "small");
             split = Ui.Text("", "h3");
+            hearts = new HeartRow(38f, Race.MaxLives);
+            hearts.style.marginTop = 8;
             clockPanel.Add(clock);
             clockPanel.Add(checkpoint);
+            clockPanel.Add(hearts);
             clockPanel.Add(split);
             Root.Add(clockPanel);
 
@@ -144,8 +153,15 @@ namespace RushAhead.UI
                 lane.Add(marker);
             }
 
+            rivalLabel = Ui.Text("", "small");
+            rivalHearts = new HeartRow(26f, Race.MaxLives);
+            rivalHearts.style.marginLeft = 12;
+            var rivalRow = Ui.El("row", rivalLabel, rivalHearts);
+            rivalRow.style.marginTop = 14;
+            rivalRow.style.alignItems = Align.Center;
             teamTrack.Add(teamLabel);
             teamTrack.Add(lane);
+            teamTrack.Add(rivalRow);
             Root.Add(teamTrack);
 
             // Middle: 3, 2, 1, GO!, FINISH!, capsized.
@@ -356,19 +372,40 @@ namespace RushAhead.UI
                 redMarker.style.left = new Length(redProgress * 92f, LengthUnit.Percent);
                 blueMarker.style.left = new Length(blueProgress * 92f, LengthUnit.Percent);
                 Ui.Set(teamLabel, $"You're {GameController.TeamName(run.MyRaft)}   Red {Mathf.RoundToInt(redProgress * 100f)}%   Blue {Mathf.RoundToInt(blueProgress * 100f)}%");
+                var rival = GameController.TeamName(1 - run.MyRaft);
+                Ui.Set(rivalLabel, run.RivalOut ? $"{rival} is out of lives!" : $"{rival}'s lives");
+                rivalHearts.Count = run.RivalLives;
             }
+
+            // Lives: the hearts jump when one goes.
+            Ui.Show(hearts, run.Active);
+            if (run.Lives < shownLives) heartsLostAt = Time.unscaledTime;
+            shownLives = run.Lives;
+            hearts.Count = run.Lives;
+            var sinceLost = Time.unscaledTime - heartsLostAt;
+            var jump = sinceLost < 0.8f ? 1f + 0.3f * Mathf.Sin(sinceLost * 20f) * (1f - sinceLost / 0.8f) : 1f;
+            hearts.style.scale = new Scale(new Vector2(jump, jump));
 
             // The big words in the middle.
             if (run.Finished && finishedAt < 0f) finishedAt = Time.unscaledTime;
             if (!run.Finished) finishedAt = -1f;
+            if (run.Out && outAt < 0f) outAt = Time.unscaledTime;
+            if (!run.Out) outAt = -1f;
             var words = !run.Active ? null
                 : run.Countdown > 0 ? run.Countdown.ToString()
                 : run.SinceStart < 1f ? "GO!"
                 : finishedAt >= 0f && Time.unscaledTime - finishedAt < 2.5f ? (run.TeamRace && run.Winner == run.MyRaft ? "YOU WIN!" : "FINISH!")
+                : outAt >= 0f && Time.unscaledTime - outAt < 2.5f ? "OUT!"
                 : null;
             Ui.Show(centre, words != null);
             if (words != null) Ui.Set(centre, words);
-            Ui.Show(capsized, boat != null && boat.Capsized);
+            var trouble = !run.Active ? null
+                : run.Out ? run.TeamRace ? "Out of lives! Waiting for the other raft..." : "Out of lives!"
+                : run.Fallen ? "Overboard!"
+                : boat != null && boat.Capsized ? "Capsized! Hang on..."
+                : null;
+            Ui.Show(capsized, trouble != null);
+            if (trouble != null) Ui.Set(capsized, trouble);
             Ui.Show(watching, spectator);
 
             // Leaning over: a red edge, and Brace pulses.
@@ -422,6 +459,7 @@ namespace RushAhead.UI
             {
                 feeling.Bumped -= OnBumped;
                 feeling.Capsized -= OnCapsized;
+                feeling.Fell -= OnFell;
                 feeling.Burst -= OnBurst;
             }
 
@@ -429,6 +467,7 @@ namespace RushAhead.UI
             if (feeling == null) return;
             feeling.Bumped += OnBumped;
             feeling.Capsized += OnCapsized;
+            feeling.Fell += OnFell;
             feeling.Burst += OnBurst;
         }
 
@@ -442,6 +481,12 @@ namespace RushAhead.UI
         {
             App.Chase.Shake(0.85f);
             Haptics.Pulse(320, 1f);
+        }
+
+        void OnFell()
+        {
+            App.Chase.Shake(1f);
+            Haptics.Pulse(450, 1f);
         }
 
         void OnBurst(int seat)

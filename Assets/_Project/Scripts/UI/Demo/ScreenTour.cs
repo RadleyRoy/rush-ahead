@@ -108,6 +108,8 @@ namespace RushAhead.UI
             Press(0.2f, "animal-fur-6");
             Press(0.2f, "animal-blower-1");
             Shot(1.2f, "03-animal-changed");
+            Do(0.2f, "scroll to the blowers", () => game.Ui.ScrollTo("animal-blower-4"));
+            Shot(0.8f, "03b-animal-blowers");
             Press(0.2f, "animal-done");
 
             Press(0.4f, "menu-settings");

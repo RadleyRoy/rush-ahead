@@ -89,6 +89,7 @@ MonoBehaviour:
   - 219.96066
   - 282.3421
   - 335.15366
+  flow: 1.8
   rocks:
   - position: {x: 48.601902, y: 20.506645}
     radius: 1.1
@@ -139,6 +140,34 @@ MonoBehaviour:
     radius: 6
     spin: 1.6
     pull: 0.8
-  parSeconds: 187
-  twoStarSeconds: 158
-  threeStarSeconds: 134
+  wheels:
+  - position: {x: 25.052895, y: -1.3353081}
+    radius: 2.8
+    arms: 3
+    degreesPerSecond: -60
+  - position: {x: 195.84964, y: 32.09188}
+    radius: 2.6
+    arms: 3
+    degreesPerSecond: 70
+  crocodiles: []
+  swingers:
+  - distance: 125.24874
+    period: 5
+    offset: 0
+    logLength: 3.5
+  - distance: 323.02118
+    period: 4.5
+    offset: 1.5
+    logLength: 3.5
+  geysers:
+  - position: {x: 149.92038, y: 17.442429}
+    radius: 1.8
+    period: 5
+    offset: 0
+  - position: {x: 248.3811, y: 60.50508}
+    radius: 1.6
+    period: 4.5
+    offset: 2
+  parSeconds: 108
+  twoStarSeconds: 91
+  threeStarSeconds: 86

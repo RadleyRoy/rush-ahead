@@ -89,6 +89,80 @@ namespace RushAhead.Content
         }
     }
 
+    /// <summary>A paddle wheel turning in the river: its arms sweep rafts sideways, toward the edge.</summary>
+    [Serializable]
+    public struct WheelSpot
+    {
+        public Vector2 position;
+        [Tooltip("Arm length, in metres.")] [Min(1f)] public float radius;
+        [Range(2, 6)] public int arms;
+        [Tooltip("Turning speed; positive is anticlockwise seen from above.")] public float degreesPerSecond;
+
+        public WheelSpot(Vector2 position, float radius, int arms, float degreesPerSecond)
+        {
+            this.position = position;
+            this.radius = radius;
+            this.arms = arms;
+            this.degreesPerSecond = degreesPerSecond;
+        }
+    }
+
+    /// <summary>A crocodile waiting at the river's edge that lunges across on a timetable and rams whatever is there.</summary>
+    [Serializable]
+    public struct CrocSpot
+    {
+        [Tooltip("Metres down the river.")] public float distance;
+        [Tooltip("Which edge it waits at: +1 the left, -1 the right.")] public float side;
+        [Tooltip("How far across it lunges, as a share of the river's width.")] [Range(0.2f, 0.9f)] public float reach;
+        [Tooltip("Seconds between lunges.")] [Min(2f)] public float period;
+        [Tooltip("Seconds added to the clock, so crocs don't all lunge together.")] public float offset;
+
+        public CrocSpot(float distance, float side, float reach, float period, float offset)
+        {
+            this.distance = distance;
+            this.side = side;
+            this.reach = reach;
+            this.period = period;
+            this.offset = offset;
+        }
+    }
+
+    /// <summary>A bridge over the river with a log swinging beneath it: brace to duck under it, or be knocked over.</summary>
+    [Serializable]
+    public struct SwingSpot
+    {
+        [Tooltip("Metres down the river.")] public float distance;
+        [Tooltip("Seconds for a swing across and back.")] [Min(2f)] public float period;
+        public float offset;
+        [Min(1f)] public float logLength;
+
+        public SwingSpot(float distance, float period, float offset, float logLength)
+        {
+            this.distance = distance;
+            this.period = period;
+            this.offset = offset;
+            this.logLength = logLength;
+        }
+    }
+
+    /// <summary>A geyser in the riverbed: it bubbles a warning, then spouts and throws any raft over it off balance.</summary>
+    [Serializable]
+    public struct GeyserSpot
+    {
+        public Vector2 position;
+        [Min(1f)] public float radius;
+        [Tooltip("Seconds between spouts.")] [Min(3f)] public float period;
+        public float offset;
+
+        public GeyserSpot(Vector2 position, float radius, float period, float offset)
+        {
+            this.position = position;
+            this.radius = radius;
+            this.period = period;
+            this.offset = offset;
+        }
+    }
+
     /// <summary>Where a course is: it sets the look of the banks, not the rules.</summary>
     public enum CourseScene
     {
@@ -127,11 +201,20 @@ namespace RushAhead.Content
         public float[] gates = Array.Empty<float>();
 
         [Header("Water")]
+        [Tooltip("How fast the river runs everywhere, in metres per second down the river at mid-stream: it carries the rafts along.")]
+        [Min(0f)] public float flow = 1.2f;
+
         public RockSpot[] rocks = Array.Empty<RockSpot>();
         public Vector2[] barrels = Array.Empty<Vector2>();
         public LogSpot[] logs = Array.Empty<LogSpot>();
         public CurrentZone[] currents = Array.Empty<CurrentZone>();
         public WhirlpoolSpot[] whirlpools = Array.Empty<WhirlpoolSpot>();
+
+        [Header("Obstacles")]
+        public WheelSpot[] wheels = Array.Empty<WheelSpot>();
+        public CrocSpot[] crocodiles = Array.Empty<CrocSpot>();
+        public SwingSpot[] swingers = Array.Empty<SwingSpot>();
+        public GeyserSpot[] geysers = Array.Empty<GeyserSpot>();
 
         [Header("Scoring (seconds)")]
         [Tooltip("Finish within par for one star.")]

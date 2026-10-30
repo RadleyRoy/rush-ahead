@@ -156,7 +156,8 @@ namespace RushAhead.Tests
         {
             Assert.That(flow.Back(), Is.EqualTo(BackAction.Handled), "skips the title");
             Assert.That(flow.Screen, Is.EqualTo(AppScreen.MainMenu));
-            Assert.That(flow.Back(), Is.EqualTo(BackAction.None));
+            Assert.That(flow.Back(), Is.EqualTo(BackAction.ConfirmQuit), "asks before quitting");
+            Assert.That(flow.Screen, Is.EqualTo(AppScreen.MainMenu));
 
             flow.OpenHost();
             Assert.That(flow.Back(), Is.EqualTo(BackAction.Handled));

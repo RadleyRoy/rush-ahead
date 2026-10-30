@@ -117,6 +117,9 @@ namespace RushAhead.Net
         public byte CapsizeCount;
         public byte GatesPassed;
         public uint FinishTick;
+        public bool Fallen;
+        public bool Out;
+        public byte Lives;
 
         /// <summary>Wraps at 256; only ever compared for change.</summary>
         public byte TeleportCount;
@@ -172,10 +175,10 @@ namespace RushAhead.Net
     public static class Protocol
     {
         /// <summary>Bump on any wire-format change. Mismatched peers refuse each other.</summary>
-        public const byte Version = 6;
+        public const byte Version = 7;
 
         const byte FlagHasAim = 1, FlagBrace = 2;
-        const byte BoatCapsized = 1;
+        const byte BoatCapsized = 1, BoatFallen = 2, BoatOut = 4;
         const byte CrewBraced = 1;
         const byte SeatHuman = 1, SeatHost = 2, SeatYours = 4, SeatAi = 8, SeatKept = 16;
         const int MaxBoats = 8, MaxCrew = 4, MaxRafts = 2, MaxProps = 64;
@@ -427,11 +430,12 @@ namespace RushAhead.Net
                 w.I16(Quantize.Spin(boat.AngularVelocity));
                 w.I16(Quantize.Tilt(boat.Tilt.x));
                 w.I16(Quantize.Tilt(boat.Tilt.y));
-                w.U8(boat.Capsized ? BoatCapsized : (byte)0);
+                w.U8((byte)((boat.Capsized ? BoatCapsized : 0) | (boat.Fallen ? BoatFallen : 0) | (boat.Out ? BoatOut : 0)));
                 w.U8(boat.CapsizeCount);
                 w.U8(boat.GatesPassed);
                 w.U32(boat.FinishTick);
                 w.U8(boat.TeleportCount);
+                w.U8(boat.Lives);
                 w.U8((byte)boat.Crew.Count);
                 foreach (var crew in boat.Crew)
                 {
@@ -469,11 +473,15 @@ namespace RushAhead.Net
                 boat.Velocity = new Vector2(Quantize.Velocity(r.I16()), Quantize.Velocity(r.I16()));
                 boat.AngularVelocity = Quantize.Spin(r.I16());
                 boat.Tilt = new Vector2(Quantize.Tilt(r.I16()), Quantize.Tilt(r.I16()));
-                boat.Capsized = (r.U8() & BoatCapsized) != 0;
+                var state = r.U8();
+                boat.Capsized = (state & BoatCapsized) != 0;
+                boat.Fallen = (state & BoatFallen) != 0;
+                boat.Out = (state & BoatOut) != 0;
                 boat.CapsizeCount = r.U8();
                 boat.GatesPassed = r.U8();
                 boat.FinishTick = r.U32();
                 boat.TeleportCount = r.U8();
+                boat.Lives = r.U8();
 
                 var crew = Bounded(r.U8(), MaxCrew, "crew count");
                 boat.Crew.Clear();

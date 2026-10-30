@@ -5,15 +5,22 @@ namespace RushAhead.Render
 {
     /// <summary>
     /// A chunky toy-like animal built from primitives, standing on the raft and holding its blower out in
-    /// front. Faces +Z; the air leaves along <see cref="Nozzle"/>'s forward. Phase 8 swaps in real models.
+    /// front (each kind of blower its own model, see <see cref="BlowerModels"/>). Faces +Z; the air leaves along
+    /// <see cref="Nozzle"/>'s forward.
     /// </summary>
     public sealed class AnimalView : MonoBehaviour
     {
         static readonly Color Pink = new(1f, 0.62f, 0.7f);
 
         Transform figure;
-        Renderer blowerBody;
+        Transform blowerRoot;
+        Transform blowerModel;
+        Transform moving;
+        BlowerKind kind;
+        BlowerDef shownBlower;
         ArtPalette palette;
+        float squeeze;
+        float blowing;
         Transform[] eyes;
         Vector3[] eyeScales;
         float nextBlink;
@@ -130,15 +137,33 @@ namespace RushAhead.Render
 
         void BuildBlower()
         {
-            var blower = Shapes3D.Group(figure, "Blower", new Vector3(0f, 0.55f, 0.32f));
-            blowerBody = Shapes3D.Primitive(PrimitiveType.Cylinder, blower, Vector3.zero, new Vector3(0.22f, 0.17f, 0.22f), palette.animal,
-                Quaternion.Euler(90f, 0f, 0f), "Body").GetComponent<Renderer>();
-            Shapes3D.Primitive(PrimitiveType.Cylinder, blower, new Vector3(0f, 0f, 0.36f), new Vector3(0.1f, 0.22f, 0.1f), palette.blowerTrim,
-                Quaternion.Euler(90f, 0f, 0f), "Pipe");
-            Nozzle = Shapes3D.Group(blower, "Nozzle", new Vector3(0f, 0f, 0.6f));
+            blowerRoot = Shapes3D.Group(figure, "Blower", new Vector3(0f, 0.55f, 0.32f));
+            Nozzle = Shapes3D.Group(blowerRoot, "Nozzle", new Vector3(0f, 0f, 0.6f)); // kept across blower changes: the air and its sound hang off it
         }
 
-        public void SetBlower(BlowerDef blower) => blowerBody.sharedMaterial = palette.Tinted(palette.animal, blower.color);
+        /// <summary>Holds this blower: its own model in its own colour, with the nozzle moved to its tip.</summary>
+        public void SetBlower(BlowerDef blower)
+        {
+            if (blower == shownBlower && blowerModel != null) return;
+            shownBlower = blower;
+            if (blowerModel != null)
+            {
+                if (Application.isPlaying) Destroy(blowerModel.gameObject);
+                else DestroyImmediate(blowerModel.gameObject);
+            }
+
+            kind = BlowerModels.KindOf(blower);
+            blowerModel = Shapes3D.Group(blowerRoot, "Model");
+            var (nozzle, part) = BlowerModels.Build(kind, blowerModel, blower != null ? blower.color : Color.white, palette);
+            moving = part;
+            Nozzle.localPosition = nozzle;
+        }
+
+        /// <summary>A burst: the bellows squeeze shut, anything else kicks back in the hands.</summary>
+        public void Puff() => squeeze = 1f;
+
+        /// <summary>How hard the blower is running, 0 to 1: the fan waves, motors rumble.</summary>
+        public void Blowing(float spool) => blowing = Mathf.Clamp01(spool);
 
         /// <summary>Turns to point the blower along <paramref name="airDirection"/> and crouches when bracing.</summary>
         public void Pose(Vector3 airDirection, Vector3 up, bool braced, float dt)
@@ -183,6 +208,30 @@ namespace RushAhead.Render
             var shiver = panic * panic * 7f;
             figure.localPosition = new Vector3(0f, hop, 0f);
             figure.localRotation = Quaternion.Euler((Mathf.PerlinNoise(t, 0f) - 0.5f) * shiver, 0f, (Mathf.PerlinNoise(0f, t) - 0.5f) * shiver);
+            AnimateBlower(dt);
+        }
+
+        void AnimateBlower(float dt)
+        {
+            if (blowerModel == null) return;
+            squeeze = Mathf.MoveTowards(squeeze, 0f, dt * 2.6f);
+            var shut = squeeze > 0.7f ? 1f : squeeze / 0.7f; // snaps shut, then opens slowly
+            switch (kind)
+            {
+                case BlowerKind.Bellows:
+                    if (moving != null) moving.localScale = new Vector3(1f, Mathf.Lerp(1f, 0.3f, shut), 1f);
+                    blowerModel.localPosition = Vector3.zero;
+                    break;
+                case BlowerKind.HandFan:
+                    if (moving != null) moving.localRotation = Quaternion.Euler(Mathf.Sin(Time.time * 15f + seed) * 30f * blowing - 25f * squeeze, 0f, 0f);
+                    break;
+                default:
+                    // Motors rumble in the hands while they run; a burst kicks back.
+                    var rumble = 0.012f * blowing;
+                    var r = Time.time * 40f + seed;
+                    blowerModel.localPosition = new Vector3((Mathf.PerlinNoise(r, 1f) - 0.5f) * rumble, (Mathf.PerlinNoise(1f, r) - 0.5f) * rumble, -0.08f * squeeze * squeeze);
+                    break;
+            }
         }
     }
 }

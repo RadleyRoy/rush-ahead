@@ -15,14 +15,38 @@ namespace RushAhead.EditorTools
         const string Folder = "Assets/_Project/Content/Courses";
 
         /// <summary>The courses in menu order. Their order is part of the wire format: only ever append.</summary>
+        static readonly (string file, System.Action<CourseDef> layout)[] Layouts =
+        {
+            ("OtterCreek", OtterCreek), ("MirrorLake", MirrorLake), ("BeaverBend", BeaverBend),
+            ("ReedMarsh", ReedMarsh), ("WhirlpoolReach", WhirlpoolReach), ("WhitewaterRun", WhitewaterRun),
+        };
+
         public static CourseDef[] CreateDefaults()
         {
             ContentBootstrap.EnsureFolder(Folder);
-            return new[]
+            return System.Array.ConvertAll(Layouts, entry => Create(entry.file, entry.layout));
+        }
+
+        /// <summary>
+        /// Puts every shipped course back to its layout here, overwriting edits made in the Inspector but keeping the
+        /// assets themselves, so the scene and everything else pointing at them still does. For batchmode:
+        /// <c>-executeMethod RushAhead.EditorTools.CourseLibrary.Rebuild</c>.
+        /// </summary>
+        public static void Rebuild()
+        {
+            foreach (var course in CreateDefaults())
             {
-                Create("OtterCreek", OtterCreek), Create("MirrorLake", MirrorLake), Create("BeaverBend", BeaverBend),
-                Create("ReedMarsh", ReedMarsh), Create("WhirlpoolReach", WhirlpoolReach), Create("WhitewaterRun", WhitewaterRun),
-            };
+                var entry = System.Array.Find(Layouts, e => e.file == course.name);
+                var fresh = ScriptableObject.CreateInstance<CourseDef>();
+                entry.layout(fresh);
+                EditorUtility.CopySerialized(fresh, course);
+                course.name = entry.file;
+                Object.DestroyImmediate(fresh);
+                EditorUtility.SetDirty(course);
+            }
+
+            AssetDatabase.SaveAssets();
+            Debug.Log("[RushAhead] Courses rebuilt from CourseLibrary.");
         }
 
         static CourseDef Create(string file, System.Action<CourseDef> layout)
@@ -99,12 +123,20 @@ namespace RushAhead.EditorTools
                 new CurrentZone(DistanceNear(10) - 6f, DistanceNear(11) + 2f, -0.5f), // the gorge pushes back
             };
 
-            // Set from the course-solvability test, with unlimited steady air: the steady AI crew finishes in about 85 s and
-            // flat out in about 76 s. An all-Ace AI crew (about 91 s) just makes 3 stars; Keen (105 to 108 s) sits on the line between 1 and 2;
-            // Clumsy (146 s) gets none.
-            c.parSeconds = 125f;
-            c.twoStarSeconds = 105f;
-            c.threeStarSeconds = 92f;
+            // The obstacles, gently: a paddle wheel on the left of the first bend (keep right), a log swinging under a
+            // bridge on the current (brace as it comes), and a crocodile on the last straight.
+            c.flow = 1.2f;
+            var s = new Survey(c);
+            c.wheels = new[] { s.Wheel(DistanceNear(2), 4.2f, 2.8f, 3, 50f) };
+            c.swingers = new[] { new SwingSpot(DistanceNear(7) + 4f, 5f, 0f, 3.5f) };
+            c.crocodiles = new[] { new CrocSpot(DistanceNear(12) + 2f, -1f, 0.35f, 7f, 2f) };
+
+            // Measured by the AI crews with the river flowing and the obstacles in: Ace 58.2 s, Keen 70.3 s, Clumsy 99.6 s
+            // (two lives lost to the swinging log); steady 60.5 s, flat out 59.6 s. Three stars just above Ace, two just under
+            // Keen, par about Keen + 16%.
+            c.parSeconds = 82f;
+            c.twoStarSeconds = 68f;
+            c.threeStarSeconds = 59f;
         }
 
         static RockSpot Rock(Vector2 at, float radius) => new(at.x, at.y, radius);
@@ -144,6 +176,16 @@ namespace RushAhead.EditorTools
 
             public WhirlpoolSpot Whirlpool(float distance, float across, float radius, float spin, float pull) =>
                 new(Spot(distance, across), radius, spin, pull);
+
+            /// <summary>
+            /// A paddle wheel, turning the way that makes the arms meeting a raft coming downstream sweep it toward the
+            /// middle of the river rather than over the edge (anticlockwise on the left, clockwise on the right).
+            /// </summary>
+            public WheelSpot Wheel(float distance, float across, float radius, int arms, float degreesPerSecond) =>
+                new(Spot(distance, across), radius, arms, Mathf.Abs(degreesPerSecond) * (across >= 0f ? 1f : -1f));
+
+            public GeyserSpot Geyser(float distance, float across, float radius, float period, float offset) =>
+                new(Spot(distance, across), radius, period, offset);
         }
 
         /// <summary>Wide, calm water with three islands to pick a way round, and a drift of barrels near the end.</summary>
@@ -176,10 +218,17 @@ namespace RushAhead.EditorTools
             c.rocks = new[] { s.Rock(s.Near(3), -4f, 3.5f), s.Rock(s.Near(5), 4.5f, 4f), s.Rock(s.Near(7), -4f, 3.2f) };
             var drift = s.Near(9);
             c.barrels = new[] { s.Spot(drift + 4f, -4f), s.Spot(drift + 4f, 3f), s.Spot(drift + 9f, 0f), s.Spot(drift + 9f, -6f), s.Spot(drift + 14f, 4f) };
-            // Measured by the AI crews: Ace 87 s, Keen 96.5 s, Clumsy 145 s; steady 90 s, flat out 73 s. As on Otter Creek, Ace just makes 3 stars and Clumsy gets 1 at most.
-            c.parSeconds = 112f;
-            c.twoStarSeconds = 94f;
-            c.threeStarSeconds = 88f;
+            c.flow = 0.8f;
+            c.geysers = new[]
+            {
+                s.Geyser(s.Near(4), 5f, 2f, 5f, 0f), s.Geyser(s.Near(4) + 6f, -6f, 2f, 5f, 2.5f), s.Geyser(s.Near(6) + 6f, 0f, 2f, 4.5f, 1f),
+            };
+            c.crocodiles = new[] { new CrocSpot(s.Near(6) + 14f, 1f, 0.3f, 7f, 0f), new CrocSpot(s.Near(10) + 2f, -1f, 0.4f, 6.5f, 3f) };
+            // Measured by the AI crews: Ace 66.4 s, Keen 71.7 s, Clumsy 114.6 s; steady 68.4 s, flat out 62.8 s. Set as on Otter
+            // Creek, keeping two stars a few seconds clear of three where Keen runs nearly as fast as Ace.
+            c.parSeconds = 83f;
+            c.twoStarSeconds = 71f;
+            c.threeStarSeconds = 67f;
         }
 
         /// <summary>Switchbacks through beaver country, logs drifting across the bends, and a log jam in the big pool.</summary>
@@ -222,10 +271,15 @@ namespace RushAhead.EditorTools
                 s.Log(jam + 7f, -5f, 50f, 4f),
             };
             c.currents = new[] { new CurrentZone(s.Near(4), s.Near(6), 0.7f), new CurrentZone(s.Near(11), s.Near(13), 0.6f) };
-            // Measured by the AI crews: Ace 98.7 s, Keen 119.5 s, Clumsy 180 s; steady 102 s, flat out 90 s. As on Otter Creek, Ace just makes 3 stars and Clumsy gets 1 at most.
-            c.parSeconds = 139f;
-            c.twoStarSeconds = 117f;
-            c.threeStarSeconds = 100f;
+            c.flow = 1.2f;
+            c.swingers = new[] { new SwingSpot(s.Near(5) + 2f, 5f, 1f, 3.5f), new SwingSpot(s.Near(14) + 4f, 4.5f, 0f, 3.5f) };
+            c.wheels = new[] { s.Wheel(s.Near(8) + 6f, -3f, 2.6f, 3, 60f) };
+            c.crocodiles = new[] { new CrocSpot(s.Near(12), -1f, 0.35f, 6f, 1f) };
+            // Measured by the AI crews: Ace 69.8 s, Keen 86.2 s (a life lost to the second log), Clumsy 125.7 s; steady 71.6 s,
+            // flat out 66.6 s. Set as on Otter Creek.
+            c.parSeconds = 100f;
+            c.twoStarSeconds = 84f;
+            c.threeStarSeconds = 71f;
         }
 
         /// <summary>Narrow channels through the reeds, lily pads along the edges, and a whirlpool in the big pool.</summary>
@@ -262,10 +316,14 @@ namespace RushAhead.EditorTools
             c.barrels = new[] { s.Spot(pool - 6f, 6f), s.Spot(pool + 5f, 7f), s.Spot(pool + 2f, -8f) };
             c.currents = new[] { new CurrentZone(s.Near(2), s.Near(5), 0.5f), new CurrentZone(s.Near(9), s.Near(11), -0.4f) };
             c.whirlpools = new[] { s.Whirlpool(pool, -3f, 6f, 1.3f, 0.6f) };
-            // Measured by the AI crews: Ace 80 s, Keen 96.7 s, Clumsy 146 s; steady 86 s, flat out 75 s. As on Otter Creek, Ace just makes 3 stars and Clumsy gets 1 at most.
-            c.parSeconds = 112f;
-            c.twoStarSeconds = 94f;
-            c.threeStarSeconds = 81f;
+            c.flow = 0.8f;
+            c.crocodiles = new[] { new CrocSpot(s.Near(5) + 3f, 1f, 0.25f, 6.5f, 0f), new CrocSpot(s.Near(10) + 2f, -1f, 0.35f, 6f, 2f) };
+            c.geysers = new[] { s.Geyser(pool + 4f, 7f, 1.8f, 5f, 0f), s.Geyser(s.Near(12) + 4f, 0f, 1.6f, 4.5f, 1.5f) };
+            // Measured by the AI crews: Ace 64.5 s, Keen 105.8 s (knocked off the edge once by the first crocodile), Clumsy
+            // 114.5 s; steady 70.2 s, flat out 62 s. Set as on Otter Creek.
+            c.parSeconds = 123f;
+            c.twoStarSeconds = 103f;
+            c.threeStarSeconds = 65f;
         }
 
         /// <summary>Three whirlpools in wide pools with white water between them, a rock slalom and a climb at the end.</summary>
@@ -310,10 +368,15 @@ namespace RushAhead.EditorTools
                 s.Whirlpool(s.Near(3), 3.5f, 5.5f, 1.4f, 0.7f), s.Whirlpool(s.Near(6), -3.5f, 6f, -1.6f, 0.8f),
                 s.Whirlpool(s.Near(8), 3.5f, 5.5f, 1.8f, 0.9f),
             };
-            // Measured by the AI crews: Ace 109.6 s, Keen 127.2 s, Clumsy 187 s; steady 112 s, flat out 101 s. As on Otter Creek, Ace just makes 3 stars and Clumsy gets 1 at most.
-            c.parSeconds = 148f;
-            c.twoStarSeconds = 124f;
-            c.threeStarSeconds = 111f;
+            c.flow = 1.8f;
+            c.wheels = new[] { s.Wheel(s.Near(1) + 8f, 4f, 3f, 3, 70f), s.Wheel(s.Near(9) - 5f, -4f, 2.8f, 3, 60f) };
+            c.geysers = new[] { s.Geyser(s.Near(4), 0f, 2f, 5f, 0f), s.Geyser(s.Near(11), 3f, 1.5f, 5f, 2f) };
+            c.swingers = new[] { new SwingSpot(s.Near(13) + 5f, 4.5f, 0f, 3.5f) };
+            // Measured by the AI crews: Ace 71 s, Keen 74.9 s, Clumsy 89.9 s; steady 70.5 s, flat out 73.4 s. Set as on Otter
+            // Creek, keeping two stars a few seconds clear of three where Keen runs nearly as fast as Ace.
+            c.parSeconds = 87f;
+            c.twoStarSeconds = 76f;
+            c.threeStarSeconds = 72f;
         }
 
         /// <summary>The longest: a rock slalom in fast water, a whirlpool, a gorge that pushes back, a pool of logs, another whirlpool.</summary>
@@ -368,10 +431,15 @@ namespace RushAhead.EditorTools
                 new CurrentZone(s.Near(9) - 2f, s.Near(10) + 4f, -0.7f), new CurrentZone(s.Near(13), s.Near(16), 1f),
             };
             c.whirlpools = new[] { s.Whirlpool(s.Near(8), 4f, 6.5f, -1.8f, 0.9f), s.Whirlpool(s.Near(17), -4f, 6f, 1.6f, 0.8f) };
-            // Measured by the AI crews: Ace 132.6 s, Keen 161.6 s, Clumsy 245 s; steady 139 s, flat out 121 s. As on Otter Creek, Ace just makes 3 stars and Clumsy gets 1 at most.
-            c.parSeconds = 187f;
-            c.twoStarSeconds = 158f;
-            c.threeStarSeconds = 134f;
+            c.flow = 1.8f;
+            c.wheels = new[] { s.Wheel(s.Near(1) + 6f, -3.5f, 2.8f, 3, 60f), s.Wheel(s.Near(14), 3f, 2.6f, 3, 70f) };
+            c.swingers = new[] { new SwingSpot(s.Near(7), 5f, 0f, 3.5f), new SwingSpot(s.Near(18) + 4f, 4.5f, 1.5f, 3.5f) };
+            c.geysers = new[] { s.Geyser(s.Near(11) + 2f, 0f, 1.8f, 5f, 0f), s.Geyser(s.Near(17) + 8f, 3f, 1.6f, 4.5f, 2f) };
+            // Measured by the AI crews: Ace 85.4 s, Keen 92.9 s, Clumsy 116.6 s; steady 83.6 s, flat out 91.6 s. Set as on
+            // Otter Creek, keeping two stars a few seconds clear of three.
+            c.parSeconds = 108f;
+            c.twoStarSeconds = 91f;
+            c.threeStarSeconds = 86f;
         }
     }
 }

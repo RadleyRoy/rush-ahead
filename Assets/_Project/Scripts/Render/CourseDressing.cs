@@ -5,13 +5,18 @@ using UnityEngine;
 namespace RushAhead.Render
 {
     /// <summary>
-    /// How a place's banks look: what they're made of, how high they stand, and what grows on them. Creek is red earth,
-    /// grass, trees and bamboo; Lake is low sandy shore with reeds; Rapids is tall grey rock with pines.
+    /// How a place looks: what its cliffs are made of, how far down the gorge floor is, and what grows. Creek is red
+    /// earth, grass, trees and bamboo; Lake is sandstone over a shallower drop, with reeds and lily pads; Rapids is grey
+    /// rock over a deep gorge of pines. The height and plants also dress the practice lagoon's banks.
     /// </summary>
     public sealed class BankStyle
     {
         public Material Cliff;
+        public Material CliffDeep; // the cliff's darker lower face
         public Material Ground;
+
+        /// <summary>From the water down to the gorge floor, in metres.</summary>
+        public float Drop = 24f;
         public float Height = 1.5f;
         public float HeightRange = 1.3f;
 
@@ -20,7 +25,14 @@ namespace RushAhead.Render
         public Action<Transform, Vector2, float, ArtPalette, System.Random> Fringe;
         public bool LilyPads;
 
-        public static BankStyle For(CourseScene scene, ArtPalette palette) => scene switch
+        public static BankStyle For(CourseScene scene, ArtPalette palette)
+        {
+            var style = Make(scene, palette);
+            style.CliffDeep = palette.Tinted(palette.cliff, Color.Lerp(style.Cliff.color, new Color(0.2f, 0.18f, 0.22f), 0.35f));
+            return style;
+        }
+
+        static BankStyle Make(CourseScene scene, ArtPalette palette) => scene switch
         {
             CourseScene.Lake => new BankStyle
             {
@@ -28,6 +40,7 @@ namespace RushAhead.Render
                 Ground = palette.Tinted(palette.grass, new Color(0.62f, 0.83f, 0.4f)),
                 Height = 0.75f,
                 HeightRange = 0.4f,
+                Drop = 16f,
                 Plant = CourseDressing.Tree,
                 Fringe = CourseDressing.Reeds,
                 LilyPads = true,
@@ -38,6 +51,7 @@ namespace RushAhead.Render
                 Ground = palette.Tinted(palette.grass, new Color(0.3f, 0.55f, 0.32f)),
                 Height = 3.4f,
                 HeightRange = 2.4f,
+                Drop = 36f,
                 Plant = CourseDressing.Pine,
                 Fringe = CourseDressing.Pine,
             },

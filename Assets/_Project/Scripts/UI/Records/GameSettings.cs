@@ -9,8 +9,11 @@ namespace RushAhead.UI
     {
         const string Key = "rushahead.settings.v1";
 
-        /// <summary>The stick points where the air goes, not where the raft goes (expert).</summary>
-        public bool directNozzleAim;
+        /// <summary>
+        /// The stick points where the raft should go and the animal blows the other way. Off by default: the stick
+        /// points the blower. (It replaced <c>directNozzleAim</c>, so older saves start on the new default.)
+        /// </summary>
+        public bool aimTheRaft;
 
         /// <summary>The stick on the right, the buttons on the left.</summary>
         public bool leftHanded;
@@ -59,7 +62,7 @@ namespace RushAhead.UI
             Application.targetFrameRate = frameRate;
             if (quality >= 0 && quality < QualitySettings.names.Length && QualitySettings.GetQualityLevel() != quality)
                 QualitySettings.SetQualityLevel(quality, true);
-            router.DirectNozzleAim = directNozzleAim;
+            router.AimTheRaft = aimTheRaft;
             router.Touch.LeftHanded = leftHanded;
             Render.Haptics.Enabled = vibration;
             var audio = Render.GameAudio.Instance;

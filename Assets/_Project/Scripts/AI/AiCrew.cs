@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using RushAhead.Content;
 using RushAhead.Sim;
@@ -52,6 +53,23 @@ namespace RushAhead.AI
 
         /// <summary>The course's river, for following its racing line. Null in open water, where Go follows the players.</summary>
         public River River { get; set; }
+
+        /// <summary>How fast the water moves at a point. The crew aims for its cruising speed through the water, so the flow carries it faster.</summary>
+        public Func<Vector2, Vector2> Water { get; set; }
+
+        /// <summary>Whether something bracing beats (a swinging log, a geyser) will reach a raft here within so many seconds.</summary>
+        public Func<Vector2, float, bool> BraceAhead { get; set; }
+
+        /// <summary>
+        /// Where across the river to aim to keep clear of the obstacles between two distances down it (where the raft is
+        /// and where it's aiming), given the line's choice.
+        /// </summary>
+        public Func<float, float, float, float> SteerAcross { get; set; }
+
+        const float EdgeSense = 2.5f; // metres from the edge where the crew starts steering back in
+
+        bool hazardSeen;
+        bool hazardNoticed;
 
         /// <summary>In a Team Race, which side of the racing line this crew keeps to (0 left, 1 right), so two rafts race
         /// side by side rather than queueing nose to tail. One lane (Co-op) follows the line itself.</summary>
@@ -118,6 +136,13 @@ namespace RushAhead.AI
             var minShare = Mathf.Lerp(0.05f, 0.35f, profile.airDiscipline);
             var turnRate = TurnRateWanted(desired, velocity, airAngle);
 
+            // A log about to swing through, or a geyser about to spout: duck. Each crew notices in time only so often;
+            // the steady autopilot always does.
+            var hazard = BraceAhead != null && BraceAhead(boat.Body.Position, profile.reactionSeconds + 0.6f);
+            if (hazard && !hazardSeen)
+                hazardNoticed = profile.reactionSeconds <= 0f || random.NextDouble() < Mathf.Lerp(0.45f, 1f, profile.braceInstinct);
+            hazardSeen = hazard;
+
             foreach (var seat in seats)
             {
                 if (seat == null) continue;
@@ -154,7 +179,7 @@ namespace RushAhead.AI
                 {
                     AimAngle = airAngle + Wobble(seat) * Mathf.Deg2Rad,
                     HasAim = desired.HasValue,
-                    Brace = Order == CrewOrder.Brace || Panicking(seat),
+                    Brace = Order == CrewOrder.Brace || Panicking(seat) || (hazard && hazardNoticed),
                 };
                 var blow = desired.HasValue && seat.Daydreaming <= 0f && share >= minShare && seatThrottle > 0.05f;
                 input.Throttle = blow && !input.Brace ? seatThrottle : 0f;
@@ -238,8 +263,15 @@ namespace RushAhead.AI
                         // trading paint, and out of each other's exhaust; the clamp keeps clear of the banks.
                         var across = Mathf.Clamp(ahead.LineOffset * ahead.HalfWidth + LaneShare * Course.LaneOffset(ahead, Lane, Lanes),
                             -0.72f * ahead.HalfWidth, 0.72f * ahead.HalfWidth);
+                        if (SteerAcross != null) across = SteerAcross(at.Distance, ahead.Distance, across);
                         Target = ahead.Centre + ahead.Left * across;
-                        return Toward(Target.Value);
+                        var desired = Toward(Target.Value);
+
+                        // Near the edge there's nothing to stop a fall: steer back in, harder the closer it gets.
+                        var room = at.HalfWidth - Mathf.Abs(at.Lateral);
+                        if (desired.HasValue && room < EdgeSense)
+                            desired += -Mathf.Sign(at.Lateral) * new Vector2(-at.Tangent.y, at.Tangent.x) * ((EdgeSense - room) * 1.2f);
+                        return desired;
                     }
 
                     return FollowThePlayers();
@@ -249,7 +281,8 @@ namespace RushAhead.AI
         Vector2? Toward(Vector2 point)
         {
             var to = point - boat.Body.Position;
-            return to.sqrMagnitude > 1e-4f ? to.normalized * profile.cruiseSpeed : Vector2.zero;
+            var water = Water?.Invoke(boat.Body.Position) ?? Vector2.zero;
+            return to.sqrMagnitude > 1e-4f ? to.normalized * profile.cruiseSpeed + water : water;
         }
 
         /// <summary>In open water there's no line to follow, so help: push the way the players are pushing, or rest.</summary>

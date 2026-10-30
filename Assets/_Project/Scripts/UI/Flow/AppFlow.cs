@@ -31,6 +31,9 @@ namespace RushAhead.UI
 
         /// <summary>Stop trying to join.</summary>
         CancelConnecting,
+
+        /// <summary>On the main menu: ask whether to quit the app.</summary>
+        ConfirmQuit,
     }
 
     /// <summary>
@@ -178,6 +181,8 @@ namespace RushAhead.UI
                     return BackAction.Handled;
                 case AppScreen.Connecting:
                     return BackAction.CancelConnecting;
+                case AppScreen.MainMenu:
+                    return BackAction.ConfirmQuit;
                 case AppScreen.Lobby:
                 case AppScreen.Results:
                     return BackAction.ConfirmLeave;

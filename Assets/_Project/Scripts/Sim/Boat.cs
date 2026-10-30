@@ -9,6 +9,9 @@ namespace RushAhead.Sim
     {
         Afloat,
         Capsized,
+
+        /// <summary>Gone over the edge of the course: dropping out of sight before coming back at a checkpoint.</summary>
+        Fallen,
     }
 
     /// <summary>
@@ -55,6 +58,12 @@ namespace RushAhead.Sim
         /// <summary>While true (a race countdown, after the finish) the crew's controls are read but ignored.</summary>
         public bool ControlsLocked { get; set; }
 
+        /// <summary>
+        /// Held where it is, as if tied up: the water doesn't carry it and it stops dead each tick (a bump still nudges it).
+        /// For waiting on the start line, and for a raft that's out of lives, now that the river flows.
+        /// </summary>
+        public bool Moored { get; set; }
+
         /// <summary>After a respawn the raft can lean but not capsize again for this long, so it gets a fair restart.</summary>
         public float CapsizeImmunitySeconds { get; set; }
 
@@ -70,6 +79,48 @@ namespace RushAhead.Sim
         /// <summary>The tick the raft crossed the finish line, or 0 while it hasn't.</summary>
         public int FinishTick { get; internal set; }
 
+        /// <summary>Lives left in the current race: each capsize or fall costs one. Set by the race rules.</summary>
+        public int Lives { get; internal set; } = 3;
+
+        /// <summary>Out of lives: the race is over for this raft.</summary>
+        public bool Out { get; internal set; }
+
+        /// <summary>The tick it ran out of lives, or 0.</summary>
+        public int OutTick { get; internal set; }
+
+        public const float FallSeconds = 1.4f;
+
+        /// <summary>The share of the crew bracing on the last tick (ducking a swinging log needs half).</summary>
+        public float BracedFraction { get; private set; }
+
+        /// <summary>
+        /// A knock from outside: a swinging log or a geyser. Pushes the raft and heels it over by <paramref name="heel"/>
+        /// times what that push alone would, so it can capsize; a braced crew takes much less of it.
+        /// </summary>
+        public void Shove(Vector2 impulse, float heel)
+        {
+            if (State != BoatState.Afloat) return;
+            var soften = 1f - 0.75f * BracedFraction;
+            Body.AddForceAtLocalPoint(impulse * soften, Vector2.zero, impulse: true);
+            Tilt.Kick(HeelPerUnit(impulse) * (heel * soften));
+            Shoved?.Invoke(this);
+        }
+
+        /// <summary>A swinging log or geyser caught the raft.</summary>
+        public event Action<Boat> Shoved;
+
+        /// <summary>
+        /// Over the edge: the controls go dead while the raft drops out of sight, then it recovers like after a capsize
+        /// (the race rules put it back at the last checkpoint). Nothing happens unless it's afloat.
+        /// </summary>
+        public void Fall()
+        {
+            if (State != BoatState.Afloat) return;
+            State = BoatState.Fallen;
+            recoverySecondsLeft = FallSeconds;
+            Tilt.Reset();
+        }
+
         /// <summary>Speed along the hull's heading (negative when going backwards).</summary>
         public float ForwardSpeed => Body.LocalVector(Body.Velocity).x;
 
@@ -82,6 +133,7 @@ namespace RushAhead.Sim
         Vector2 IBoatState.Velocity => Body.Velocity;
         Vector2 IBoatState.Tilt => Tilt.Tilt;
         bool IBoatState.Capsized => State == BoatState.Capsized;
+        bool IBoatState.Fallen => State == BoatState.Fallen;
         int IBoatState.CrewCount => Crew.Length;
         ICrewState IBoatState.CrewAt(int seat) => Crew[seat];
 
@@ -119,7 +171,9 @@ namespace RushAhead.Sim
                 heelAccel += StepBlower(crew, input, share, dt);
             }
 
-            ApplyWaterDrag();
+            if (Moored) Body.Stop();
+            else ApplyWaterDrag();
+            BracedFraction = Crew.Length > 0 ? bracedCount / (float)Crew.Length : 0f;
             StepTilt(heelAccel, bracedCount, dt);
         }
 
@@ -178,6 +232,15 @@ namespace RushAhead.Sim
             var localVelocity = Body.LocalVector(Body.Velocity - WaterVelocity); // a current carries the raft along with it
             Body.AddForce(Body.WorldVector(WaterDrag.LocalForce(localVelocity, config.forwardDrag, config.lateralDrag)));
             Body.AddTorque(WaterDrag.Torque(Body.AngularVelocityRad, config.angularDrag));
+
+            // The river carries a raft: slower than the water the way it flows, it's drawn up toward the water's speed
+            // (never beyond it, and never held back by it when it's faster).
+            var water = WaterVelocity;
+            var flow = water.magnitude;
+            if (flow < 0.05f) return;
+            var along = water / flow;
+            var behind = Mathf.Clamp(flow - Vector2.Dot(Body.Velocity, along), 0f, flow);
+            Body.AddForce(along * (behind * config.waterCarry * Body.Mass));
         }
 
         void StepTilt(Vector2 heelAccel, int bracedCount, float dt)
@@ -189,7 +252,7 @@ namespace RushAhead.Sim
                 Tilt.Kick(new Vector2(-local.y, -local.x) * config.impactKickScale);
             }
 
-            if (State == BoatState.Capsized)
+            if (State is BoatState.Capsized or BoatState.Fallen)
             {
                 recoverySecondsLeft -= dt;
                 if (recoverySecondsLeft <= 0f) Recover();
@@ -241,13 +304,16 @@ namespace RushAhead.Sim
             }
         }
 
-        /// <summary>Wipes the last run's progress: no checkpoints, no finish, no capsizes counted.</summary>
-        public void ClearRun()
+        /// <summary>Wipes the last run's progress: no checkpoints, no finish, no capsizes counted, every life back.</summary>
+        public void ClearRun(int lives = 3)
         {
             GatesPassed = 0;
             FinishTick = 0;
             CapsizeCount = 0;
             CapsizeImmunitySeconds = 0f;
+            Lives = lives;
+            Out = false;
+            OutTick = 0;
         }
     }
 }

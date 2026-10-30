@@ -38,6 +38,9 @@ namespace RushAhead.Net
         public int TeleportCount { get; private set; }
         public int GatesPassed { get; private set; }
         public int FinishTick { get; private set; }
+        public bool Fallen { get; private set; }
+        public int Lives { get; private set; } = 3;
+        public bool Out { get; private set; }
         public float TiltDanger => Mathf.Clamp01(Tilt.magnitude / config.capsizeAngle);
         public int CrewCount { get; private set; }
         public ICrewState CrewAt(int seat) => crew[Mathf.Clamp(seat, 0, crew.Length - 1)];
@@ -85,6 +88,9 @@ namespace RushAhead.Net
             TeleportCount = a.TeleportCount;
             GatesPassed = a.GatesPassed;
             FinishTick = (int)a.FinishTick;
+            Fallen = a.Fallen;
+            Lives = a.Lives;
+            Out = a.Out;
 
             CrewCount = Mathf.Min(a.Crew.Count, b.Crew.Count, crew.Length);
             for (var i = 0; i < CrewCount; i++)

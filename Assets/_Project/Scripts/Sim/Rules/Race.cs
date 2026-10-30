@@ -8,6 +8,9 @@ namespace RushAhead.Sim
         Countdown,
         Racing,
         Finished,
+
+        /// <summary>Out of lives: the race is over for this raft without a time.</summary>
+        Out,
     }
 
     /// <summary>
@@ -20,6 +23,7 @@ namespace RushAhead.Sim
     {
         public const float CountdownSeconds = 3f;
         public const float RespawnImmunitySeconds = 2f;
+        public const int MaxLives = 3;
 
         readonly int tickRate;
         readonly int lane, lanes;
@@ -42,7 +46,8 @@ namespace RushAhead.Sim
             var (start, heading) = course.RespawnPose(0, lane, lanes);
             boat.ResetTo(start, heading);
             boat.ControlsLocked = true;
-            boat.ClearRun();
+            boat.Moored = true; // the river flows: hold it on the line until the start
+            boat.ClearRun(MaxLives);
             lastPosition = boat.Body.Position;
             boat.Recovered += OnRecovered;
         }
@@ -57,22 +62,33 @@ namespace RushAhead.Sim
 
         public RacePhase Phase { get; private set; }
 
+        int lastTick;
+
         /// <summary>The run's time so far at <paramref name="tick"/>, or its finishing time once it has finished.</summary>
         public float SecondsAt(int tick) => RaceClock.Seconds(StartTick, Boat.FinishTick, tick, tickRate);
 
         /// <summary>Call once per simulation tick.</summary>
         public void Step(int tick)
         {
+            lastTick = tick;
             if (Phase == RacePhase.Countdown)
             {
                 if (tick < StartTick) return;
                 Phase = RacePhase.Racing;
                 Boat.ControlsLocked = false;
+                Boat.Moored = false;
             }
 
             if (Phase != RacePhase.Racing) return;
 
             var position = Boat.Body.Position;
+            if (Course.IsOffCourse(position))
+            {
+                Boat.Fall(); // over the edge: it costs a life when it comes back
+                lastPosition = position;
+                return;
+            }
+
             var gates = Course.Gates;
             if (Boat.GatesPassed < gates.Count && gates[Boat.GatesPassed].CrossedBy(lastPosition, position))
             {
@@ -93,6 +109,21 @@ namespace RushAhead.Sim
         {
             if (Phase != RacePhase.Racing) return; // before the start or after the finish it just rights itself where it is
 
+            // Every capsize or fall costs a life; the last one ends the race for this raft, back at its last checkpoint.
+            boat.Lives = Mathf.Max(0, boat.Lives - 1);
+            if (boat.Lives == 0)
+            {
+                Phase = RacePhase.Out;
+                boat.Out = true;
+                boat.OutTick = Mathf.Max(1, lastTick);
+                boat.ControlsLocked = true;
+                boat.Moored = true; // it waits at its last checkpoint rather than drifting down the course
+                var (at, heading) = Course.RespawnPose(boat.GatesPassed, lane, lanes);
+                boat.ResetTo(at, heading);
+                lastPosition = at;
+                return;
+            }
+
             var (position, angle) = Course.RespawnPose(boat.GatesPassed, lane, lanes);
             boat.ResetTo(position, angle);
             boat.CapsizeImmunitySeconds = RespawnImmunitySeconds;
@@ -103,6 +134,7 @@ namespace RushAhead.Sim
         {
             Boat.Recovered -= OnRecovered;
             Boat.ControlsLocked = false;
+            Boat.Moored = false;
         }
     }
 

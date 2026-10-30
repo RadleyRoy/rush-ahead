@@ -14,6 +14,9 @@ namespace RushAhead.Render
         public Func<Vector2> TargetPosition;
         public Func<Vector2> TargetVelocity;
 
+        /// <summary>How far below the water the raft is (falling off the edge): the camera stays up top and looks down after it.</summary>
+        public Func<float> TargetDrop;
+
         public float Distance = 10f;
         public float PitchDeg = 30f;
         public float LookAhead = 2f;
@@ -30,6 +33,7 @@ namespace RushAhead.Render
         public float HeadingSmoothing = 2.5f;
 
         float yawRad;
+        float lookDown;
         Vector3 focus;
         Vector2 smoothedVelocity;
 
@@ -78,6 +82,7 @@ namespace RushAhead.Render
             }
 
             focus = Vector3.Lerp(focus, Focus(TargetPosition()), 1f - Mathf.Exp(-FollowRate * dt));
+            lookDown = Mathf.Lerp(lookDown, Mathf.Min(8f, (TargetDrop?.Invoke() ?? 0f) * 0.6f), 1f - Mathf.Exp(-6f * dt));
             Place();
 
             if (trauma <= 0f) return;
@@ -96,7 +101,7 @@ namespace RushAhead.Render
             var pitch = PitchDeg * Mathf.Deg2Rad;
             var back = -SimSpace.Direction(Forward) * (Mathf.Cos(pitch) * Distance);
             transform.position = focus + back + Vector3.up * (Mathf.Sin(pitch) * Distance);
-            transform.rotation = Quaternion.LookRotation(focus - transform.position);
+            transform.rotation = Quaternion.LookRotation(focus + Vector3.down * lookDown - transform.position);
         }
     }
 }

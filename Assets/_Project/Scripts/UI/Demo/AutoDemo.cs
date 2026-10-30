@@ -216,13 +216,14 @@ namespace RushAhead.UI
         }
 
         /// <summary>
-        /// Sticks are camera-relative, exactly as a player's would be: up pushes away from the camera. The two main
-        /// seats are whichever the left and right touch sticks drive at the current crew size.
+        /// Sticks are camera-relative, exactly as a player's would be, and point the blowers: down blows back at the
+        /// camera, which drives the raft away from it. The two main seats are whichever the left and right touch
+        /// sticks drive at the current crew size.
         /// </summary>
         void Drive(CrewInputRouter router, float t)
         {
-            var ahead = Vector2.up;
-            var right = Vector2.right;
+            var ahead = Vector2.down; // air back at the camera sends the raft ahead
+            var right = Vector2.left; // air to the left shoves the raft right
             var crew = game.ViewedBoat.CrewCount;
             var left = router.SeatForSlot(0);
             var other = router.SeatForSlot(1);

@@ -11,7 +11,7 @@ namespace RushAhead.Render
     /// </summary>
     public sealed class SoundBank
     {
-        public AudioClip Burst, Bump, Splash, Capsize, Beep, Go, Chime, Fanfare, Star, Jingle, Click;
+        public AudioClip Burst, Bump, Splash, Capsize, Fall, Beep, Go, Chime, Fanfare, Star, Jingle, Click;
         public AudioClip RiverCalm, RiverRapids, LakeLapping;
         public AudioClip LeafBlower, HairDryer, HandFan, ShopVac;
 
@@ -53,6 +53,14 @@ namespace RushAhead.Render
                     Synth.AddNoise(b, 0f, Synth.Biquad.BandPass(700f, 0.5f), 0.02f, 0.4f, 1f, noise);
                     Synth.AddNoise(b, 0.05f, Synth.Biquad.HighPass(2800f), 0.01f, 0.25f, 0.4f, noise);
                     Synth.AddSweep(b, 0.15f, 620f, 140f, 0.35f, 0.01f, 0.3f, 0.5f); // a comic bloop as it goes under
+                }),
+                ["Fall"] = Make(2.2f, b =>
+                {
+                    // Over the edge: a cartoon whistle falling away, then a far-off splash down in the gorge.
+                    Synth.AddSweep(b, 0.05f, 1750f, 380f, 1.25f, 0.04f, 1.1f, 0.42f);
+                    Synth.AddSweep(b, 0.05f, 1762f, 384f, 1.25f, 0.04f, 1.1f, 0.18f);
+                    Synth.AddNoise(b, 1.32f, Synth.Biquad.LowPass(520f), 0.01f, 0.45f, 0.75f, noise);
+                    Synth.AddNoise(b, 1.34f, Synth.Biquad.BandPass(1400f, 0.7f), 0.01f, 0.2f, 0.25f, noise);
                 }),
                 ["Beep"] = Make(0.2f, b =>
                 {
@@ -135,7 +143,7 @@ namespace RushAhead.Render
             AudioClip Clip(string name) => Synth.Clip(name, sounds[name]);
             return new SoundBank
             {
-                Burst = Clip("Burst"), Bump = Clip("Bump"), Splash = Clip("Splash"), Capsize = Clip("Capsize"), Beep = Clip("Beep"), Go = Clip("Go"),
+                Burst = Clip("Burst"), Bump = Clip("Bump"), Splash = Clip("Splash"), Capsize = Clip("Capsize"), Fall = Clip("Fall"), Beep = Clip("Beep"), Go = Clip("Go"),
                 Chime = Clip("Chime"), Fanfare = Clip("Fanfare"), Star = Clip("Star"), Jingle = Clip("Jingle"), Click = Clip("Click"),
                 RiverCalm = Clip("RiverCalm"), RiverRapids = Clip("RiverRapids"), LakeLapping = Clip("LakeLapping"),
                 LeafBlower = Clip("LeafBlower"), HairDryer = Clip("HairDryer"), HandFan = Clip("HandFan"), ShopVac = Clip("ShopVac"),
@@ -145,10 +153,15 @@ namespace RushAhead.Render
         /// <summary>The steady sound a blower makes while it's on; null for the bellows, which only puffs.</summary>
         public AudioClip LoopFor(BlowerDef blower)
         {
-            if (blower == null || blower.thrustNewtons <= 0f) return null;
-            if (blower.special == BlowerSpecial.Vacuum) return ShopVac;
-            if (blower.thrustNewtons < 22f) return HandFan;
-            return blower.spoolUpMs < 200f ? HairDryer : LeafBlower;
+            if (blower == null) return null;
+            return BlowerModels.KindOf(blower) switch
+            {
+                BlowerKind.Bellows => null,
+                BlowerKind.ShopVac => ShopVac,
+                BlowerKind.HandFan => HandFan,
+                BlowerKind.HairDryer => HairDryer,
+                _ => LeafBlower,
+            };
         }
 
         public AudioClip AmbienceFor(CourseScene? scene) => scene switch

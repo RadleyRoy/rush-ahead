@@ -32,6 +32,14 @@ namespace RushAhead.Sim
         /// <summary>The host tick the raft finished on, or 0.</summary>
         int FinishTick { get; }
 
+        /// <summary>Gone over the edge, dropping out of sight before it comes back at a checkpoint.</summary>
+        bool Fallen { get; }
+
+        /// <summary>Lives left in the race, and whether they've run out.</summary>
+        int Lives { get; }
+
+        bool Out { get; }
+
         /// <summary>0 when level, 1 at the capsize threshold.</summary>
         float TiltDanger { get; }
 

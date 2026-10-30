@@ -38,6 +38,7 @@ namespace RushAhead.Tests
             def.river = new[] { new RiverPoint(0f, 0f, 14f), new RiverPoint(40f, 0f, 14f), new RiverPoint(80f, 0f, 14f) };
             def.startDistance = 5f;
             def.gates = new[] { 20f, 40f, 60f };
+            def.flow = 0f; // still water keeps these tests about the rules (one test turns it on)
             world = new SimWorld(config);
             course = null;
         }
@@ -72,6 +73,77 @@ namespace RushAhead.Tests
         static void DriveDownstream(Push[] crew)
         {
             foreach (var seat in crew) seat.Input = new CrewInput { AimAngle = Mathf.PI, HasAim = true, Throttle = 1f };
+        }
+
+        [Test]
+        public void GoingOverTheEdge_CostsALife_AndComesBackAtTheLastCheckpoint()
+        {
+            var (boat, race, crew) = Start();
+            DriveDownstream(crew);
+            for (var i = 0; i < 60 * 30 && boat.GatesPassed < 1; i++) Step(race);
+            Assert.That(boat.GatesPassed, Is.EqualTo(1));
+
+            boat.ResetTo(new Vector2(boat.Body.Position.x, 9f), 0f); // shoved out past the edge (the river is 14 m wide)
+            Step(race);
+            Assert.That(boat.State, Is.EqualTo(BoatState.Fallen), "over it goes");
+            for (var i = 0; i < Mathf.CeilToInt((Boat.FallSeconds + 0.2f) * 60f); i++) Step(race);
+
+            Assert.That(boat.State, Is.EqualTo(BoatState.Afloat));
+            Assert.That(boat.Lives, Is.EqualTo(Race.MaxLives - 1), "it cost a life");
+            Assert.That(Vector2.Distance(boat.Body.Position, new Vector2(def.gates[0] + 3f, 0f)), Is.LessThan(1.5f), "back just past the checkpoint it reached");
+            Assert.That(race.Phase, Is.EqualTo(RacePhase.Racing));
+        }
+
+        [Test]
+        public void RunningOutOfLives_EndsTheRaceForThatRaft()
+        {
+            var (boat, race, _) = Start();
+            while (race.Phase != RacePhase.Racing) Step(race);
+            for (var life = 0; life < Race.MaxLives; life++)
+            {
+                boat.ResetTo(new Vector2(10f, 9f), 0f);
+                for (var i = 0; i < 120; i++) Step(race);
+            }
+
+            Assert.That(race.Phase, Is.EqualTo(RacePhase.Out));
+            Assert.That(boat.Out && boat.Lives == 0 && boat.OutTick > 0, Is.True);
+            Assert.That(boat.ControlsLocked, Is.True);
+            Assert.That(boat.FinishTick, Is.Zero, "no time");
+        }
+
+        [Test]
+        public void OnAFlowingRiver_TheCountdownHoldsTheRaft_AndARaftOutOfLivesStaysPut()
+        {
+            def.flow = 1.5f;
+            var (boat, race, _) = Start();
+            var line = boat.Body.Position;
+            for (var i = 0; i < 60 * 2; i++) Step(race);
+            Assert.That(Vector2.Distance(boat.Body.Position, line), Is.LessThan(0.05f), "held on the line");
+            while (race.Phase != RacePhase.Racing) Step(race);
+            for (var i = 0; i < 60 * 2; i++) Step(race);
+            Assert.That(boat.Body.Position.x - line.x, Is.GreaterThan(1f), "then the river carries it, with nobody blowing");
+
+            for (var life = 0; life < Race.MaxLives; life++)
+            {
+                boat.ResetTo(new Vector2(10f, 9f), 0f);
+                for (var i = 0; i < 120; i++) Step(race);
+            }
+
+            Assert.That(race.Phase, Is.EqualTo(RacePhase.Out));
+            var waiting = boat.Body.Position;
+            for (var i = 0; i < 60 * 3; i++) Step(race);
+            Assert.That(Vector2.Distance(boat.Body.Position, waiting), Is.LessThan(0.05f), "out of lives, it waits at its checkpoint");
+        }
+
+        [Test]
+        public void ACapsize_CostsALife()
+        {
+            var (boat, race, _) = Start();
+            while (race.Phase != RacePhase.Racing) Step(race);
+            boat.Shove(Vector2.up * 300f, 40f); // a huge knock from the side
+            for (var i = 0; i < 60 * 8 && boat.Lives == Race.MaxLives; i++) Step(race);
+            Assert.That(boat.CapsizeCount, Is.EqualTo(1), "it went over");
+            Assert.That(boat.Lives, Is.EqualTo(Race.MaxLives - 1));
         }
 
         [Test]
@@ -212,13 +284,15 @@ namespace RushAhead.Tests
                 world.Drifting.AddRange(course.BarrelBodies);
                 var boat = world.SpawnBoat(course.SpawnPosition, course.SpawnAngleRad, new[] { leafBlower, leafBlower, leafBlower, leafBlower });
                 var autopilot = SteadyCrew(boat, course, config, cruiseSpeed: 3.2f);
+                Hook(autopilot, course, world, config);
                 var race = new Race(course, boat, world.Tick, config.tickRate);
 
                 var limit = race.StartTick + Mathf.CeilToInt(def.parSeconds * 1.5f * config.tickRate);
                 var furthest = 0f;
-                while (race.Phase != RacePhase.Finished && world.Tick < limit)
+                while (race.Phase != RacePhase.Finished && race.Phase != RacePhase.Out && world.Tick < limit)
                 {
                     autopilot.Update(Dt);
+                    course.Hazards.Step(world.Tick / (double)config.tickRate, new[] { boat });
                     world.Advance(Dt);
                     race.Step(world.Tick);
                     furthest = Mathf.Max(furthest, course.River.Project(boat.Body.Position).Distance);
@@ -227,7 +301,7 @@ namespace RushAhead.Tests
                 var time = race.SecondsAt(world.Tick);
                 LogFlatOutTime(def, config, leafBlower);
                 Debug.Log($"[RushAhead] {def.name}: autopilot {(race.Phase == RacePhase.Finished ? "finished" : "did not finish")} in {time:0.0} s " +
-                          $"(par {def.parSeconds:0}, stars {def.Stars(time)}), capsizes {boat.CapsizeCount}, gates {boat.GatesPassed}/{course.Gates.Count}, " +
+                          $"(par {def.parSeconds:0}, stars {def.Stars(time)}), capsizes {boat.CapsizeCount}, lives {boat.Lives}, gates {boat.GatesPassed}/{course.Gates.Count}, " +
                           $"furthest {furthest:0} m of {def.FinishDistance:0} m");
                 Assert.That(race.Phase, Is.EqualTo(RacePhase.Finished),
                     $"stuck {furthest:0} m down a {def.FinishDistance:0} m course after {time:0} s, with {boat.GatesPassed} of {course.Gates.Count} gates");
@@ -253,11 +327,13 @@ namespace RushAhead.Tests
                 world.Drifting.AddRange(course.BarrelBodies);
                 var boat = world.SpawnBoat(course.SpawnPosition, course.SpawnAngleRad, new[] { blower, blower, blower, blower });
                 var autopilot = SteadyCrew(boat, course, config, cruiseSpeed: 6f);
+                Hook(autopilot, course, world, config);
                 var race = new Race(course, boat, world.Tick, config.tickRate);
                 var limit = race.StartTick + Mathf.CeilToInt(def.parSeconds * 1.5f * config.tickRate);
-                while (race.Phase != RacePhase.Finished && world.Tick < limit)
+                while (race.Phase != RacePhase.Finished && race.Phase != RacePhase.Out && world.Tick < limit)
                 {
                     autopilot.Update(Dt);
+                    course.Hazards.Step(world.Tick / (double)config.tickRate, new[] { boat });
                     world.Advance(Dt);
                     race.Step(world.Tick);
                 }
@@ -280,6 +356,14 @@ namespace RushAhead.Tests
             var crew = new AiCrew(boat, profile, config.tickRate) { River = course.River };
             crew.Drive(CrewSectors.DriveOrder(boat.Crew.Length));
             return crew;
+        }
+
+        /// <summary>What the game gives an AI crew on a course: the water's speed, and warning of logs and geysers.</summary>
+        internal static void Hook(AiCrew crew, Course course, SimWorld world, SimConfig config)
+        {
+            crew.Water = course.WaterVelocityAt;
+            crew.BraceAhead = (point, lookahead) => course.Hazards.BraceNeeded(point, world.Tick / (double)config.tickRate, lookahead);
+            crew.SteerAcross = (from, to, across) => course.Hazards.SteerAcross(from, to, across, world.Tick / (double)config.tickRate);
         }
 
         internal static IEnumerable<CourseDef> AllCourses()

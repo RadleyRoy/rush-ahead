@@ -35,8 +35,8 @@ namespace RushAhead.UI
             var body = scroll.contentContainer;
 
             body.Add(Ui.Text("Controls", "h2"));
-            aim = Option(body, "Stick aims", "Where the raft goes (your animal blows the other way), or where the air goes (expert).",
-                "settings-aim", new[] { "The raft", "The air" }, i => S.directNozzleAim = i == 1);
+            aim = Option(body, "Stick aims", "Your blower, so the raft goes the other way; or where the raft should go (your animal blows the other way).",
+                "settings-aim", new[] { "The blower", "The raft" }, i => S.aimTheRaft = i == 1);
             hand = Option(body, "Stick on the", "Left-handed puts the stick on the right and Burst and Brace on the left.",
                 "settings-hand", new[] { "Left", "Right" }, i => S.leftHanded = i == 1);
 
@@ -96,7 +96,7 @@ namespace RushAhead.UI
 
         public override void Refresh()
         {
-            aim.Selected = S.directNozzleAim ? 1 : 0;
+            aim.Selected = S.aimTheRaft ? 1 : 0;
             hand.Selected = S.leftHanded ? 1 : 0;
             frames.Selected = S.frameRate == 30 ? 0 : 1;
             quality.Selected = S.quality < 0 ? Mathf.Clamp(QualitySettings.GetQualityLevel() - 1, 0, 2) : Mathf.Clamp(S.quality - 1, 0, 2);

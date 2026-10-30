@@ -58,8 +58,9 @@ namespace RushAhead.Render
             animal = AnimalView.Build(stand, catalog.SpeciesOf(look).shape, catalog.FurOf(look), seatColour, blower, palette);
             animal.transform.localScale = Vector3.one * 1.15f;
             puffs = AirPuffs.Attach(animal.Nozzle, palette.air);
-            puffs.Configure(blower.coneHalfAngleDeg, blower.range);
+            puffs.Configure(blower);
             puffs.SetFlow(blower.thrustNewtons > 0f ? 0.8f : 0f);
+            animal.Blowing(blower.thrustNewtons > 0f ? 0.8f : 0f);
             sinceBurst = BurstEverySeconds; // show a burst straight away
         }
 
@@ -73,6 +74,7 @@ namespace RushAhead.Render
             if (sinceBurst < BurstEverySeconds) return;
             sinceBurst = 0f;
             puffs.Burst();
+            animal.Puff();
         }
     }
 }

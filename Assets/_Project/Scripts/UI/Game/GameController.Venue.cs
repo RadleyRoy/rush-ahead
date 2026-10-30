@@ -20,6 +20,7 @@ namespace RushAhead.UI
             {
                 course = Course.Build(courses[venue - 1]);
                 courseView = CourseView.Build(course, palette);
+                courseView.Obstacles.Clock = ClockSeconds;
                 barrels.AddRange(course.Barrels);
                 barrelBodies.AddRange(course.BarrelBodies);
                 runner.World.WaterVelocity = course.WaterVelocityAt;

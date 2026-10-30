@@ -72,20 +72,40 @@ namespace RushAhead.Tests
                 world.Drifting.AddRange(course.BarrelBodies);
                 var boat = world.SpawnBoat(course.SpawnPosition, course.SpawnAngleRad, new[] { blower, blower, blower, blower });
                 var ai = new AiCrew(boat, Keep(AiProfile.Preset(skill)), config.tickRate, seed: 1) { River = course.River };
+                CourseSolvabilityTests.Hook(ai, course, world, config);
                 ai.Drive(CrewSectors.DriveOrder(4));
                 var race = new Race(course, boat, world.Tick, config.tickRate);
 
                 var limit = race.StartTick + Mathf.CeilToInt(def.parSeconds * 2.5f * config.tickRate);
-                while (race.Phase != RacePhase.Finished && world.Tick < limit)
+                var losses = new List<string>();
+                var lives = boat.Lives;
+                var trouble = "";
+                while (race.Phase != RacePhase.Finished && race.Phase != RacePhase.Out && world.Tick < limit)
                 {
                     ai.Update(Dt);
+                    course.Hazards.Step(world.Tick / (double)config.tickRate, new[] { boat });
+                    var afloat = boat.State == BoatState.Afloat;
                     world.Advance(Dt);
                     race.Step(world.Tick);
+                    if (afloat && boat.State != BoatState.Afloat)
+                    {
+                        var at = course.River.Project(boat.Body.Position);
+                        trouble = $"{(boat.State == BoatState.Fallen ? "fell" : "capsized")} at {at.Distance:0} m, {at.Lateral:0.0} across";
+                    }
+
+                    if (boat.Lives < lives)
+                    {
+                        lives = boat.Lives;
+                        losses.Add(trouble);
+                    }
                 }
 
                 var time = race.SecondsAt(world.Tick);
                 Debug.Log($"[RushAhead] {def.name}: all-{skill} AI crew {(race.Phase == RacePhase.Finished ? "finished" : "did not finish")} " +
-                          $"in {time:0.0} s, {def.Stars(time)} stars, {boat.CapsizeCount} capsizes");
+                          $"in {time:0.0} s, {def.Stars(time)} stars, {boat.CapsizeCount} capsizes, {boat.Lives} lives left" +
+                          (losses.Count > 0 ? $" (lost: {string.Join("; ", losses)})" : ""));
+                if (skill == AiSkill.Clumsy && race.Phase == RacePhase.Out) return; // Clumsy may run out of lives: reported, not required
+                Assert.That(race.Phase, Is.Not.EqualTo(RacePhase.Out), $"ran out of lives with {boat.GatesPassed} of {course.Gates.Count} gates after {time:0} s");
                 Assert.That(race.Phase, Is.EqualTo(RacePhase.Finished), $"stuck with {boat.GatesPassed} of {course.Gates.Count} gates after {time:0} s");
                 Assert.That(time, Is.LessThanOrEqualTo(def.parSeconds * Allowance(skill)), $"{skill} took {time:0.0} s");
             }
@@ -112,6 +132,7 @@ namespace RushAhead.Tests
                     var (start, heading) = course.RespawnPose(0, lane, 2);
                     var boat = world.SpawnBoat(start, heading, new[] { blower, blower, blower, blower });
                     var ai = new AiCrew(boat, Keep(AiProfile.Preset(AiSkill.Ace)), config.tickRate, seed: 10 + lane) { River = course.River, Lane = lane, Lanes = 2 };
+                    CourseSolvabilityTests.Hook(ai, course, world, config);
                     ai.Drive(CrewSectors.DriveOrder(4));
                     rafts.Add((boat, ai, new Race(course, boat, world.Tick, config.tickRate, lane, 2)));
                 }
@@ -121,17 +142,19 @@ namespace RushAhead.Tests
                 Assert.That(rafts[0].race.StartTick, Is.EqualTo(rafts[1].race.StartTick));
 
                 var limit = rafts[0].race.StartTick + Mathf.CeilToInt(def.parSeconds * 1.5f * config.tickRate);
-                while (rafts.Any(r => r.race.Phase != RacePhase.Finished) && world.Tick < limit)
+                while (rafts.Any(r => r.race.Phase != RacePhase.Finished && r.race.Phase != RacePhase.Out) && world.Tick < limit)
                 {
                     foreach (var r in rafts) r.ai.Update(Dt);
+                    course.Hazards.Step(world.Tick / (double)config.tickRate, rafts.Select(r => r.boat).ToList());
                     world.Advance(Dt);
                     foreach (var r in rafts) r.race.Step(world.Tick);
                 }
 
                 var times = rafts.Select(r => r.race.SecondsAt(world.Tick)).ToArray();
-                Debug.Log($"[RushAhead] {def.name}: AI team race, Red {times[0]:0.0} s, Blue {times[1]:0.0} s, " +
-                          $"capsizes {rafts[0].boat.CapsizeCount}/{rafts[1].boat.CapsizeCount}");
-                Assert.That(rafts.All(r => r.race.Phase == RacePhase.Finished), Is.True, "both rafts get home, despite bumping into each other");
+                Debug.Log($"[RushAhead] {def.name}: AI team race, Red {times[0]:0.0} s ({rafts[0].race.Phase}), Blue {times[1]:0.0} s ({rafts[1].race.Phase}), " +
+                          $"capsizes {rafts[0].boat.CapsizeCount}/{rafts[1].boat.CapsizeCount}, lives {rafts[0].boat.Lives}/{rafts[1].boat.Lives}");
+                Assert.That(rafts.Any(r => r.race.Phase == RacePhase.Finished), Is.True, "someone gets home and wins, despite the bumping");
+                Assert.That(rafts.All(r => r.race.Phase is RacePhase.Finished or RacePhase.Out), Is.True, "and the other finishes too or runs out of lives");
             }
             finally
             {

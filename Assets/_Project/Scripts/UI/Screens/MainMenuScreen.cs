@@ -80,6 +80,12 @@ namespace RushAhead.UI
             right.Add(Btn("menu-host", "Host a game", Flow.OpenHost));
             right.Add(Btn("menu-join", "Join a game", Flow.OpenJoin));
             right.Add(Btn("menu-settings", "Settings", Flow.OpenSettings));
+            if (GameUi.CanQuit)
+            {
+                right.Add(Ui.Grow());
+                right.Add(Btn("menu-quit", "Quit", App.ConfirmQuit, "btn btn--small"));
+            }
+
             Root.Add(right);
 
             // Why the last game ended, if the player didn't end it.

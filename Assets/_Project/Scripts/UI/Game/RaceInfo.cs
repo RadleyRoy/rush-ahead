@@ -23,6 +23,13 @@ namespace RushAhead.UI
 
         public int GatesPassed;
 
+        /// <summary>Lives left (each capsize or fall costs one), out of lives, and gone over the edge right now.</summary>
+        public int Lives;
+        public bool Out;
+        public bool Fallen;
+        public int RivalLives;
+        public bool RivalOut;
+
         /// <summary>Checkpoints on the course, the finish included.</summary>
         public int Gates;
         public bool Finished;

@@ -103,6 +103,9 @@ namespace RushAhead.UI
             var ai = rafts[raft].Ai;
             if (ai == null) return;
             ai.River = course?.River;
+            ai.Water = course != null ? course.WaterVelocityAt : null;
+            ai.BraceAhead = course != null ? BraceAhead : null;
+            ai.SteerAcross = course != null ? SteerAcross : null;
             ai.Lane = raft;
             ai.Lanes = rafts.Count;
         }

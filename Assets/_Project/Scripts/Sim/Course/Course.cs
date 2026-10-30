@@ -76,6 +76,9 @@ namespace RushAhead.Sim
         /// <summary>Everything physical, so the course can be removed in one go. Null until <see cref="BuildPhysics"/>.</summary>
         public GameObject Root { get; private set; }
 
+        /// <summary>The moving obstacles. Null until <see cref="BuildPhysics"/>.</summary>
+        public Hazards Hazards { get; private set; }
+
         /// <summary>
         /// Everything floating loose: the barrels in the course's order, then the logs. Snapshots identify them by
         /// position in this list, so every device builds it the same way.
@@ -93,11 +96,21 @@ namespace RushAhead.Sim
             return course;
         }
 
+        /// <summary>How far past the water's edge a raft's middle can go before it's over (its tube hangs out first).</summary>
+        public const float EdgeMargin = 0.6f;
+
+        /// <summary>
+        /// The course's bodies: rocks, barrels, logs and the obstacles. No banks: the river runs along high ground and
+        /// its sides drop away, so a raft that drifts past the edge falls (see <see cref="IsOffCourse"/>). Only the ends
+        /// are closed, by a line of boulders at the top and a log boom at the bottom, so a finished raft stops there.
+        /// </summary>
         public void BuildPhysics()
         {
             Root = new GameObject($"Course: {Def.displayName}");
-            PhysicsBodies.CreateWallLoop(River.Outline(), "Banks").transform.SetParent(Root.transform, false);
+            EndWall(River.At(StartWallDistance), "Boulders");
+            EndWall(River.At(River.Length - BoomBack), "Log boom");
             foreach (var rock in Def.rocks) PhysicsBodies.CreateRock(rock.position, rock.radius).transform.SetParent(Root.transform, true);
+            Hazards = new Hazards(this, Root.transform);
             foreach (var spot in Def.barrels)
             {
                 var barrel = PhysicsBodies.CreateBarrel(spot, BarrelRadius, BarrelMass);
@@ -134,18 +147,53 @@ namespace RushAhead.Sim
             return lane == 0 ? offset : -offset;
         }
 
+        /// <summary>Where the boulders across the top of the river stop things, and how far up from its end the log boom is.</summary>
+        public const float StartWallDistance = 0.3f;
+        public const float BoomBack = 1f;
+
+        void EndWall(RiverSample at, string name)
+        {
+            var reach = at.HalfWidth + EdgeMargin + 3f; // out past the edges, so nothing slips round the end
+            var wall = PhysicsBodies.CreateWallLoop(new[] { at.Centre + at.Left * reach, at.Centre - at.Left * reach }, name);
+            wall.transform.SetParent(Root.transform, false);
+        }
+
+        /// <summary>Whether a point is off the course: past either edge of the river (the ends are walled).</summary>
+        public bool IsOffCourse(Vector2 point)
+        {
+            var at = River.Project(point);
+            return Mathf.Abs(at.Lateral) > at.HalfWidth + EdgeMargin;
+        }
+
+        /// <summary>Puts back any barrel or log that has drifted over the edge, so the course never runs out of them.</summary>
+        public void ResetStrays()
+        {
+            for (var i = 0; i < barrels.Count; i++)
+            {
+                if (!barrelBodies[i].simulated || !IsOffCourse(barrelBodies[i].position)) continue;
+                if (!IsLog(i)) PhysicsBodies.Reset(barrels[i], Def.barrels[i]);
+                else
+                {
+                    var log = Def.logs[i - Def.barrels.Length];
+                    PhysicsBodies.Reset(barrels[i], log.position, log.angleDeg * Mathf.Deg2Rad);
+                }
+            }
+        }
+
         /// <summary>
-        /// How fast the water itself moves here. Currents are strongest mid-stream, easing off toward the banks and the
-        /// zone's ends; whirlpools add a swirl and a pull toward their middle.
+        /// How fast the water itself moves here. The river's flow runs downstream everywhere in the channel; currents
+        /// add to it or hold it back; both are strongest mid-stream, easing off toward the edges (and currents toward
+        /// their zone's ends). Whirlpools add a swirl and a pull toward their middle.
         /// </summary>
         public Vector2 WaterVelocityAt(Vector2 point)
         {
             var velocity = Whirlpools(point);
-            if (Def.currents.Length == 0) return velocity;
+            if (Def.currents.Length == 0 && Def.flow <= 0f) return velocity;
 
             var at = River.Project(point);
             var across = at.HalfWidth > 0f ? at.Lateral / at.HalfWidth : 0f;
             var profile = Mathf.Clamp01(1f - across * across);
+            velocity += at.Tangent * (Def.flow * Mathf.Lerp(0.5f, 1f, profile)) * (Mathf.Abs(across) <= 1f ? 1f : 0f);
             foreach (var zone in Def.currents)
             {
                 var ramp = Mathf.Min((at.Distance - zone.from) / CurrentRampMetres, (zone.to - at.Distance) / CurrentRampMetres);

@@ -1,5 +1,6 @@
 using System.Text;
 using RushAhead.Render;
+using RushAhead.Sim;
 using UnityEngine;
 using UnityEngine.UIElements;
 
@@ -23,6 +24,7 @@ namespace RushAhead.UI
         VisualElement joinerRow;
         Label waiting;
         Button menu;
+        Button again;
 
         float shownFor;
         bool jingled;
@@ -68,7 +70,8 @@ namespace RushAhead.UI
             panel.Add(Ui.Grow());
 
             hostButtons = Ui.El("row");
-            hostButtons.Add(Btn("results-again", "Race again", Game.StartRace, "btn btn--primary"));
+            again = Btn("results-again", "Race again", Game.StartRace, "btn btn--primary");
+            hostButtons.Add(again);
             hostButtons.Add(Ui.Spacer());
             hostButtons.Add(Ui.Grow());
             hostButtons.Add(Btn("results-lobby", "Lobby", Game.BackToLobby, "btn btn--small"));
@@ -97,8 +100,11 @@ namespace RushAhead.UI
 
             var mine = GameController.TeamName(run.MyRaft);
             Ui.Set(headline, run.TeamRace
-                ? run.Winner < 0 ? "Nobody made it home!" : run.Winner == run.MyRaft ? $"{mine} raft wins! That's you!" : $"{GameController.TeamName(run.Winner)} raft wins!"
-                : !run.Finished ? "Out of time" : run.NewBest ? "New best!" : "Finished!");
+                ? run.Winner >= 0 ? run.Winner == run.MyRaft ? $"{mine} raft wins! That's you!" : $"{GameController.TeamName(run.Winner)} raft wins!"
+                    : run.Out && run.RivalOut ? "Both rafts ran out of lives!" : "Nobody made it home!"
+                : run.Out ? "Out of lives!" : !run.Finished ? "Out of time" : run.NewBest ? "New best!" : "Finished!");
+            var againText = !run.TeamRace && run.Out ? "Try again" : "Race again";
+            if (again.text != againText) again.text = againText;
             Ui.Set(time, run.Finished ? Ui.Time(run.Seconds) : "--");
             // The stars arrive one at a time, each with a ding a little higher than the last; then any fanfare.
             shownFor += Time.unscaledDeltaTime;
@@ -131,12 +137,14 @@ namespace RushAhead.UI
             {
                 var theirs = GameController.TeamName(1 - run.MyRaft);
                 var margin = run.Finished && run.RivalFinished ? $", {Mathf.Abs(run.Seconds - run.RivalSeconds):0.0} s apart" : "";
-                Ui.Set(teams, $"{mine} {(run.Finished ? Ui.Time(run.Seconds) : "didn't finish")}   {theirs} {(run.RivalFinished ? Ui.Time(run.RivalSeconds) : "didn't finish")}{margin}");
+                var me = run.Finished ? Ui.Time(run.Seconds) : run.Out ? "out of lives" : "didn't finish";
+                var them = run.RivalFinished ? Ui.Time(run.RivalSeconds) : run.RivalOut ? "out of lives" : "didn't finish";
+                Ui.Set(teams, $"{mine} {me}   {theirs} {them}{margin}");
             }
 
             Ui.Set(splits, Splits(run));
             var course = run.Course;
-            Ui.Set(details, $"{run.Capsizes} capsize{(run.Capsizes == 1 ? "" : "s")}.   Stars at {Ui.Time(course.threeStarSeconds)}, {Ui.Time(course.twoStarSeconds)} and {Ui.Time(course.parSeconds)}.");
+            Ui.Set(details, $"{run.Lives} of {Race.MaxLives} lives left, {run.Capsizes} capsize{(run.Capsizes == 1 ? "" : "s")}.   Stars at {Ui.Time(course.threeStarSeconds)}, {Ui.Time(course.twoStarSeconds)} and {Ui.Time(course.parSeconds)}.");
         }
 
         static string Splits(RaceInfo run)

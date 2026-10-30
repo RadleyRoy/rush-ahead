@@ -12,8 +12,8 @@ namespace RushAhead.UI
 {
     /// <summary>
     /// Turns every local device into per-seat <see cref="CrewInput"/>. Sticks are camera-relative (up pushes away
-    /// from the camera). By default the stick points where you want the boat to go and the animal aims its nozzle
-    /// the opposite way; "direct nozzle aim" flips that.
+    /// from the camera). The stick points the animal's blower, so the raft goes the other way; the "aim the raft"
+    /// setting flips that (the stick points where the raft should go).
     /// Devices feed four input slots: slot 0 is the left touch stick, WASD or a lone pad's left stick; slot 1 the right
     /// touch stick, arrows or that pad's right stick; slots 2 and 3 are IJKL and the numpad. With two or more pads,
     /// pad N is slot N. <see cref="SetCrewCount"/> decides which seat each slot drives.
@@ -41,7 +41,8 @@ namespace RushAhead.UI
         /// <summary>The camera's heading on the water in sim space. Null means sticks are world-aligned.</summary>
         public Func<Vector2> CameraForward;
 
-        public bool DirectNozzleAim { get; set; }
+        /// <summary>The stick points where the raft should go instead of where the blower points.</summary>
+        public bool AimTheRaft { get; set; }
 
         /// <summary>When true, device input is ignored and seats are driven through <see cref="SetScripted"/>.</summary>
         public bool Scripted { get; set; }
@@ -65,7 +66,7 @@ namespace RushAhead.UI
                 if (magnitude > Deadzone)
                 {
                     var direction = Owner.CameraRelative(Stick / Stick.magnitude);
-                    var air = Owner.DirectNozzleAim ? direction : -direction;
+                    var air = Owner.AimTheRaft ? -direction : direction;
                     input.AimAngle = Mathf.Atan2(air.y, air.x);
                     input.HasAim = true;
                     input.Throttle = Mathf.InverseLerp(Deadzone, 1f, magnitude);

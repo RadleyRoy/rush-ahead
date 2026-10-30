@@ -229,6 +229,9 @@ namespace RushAhead.Net
                 b.GatesPassed = (byte)Mathf.Min(boat.GatesPassed, 255);
                 b.FinishTick = (uint)Mathf.Max(0, boat.FinishTick);
                 b.TeleportCount = (byte)boat.TeleportCount;
+                b.Fallen = boat.State == BoatState.Fallen;
+                b.Out = boat.Out;
+                b.Lives = (byte)Mathf.Clamp(boat.Lives, 0, 255);
                 b.Crew.Clear();
                 foreach (var crew in boat.Crew)
                 {

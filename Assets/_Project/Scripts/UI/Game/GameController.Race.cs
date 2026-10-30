@@ -14,6 +14,7 @@ namespace RushAhead.UI
         RoomPhase phase = RoomPhase.Lobby;
         readonly RunTracker tracker = new();
         readonly List<int> finishTicks = new();
+        readonly List<int> outTicks = new();
         float[] bestSplits = System.Array.Empty<float>();
         (int venue, bool team) bestSplitsFor = (-1, false);
         float lastSplitShownAt = float.NegativeInfinity;
@@ -70,6 +71,7 @@ namespace RushAhead.UI
                 raft.Boat.ResetTo(position, heading);
                 raft.Boat.ClearRun();
                 raft.Boat.ControlsLocked = true;
+                raft.Boat.Moored = course != null; // on a flowing river, waiting on the start line
                 PointAiAtCourse(i);
                 raft.Ai?.Give(CrewOrder.Go);
             }
@@ -137,15 +139,40 @@ namespace RushAhead.UI
                 raft.Ai?.Update(config.TickDt); // decides the AI crew's controls for the coming ticks
                 raft.Race?.Step(tick);
             }
+
+            if (course == null || Mode == NetMode.Joined) return;
+            course.ResetStrays();
+            boatsOnCourse.Clear();
+            foreach (var raft in rafts) boatsOnCourse.Add(raft.Boat);
+            course.Hazards.Step(tick / (double)config.tickRate, boatsOnCourse); // where they'll be for the next physics step
         }
+
+        readonly List<Boat> boatsOnCourse = new();
+
+        /// <summary>The race clock in seconds: the host's tick, or the tick a joined player is drawing. Obstacles run on it.</summary>
+        double ClockSeconds() => (Mode == NetMode.Joined ? PlaybackTick : runner.World.Tick) / config.tickRate;
+
+        /// <summary>For the AI: where across the river to aim to keep clear of the wheels, geysers and crocodiles there.</summary>
+        float SteerAcross(float from, float to, float across) =>
+            course == null ? across : course.Hazards.SteerAcross(from, to, across, runner.World.Tick / (double)config.tickRate);
+
+        /// <summary>For the AI: whether a swinging log or geyser is about to reach a raft at this point.</summary>
+        bool BraceAhead(Vector2 position, float lookahead) =>
+            course != null && course.Hazards.BraceNeeded(position, runner.World.Tick / (double)config.tickRate, lookahead);
 
         /// <summary>Host or solo: once everyone is home (or a Team Race has waited long enough), on to the results.</summary>
         void CheckForResults()
         {
             if (Mode == NetMode.Joined || phase != RoomPhase.Racing || course == null) return;
             finishTicks.Clear();
-            foreach (var raft in rafts) finishTicks.Add(raft.Boat.FinishTick);
-            if (!ResultsRule.Due(finishTicks, runner.World.Tick, config.tickRate)) return;
+            outTicks.Clear();
+            foreach (var raft in rafts)
+            {
+                finishTicks.Add(raft.Boat.FinishTick);
+                outTicks.Add(raft.Boat.OutTick);
+            }
+
+            if (!ResultsRule.Due(finishTicks, outTicks, runner.World.Tick, config.tickRate)) return;
             phase = RoomPhase.Results;
             SendRace();
         }
@@ -188,6 +215,9 @@ namespace RushAhead.UI
                 SinceStart = racing ? (float)((now - start) / config.tickRate) : float.NegativeInfinity,
                 Seconds = racing ? RaceClock.Seconds(start, boat.FinishTick, now, config.tickRate) : 0f,
                 GatesPassed = boat.GatesPassed,
+                Lives = boat.Lives,
+                Out = boat.Out,
+                Fallen = boat.Fallen,
                 Gates = def.gates.Length,
                 Finished = boat.FinishTick > 0,
                 Capsizes = boat.CapsizeCount,
@@ -223,6 +253,8 @@ namespace RushAhead.UI
                     info.RivalFinished = rival.FinishTick > 0;
                     info.RivalSeconds = racing ? RaceClock.Seconds(start, rival.FinishTick, now, config.tickRate) : 0f;
                     info.RivalProgress = Progress(rival);
+                    info.RivalLives = rival.Lives;
+                    info.RivalOut = rival.Out;
                 }
 
                 var best = int.MaxValue;

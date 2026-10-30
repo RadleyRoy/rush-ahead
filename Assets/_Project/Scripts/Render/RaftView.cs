@@ -8,8 +8,9 @@ namespace RushAhead.Render
 {
     /// <summary>
     /// The round inflatable raft and its crew. Reads simulation state every frame and never writes it.
-    /// The sim's tilt becomes a real roll and pitch here, on top of a gentle bob; a capsize flips the raft over.
-    /// Each player's air slice is painted on the water around the raft in their player colour.
+    /// The sim's tilt becomes a real roll and pitch here, on top of a gentle bob; a capsize flips the raft over, and
+    /// going over the edge drops it, tumbling, toward the gorge. Each player's air slice is painted on the water
+    /// around the raft in their player colour.
     /// </summary>
     public sealed class RaftView : MonoBehaviour
     {
@@ -38,6 +39,9 @@ namespace RushAhead.Render
         readonly Queue<(float time, Vector2 velocity)> recent = new();
         int shownTeleports;
         bool wasCapsized;
+        bool wasFallen;
+        float fellAt;
+        Vector3 tumbleAxis;
         float quietUntil;
         float wakeDue;
 
@@ -52,6 +56,14 @@ namespace RushAhead.Render
 
         /// <summary>An animal (by seat) just fired a burst.</summary>
         public event Action<int> Burst;
+
+        /// <summary>The raft just went over the edge.</summary>
+        public event Action Fell;
+
+        /// <summary>How far below the water the raft is drawn while it falls (0 otherwise), so the camera can look down after it.</summary>
+        public float Drop { get; private set; }
+
+        const float FallGravity = 13f; // a little more than real, so it's gone before the respawn
 
         /// <param name="boat">The live boat on the host, or a raft rebuilt from snapshots on a client.</param>
         /// <param name="looks">Each seat's chosen animal and fur; seats beyond the list get the catalog's defaults.</param>
@@ -175,7 +187,19 @@ namespace RushAhead.Render
         void LateUpdate()
         {
             var dt = Time.deltaTime;
-            transform.SetPositionAndRotation(SimSpace.ToWorld(boat.RenderPosition), SimSpace.Heading(boat.RenderAngleRad));
+            var fallen = boat.Fallen;
+            if (fallen && !wasFallen)
+            {
+                fellAt = Time.time;
+                var heading = boat.Velocity.sqrMagnitude > 0.01f ? SimSpace.Direction(boat.Velocity.normalized) : transform.forward;
+                tumbleAxis = Vector3.Cross(Vector3.up, heading).normalized; // tips forward, over the lip
+            }
+
+            var falling = fallen ? Time.time - fellAt : 0f;
+            Drop = 0.5f * FallGravity * falling * falling;
+            var tumble = Quaternion.AngleAxis(falling * 260f, tumbleAxis.sqrMagnitude > 0.5f ? tumbleAxis : Vector3.right);
+            transform.SetPositionAndRotation(SimSpace.ToWorld(boat.RenderPosition, -Drop),
+                fallen ? tumble * SimSpace.Heading(boat.RenderAngleRad) : SimSpace.Heading(boat.RenderAngleRad));
 
             var capsized = boat.Capsized;
             capsize = Mathf.MoveTowards(capsize, capsized ? 1f : 0f, dt / (capsized ? 0.35f : 0.25f));
@@ -188,14 +212,14 @@ namespace RushAhead.Render
                 new Vector3(0f, bob - 0.25f * capsize, 0f),
                 Quaternion.Euler(tilt.y * (1f - capsize), 0f, tilt.x * (1f - capsize) + flipSide * 160f * capsize));
 
-            var airAllowed = !capsized && capsize < 0.05f;
-            for (var i = 0; i < animals.Length; i++) UpdateCrew(i, boat.CrewAt(i), airAllowed, dt);
+            var airAllowed = !capsized && !fallen && capsize < 0.05f;
+            for (var i = 0; i < animals.Length; i++) UpdateCrew(i, boat.CrewAt(i), airAllowed, fallen, dt);
 
-            Feel(capsized, dt);
+            Feel(capsized, fallen, dt);
         }
 
         /// <summary>Bumps, capsizes and the wake: the sounds, splashes and events that go with them.</summary>
-        void Feel(bool capsized, float dt)
+        void Feel(bool capsized, bool fallen, float dt)
         {
             var audio = GameAudio.Instance;
             var now = Time.time;
@@ -237,9 +261,19 @@ namespace RushAhead.Render
 
             wasCapsized = capsized;
 
+            if (fallen && !wasFallen)
+            {
+                // A long falling whistle with a far-off splash at the end, heard from up on the edge.
+                audio?.PlayAt(audio.Bank.Fall, transform.position, 1f, UnityEngine.Random.Range(0.95f, 1.05f));
+                Splashes.Splash(transform.position, 0.5f, palette);
+                Fell?.Invoke();
+            }
+
+            wasFallen = fallen;
+
             // The wake: foam left behind the stern, more of it the faster the raft goes.
             var speed = velocity.magnitude;
-            if (capsized || speed < 0.4f) return;
+            if (capsized || fallen || speed < 0.4f) return;
             wakeDue += dt * Mathf.Min(24f, speed * 8f);
             while (wakeDue >= 1f)
             {
@@ -250,14 +284,14 @@ namespace RushAhead.Render
             }
         }
 
-        void UpdateCrew(int i, ICrewState crew, bool airAllowed, float dt)
+        void UpdateCrew(int i, ICrewState crew, bool airAllowed, bool fallen, float dt)
         {
             var audio = GameAudio.Instance;
             if (shownBlower[i] != crew.Blower)
             {
                 shownBlower[i] = crew.Blower;
                 animals[i].SetBlower(crew.Blower);
-                puffs[i].Configure(crew.Blower.coneHalfAngleDeg, crew.Blower.range);
+                puffs[i].Configure(crew.Blower);
                 blowerSounds[i].clip = audio != null ? audio.Bank.LoopFor(crew.Blower) : null;
             }
 
@@ -270,15 +304,17 @@ namespace RushAhead.Render
             sound.pitch = 0.8f + 0.35f * crew.Spool;
             if (sound.volume > 0.001f && !sound.isPlaying && sound.clip != null) sound.Play();
             else if (sound.volume <= 0.001f && sound.isPlaying) sound.Stop();
-            animals[i].Alarm(Mathf.InverseLerp(0.55f, 0.95f, boat.TiltDanger));
+            animals[i].Alarm(fallen ? 1f : Mathf.InverseLerp(0.55f, 0.95f, boat.TiltDanger)); // all of them panic on the way down
 
             animals[i].Pose(SimSpace.Direction(BlowerMath.Direction(crew.AimAngle)), hull.up, crew.Braced, dt);
             puffs[i].SetFlow(airAllowed && crew.IsBlowing ? crew.Spool : 0f);
+            animals[i].Blowing(airAllowed && crew.IsBlowing ? crew.Spool : 0f);
 
             // Bursts are counted, so a change means a burst happened, however many frames or snapshots went by.
             if (airAllowed && crew.BurstCount != shownBursts[i])
             {
                 puffs[i].Burst();
+                animals[i].Puff();
                 quietUntil = Time.time + 0.2f; // a burst's kick isn't a bump
                 audio?.PlayAt(audio.Bank.Burst, animals[i].Nozzle.position, 0.85f, crew.Blower.thrustNewtons <= 0f ? 0.8f : UnityEngine.Random.Range(0.95f, 1.1f));
                 Burst?.Invoke(i);

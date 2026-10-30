@@ -12,7 +12,7 @@ namespace RushAhead.Tests
         public void EverySound_IsMade_LoudEnough_AndNeverBroken()
         {
             var sounds = SoundBank.Render();
-            Assert.That(sounds.Count, Is.EqualTo(18));
+            Assert.That(sounds.Count, Is.EqualTo(19));
             foreach (var (name, samples) in sounds)
             {
                 Assert.That(samples.Length, Is.GreaterThan(1000), name);

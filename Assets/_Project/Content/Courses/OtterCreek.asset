@@ -15,6 +15,8 @@ MonoBehaviour:
   displayName: Otter Creek
   blurb: Weave the rocks, ride the current, shove through the barrels and fight the
     gorge.
+  scene: 0
+  starsToUnlock: 0
   river:
   - position: {x: 0, y: 0}
     width: 16
@@ -67,6 +69,7 @@ MonoBehaviour:
   - 103.35322
   - 162.00148
   - 211.18199
+  flow: 1.2
   rocks:
   - position: {x: 42.06088, y: 17.408642}
     radius: 1.4
@@ -85,6 +88,7 @@ MonoBehaviour:
   - {x: 112.372215, y: 55.498756}
   - {x: 109.49798, y: 52.716904}
   - {x: 113.536026, y: 51.072044}
+  logs: []
   currents:
   - from: 101.35322
     to: 138.3941
@@ -92,6 +96,24 @@ MonoBehaviour:
   - from: 161.14226
     to: 184.20012
     speed: -0.5
-  parSeconds: 125
-  twoStarSeconds: 105
-  threeStarSeconds: 92
+  whirlpools: []
+  wheels:
+  - position: {x: 29.63407, y: 8.262752}
+    radius: 2.8
+    arms: 3
+    degreesPerSecond: 50
+  crocodiles:
+  - distance: 199.07907
+    side: -1
+    reach: 0.35
+    period: 7
+    offset: 2
+  swingers:
+  - distance: 119.68814
+    period: 5
+    offset: 0
+    logLength: 3.5
+  geysers: []
+  parSeconds: 82
+  twoStarSeconds: 68
+  threeStarSeconds: 59

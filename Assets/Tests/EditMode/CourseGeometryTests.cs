@@ -61,6 +61,7 @@ namespace RushAhead.Tests
             try
             {
                 def.river = Straight;
+                def.flow = 0f; // the currents alone
                 def.currents = new[] { new CurrentZone(20f, 60f, 1f), new CurrentZone(70f, 90f, -0.5f) };
                 var course = new Course(def);
 
@@ -69,6 +70,29 @@ namespace RushAhead.Tests
                 Assert.That(course.WaterVelocityAt(new Vector2(22f, 0f)).x, Is.InRange(0.2f, 0.5f), "eases in at the start of the zone");
                 Assert.That(course.WaterVelocityAt(new Vector2(10f, 0f)), Is.EqualTo(Vector2.zero), "still water outside it");
                 Assert.That(course.WaterVelocityAt(new Vector2(80f, 0f)).x, Is.EqualTo(-0.5f).Within(1e-3f), "a negative zone pushes upstream");
+            }
+            finally
+            {
+                Object.DestroyImmediate(def);
+            }
+        }
+
+        [Test]
+        public void TheRiver_RunsDownstreamEverywhereInTheChannel_AndNotPastItsEdges()
+        {
+            var def = ScriptableObject.CreateInstance<CourseDef>();
+            try
+            {
+                def.river = Straight;
+                def.flow = 1.5f;
+                var course = new Course(def);
+
+                Assert.That(course.WaterVelocityAt(new Vector2(10f, 0f)).x, Is.EqualTo(1.5f).Within(1e-3f), "full speed mid-stream");
+                Assert.That(course.WaterVelocityAt(new Vector2(10f, 4.5f)).x, Is.InRange(0.75f, 1.5f), "slower toward the edge, still downstream");
+                Assert.That(course.WaterVelocityAt(new Vector2(10f, 9f)), Is.EqualTo(Vector2.zero), "nothing past the edge");
+                Assert.That(course.IsOffCourse(new Vector2(10f, 4f)), Is.False);
+                Assert.That(course.IsOffCourse(new Vector2(10f, 5f + Course.EdgeMargin + 0.1f)), Is.True, "over the edge");
+                Assert.That(course.IsOffCourse(new Vector2(-1f, 0f)), Is.False, "the ends are walled, not drops");
             }
             finally
             {
@@ -129,6 +153,46 @@ namespace RushAhead.Tests
 
             Assert.That(def.whirlpools.Length + def.logs.Length + def.barrels.Length, Is.LessThanOrEqualTo(64), "snapshots carry at most 64 loose things");
 
+            // Obstacles: in the water, leaving a way past, and clear of every place a raft starts or comes back.
+            var respawns = new List<Vector2>();
+            for (var gate = 0; gate < def.gates.Length; gate++) respawns.Add(course.RespawnPose(gate).position);
+            void ClearOfRespawns(Vector2 at, float reach, string what)
+            {
+                foreach (var spot in respawns)
+                    Assert.That(Vector2.Distance(spot, at), Is.GreaterThan(reach + raftRadius + 4f), $"{what} right where a raft starts or comes back");
+            }
+
+            foreach (var wheel in def.wheels)
+            {
+                var at = river.Project(wheel.position);
+                Assert.That(Mathf.Abs(at.Lateral) + wheel.radius, Is.LessThan(at.HalfWidth + 0.5f), $"wheel at {wheel.position} is in the water");
+                Assert.That(at.HalfWidth - Mathf.Abs(at.Lateral) + wheel.radius, Is.LessThan(2f * at.HalfWidth - 2f * raftRadius - 1f),
+                    $"wheel at {wheel.position} leaves no way past");
+                ClearOfRespawns(wheel.position, wheel.radius, $"wheel at {wheel.position}");
+            }
+
+            foreach (var geyser in def.geysers)
+            {
+                var at = river.Project(geyser.position);
+                Assert.That(Mathf.Abs(at.Lateral) + geyser.radius, Is.LessThan(at.HalfWidth), $"geyser at {geyser.position} is in the water");
+                ClearOfRespawns(geyser.position, geyser.radius, $"geyser at {geyser.position}");
+            }
+
+            foreach (var croc in def.crocodiles)
+            {
+                Assert.That(croc.reach, Is.InRange(0.1f, 0.5f), "a crocodile lunges part way across, never right over");
+                Assert.That(Mathf.Abs(croc.side), Is.EqualTo(1f), "a crocodile waits on one side or the other");
+                ClearOfRespawns(river.At(croc.distance).Centre, river.At(croc.distance).HalfWidth, $"crocodile at {croc.distance:0} m");
+            }
+
+            foreach (var swing in def.swingers)
+            {
+                Assert.That(swing.distance, Is.InRange(def.startDistance + 10f, def.FinishDistance - 5f), "a swinging log on the course");
+                ClearOfRespawns(river.At(swing.distance).Centre, 2f, $"swinging log at {swing.distance:0} m");
+                foreach (var gate in course.Gates)
+                    Assert.That(Mathf.Abs(gate.Distance - swing.distance), Is.GreaterThan(6f), "a bridge right on a checkpoint");
+            }
+
             // The river never comes back near itself, or one stretch's banks would stand in another's water.
             var samples = river.Samples;
             for (var i = 0; i < samples.Count; i += 4)
@@ -147,6 +211,7 @@ namespace RushAhead.Tests
             try
             {
                 def.river = new[] { new RiverPoint(0f, 0f, 30f), new RiverPoint(60f, 0f, 30f) };
+                def.flow = 0f; // the whirlpool alone
                 def.gates = new[] { 30f, 50f };
                 def.whirlpools = new[] { new WhirlpoolSpot(new Vector2(30f, 0f), 6f, 2f, 1f) };
                 var course = new Course(def);

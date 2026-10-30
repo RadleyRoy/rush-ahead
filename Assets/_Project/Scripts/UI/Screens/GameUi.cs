@@ -182,7 +182,19 @@ namespace RushAhead.UI
                 case BackAction.ConfirmLeave:
                     ConfirmLeave();
                     break;
+                case BackAction.ConfirmQuit:
+                    ConfirmQuit();
+                    break;
             }
+        }
+
+        /// <summary>Phones and computers can quit from the menu; iPhone apps don't quit themselves (Apple asks them not to).</summary>
+        public static bool CanQuit => Application.platform != RuntimePlatform.IPhonePlayer;
+
+        public void ConfirmQuit()
+        {
+            if (!CanQuit) return;
+            Confirm("Quit Rush Ahead?", null, "Quit", Application.Quit);
         }
 
         /// <summary>Asks before ending the game: a host ends it for everyone.</summary>
@@ -236,6 +248,16 @@ namespace RushAhead.UI
                 if (e.resolvedStyle.display == DisplayStyle.None) return false;
             if (!entry.element.enabledInHierarchy) return false;
             entry.action();
+            return true;
+        }
+
+        /// <summary>Scrolls a named control into view, if it sits in a scrolling list. For the scripted demo.</summary>
+        public bool ScrollTo(string name)
+        {
+            if (!named.TryGetValue(name, out var entry)) return false;
+            var scroll = entry.element.GetFirstAncestorOfType<ScrollView>();
+            if (scroll == null) return false;
+            scroll.ScrollTo(entry.element);
             return true;
         }
 
