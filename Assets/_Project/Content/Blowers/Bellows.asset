@@ -16,8 +16,8 @@ MonoBehaviour:
   blurb: 'No steady air at all: big puffs only (tap to burst).'
   color: {r: 0.62, g: 0.4, b: 0.22, a: 1}
   thrustNewtons: 0
-  spoolUpMs: 260
-  spoolDownMs: 180
+  spoolUpMs: 156
+  spoolDownMs: 108
   coneHalfAngleDeg: 30
   range: 3
   falloffExp: 1.6

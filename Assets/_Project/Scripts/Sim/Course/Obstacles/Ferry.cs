@@ -60,7 +60,7 @@ namespace RushAhead.Sim
         public override float SteerAcross(float from, float to, float across, double seconds, float limit)
         {
             if (!Between(spot.distance, Length * 0.5f + RaftRadius + 1f, from, to)) return across;
-            var eta = Mathf.Clamp((spot.distance - from) / 6f, 0f, 1.5f);
+            var eta = Mathf.Clamp((spot.distance - from) / ApproachSpeed, 0f, 1.5f);
             var reach = Width * 0.5f + RaftRadius + 0.5f;
             return Clear(Clear(across, Across(seconds + eta), reach, limit), Across(seconds), reach, limit);
         }

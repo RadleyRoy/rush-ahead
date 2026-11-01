@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using UnityEngine;
 using UnityEngine.UIElements;
 
 namespace RushAhead.UI
@@ -25,6 +26,13 @@ namespace RushAhead.UI
         {
             Root.AddToClassList("row");
             Root.style.alignItems = Align.Stretch;
+
+            // A dark sweep in from the left, so the name and the records read over any sky.
+            var shade = new VisualElement { pickingMode = PickingMode.Ignore };
+            shade.AddToClassList("layer");
+            shade.style.right = new Length(50f, LengthUnit.Percent);
+            shade.style.backgroundImage = Gradients.Horizontal(new Color(0.03f, 0.035f, 0.045f, 0.8f), new Color(0.03f, 0.035f, 0.045f, 0f));
+            Root.Add(shade);
 
             // Left: the name of the game, then the records, at the bottom.
             var left = Ui.El("col grow");

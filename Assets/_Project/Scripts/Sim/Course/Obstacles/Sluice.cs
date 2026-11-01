@@ -84,8 +84,8 @@ namespace RushAhead.Sim
         /// <summary>Aims for where the gap will be when the raft gets there (it's quick about it: a second or so ahead).</summary>
         public override float SteerAcross(float from, float to, float across, double seconds, float limit)
         {
-            if (from > spot.distance + 1f || spot.distance - from > 22f) return across; // lines up from well back: it's fast water
-            var eta = Mathf.Clamp((spot.distance - from) / 6f, 0f, 1.5f);
+            if (from > spot.distance + 1f || spot.distance - from > 36f) return across; // lines up from well back: it's fast water
+            var eta = Mathf.Clamp((spot.distance - from) / ApproachSpeed, 0f, 1.5f);
             var target = GapCentre(seconds + eta);
             var slack = Mathf.Max(0f, spot.gap * 0.5f - RaftRadius - 0.2f);
             return Mathf.Clamp(Mathf.Clamp(across, target - slack, target + slack), -limit, limit);

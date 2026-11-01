@@ -86,6 +86,22 @@ namespace RushAhead.Tests
         }
 
         [Test]
+        public void ASwingingLog_PassesOverARaftOutWhereItSwingsHigh()
+        {
+            // Out at 6 m the log only reaches the raft while it's swung up above the crew's heads: drawn over them, it misses.
+            def.swingers = new[] { new SwingSpot(40f, 4f, 1f, 3f) };
+            Build();
+            var boat = Spawn(new Vector2(40f, 6f));
+            var shoves = 0;
+            boat.Shoved += _ => shoves++;
+
+            for (var i = 0; i < 60 * 6; i++) Step(boat);
+            Assert.That(shoves, Is.Zero, "the log swings by overhead");
+            Assert.That(course.Hazards.LogHeight(0, 4.5f) - Hazards.LogRadius, Is.GreaterThan(1.5f), "drawn above the crew's heads there");
+            Assert.That(course.Hazards.LogHeight(0, 0f), Is.EqualTo(Hazards.LogClearance).Within(1e-4f), "and down near the water in the middle");
+        }
+
+        [Test]
         public void ABracedCrew_DucksUnderTheLog()
         {
             def.swingers = new[] { new SwingSpot(40f, 4f, 1f, 3f) }; // starts out at the side of its swing

@@ -39,6 +39,7 @@ namespace RushAhead.Sim
             foreach (var boat in boats)
             {
                 boat.WaterVelocity = WaterVelocity?.Invoke(boat.Body.Position) ?? Vector2.zero;
+                boat.WaterAhead = WaterVelocity?.Invoke(boat.Body.Position + boat.Body.Velocity * Boat.BendLookSeconds) ?? Vector2.zero;
                 boat.Step(dt);
             }
 

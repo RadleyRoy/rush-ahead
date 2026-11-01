@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: RushAhead.Content::RushAhead.Content.AiProfile
   displayName: Clumsy
   blurb: Means well. Slow to react, wobbly aim, and easily distracted.
-  cruiseSpeed: 2
+  cruiseSpeed: 4.2
   reactionSeconds: 0.6
   aimWobbleDeg: 30
   airDiscipline: 0.15

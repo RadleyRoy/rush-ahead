@@ -58,10 +58,28 @@ namespace RushAhead.Sim
             }
         }
 
+        public override void Zones(double seconds, List<Vector2> lines)
+        {
+            Circle(lines, Position(seconds), Pull - RaftRadius * 0.5f);
+            Circle(lines, Position(seconds), Core - RaftRadius * 0.4f);
+        }
+
+        /// <summary>When the raft, coming down the river at the usual speed, would run into its core and be flung.</summary>
+        public override bool BraceNeeded(Vector2 position, double seconds, float lookahead)
+        {
+            var here = River.Project(position);
+            var reach = Core + RaftRadius * 0.6f + 1f;
+            const float wander = 2.5f; // up and down the river, in its figure of eight
+            if (here.Distance > spot.distance + wander + reach || here.Distance < spot.distance - wander - reach - ApproachSpeed * lookahead) return false;
+            for (var t = 0f; t <= lookahead; t += 0.1f)
+                if (Vector2.Distance(Position(seconds + t), position + at.Tangent * (ApproachSpeed * t)) < reach) return true;
+            return false;
+        }
+
         public override float SteerAcross(float from, float to, float across, double seconds, float limit)
         {
             if (!Between(spot.distance, Pull + 3f, from, to)) return across;
-            var eta = Mathf.Clamp((spot.distance - from) / 6f, 0f, 1.5f);
+            var eta = Mathf.Clamp((spot.distance - from) / ApproachSpeed, 0f, 1.5f);
             var reach = Pull + RaftRadius * 0.5f;
             return Clear(Clear(across, Across(seconds + eta), reach, limit), Across(seconds), reach, limit);
         }

@@ -311,13 +311,35 @@ namespace RushAhead.Render
         void BuildLand(Transform parent, System.Random random)
         {
             var land = GorgeTerrain.Build(course, style, palette, parent, RimWidth + MaxLean);
+            Plant(land, course.Def.scene, style, palette, parent, random);
+
+            // Mist lying along the valley floor here and there.
+            var mist = new Material(palette.foam) { name = "Mist", color = new Color(0.93f, 0.95f, 1f, 0.07f) };
+            var river = course.River;
+            for (var i = 0; i < 10; i++)
+            {
+                var at = river.At((i + 0.5f) / 10f * river.Length);
+                var side = random.NextDouble() < 0.5 ? -1f : 1f;
+                var spot = at.Centre + at.Left * (side * (at.HalfWidth + RimWidth + MaxLean + 30f + 30f * (float)random.NextDouble()));
+                var cloud = Shapes3D.MeshObject("Mist", Shapes3D.Disc(20f + 14f * (float)random.NextDouble(), 24), parent,
+                    SimSpace.ToWorld(spot, land.Height(spot) + 2.5f + 4f * (float)random.NextDouble()), mist);
+                cloud.GetComponent<MeshRenderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            }
+        }
+
+        /// <summary>
+        /// Woods and scree on a piece of land: trees thickest a little way out from the edge and thinning up the hills,
+        /// scanned boulders and shrubs near it. Used round the courses and the practice lagoon.
+        /// </summary>
+        public static void Plant(GorgeTerrain.Land land, CourseScene scene, BankStyle style, ArtPalette palette, Transform parent, System.Random random)
+        {
             var detail = Looks.Detail;
             var size = land.Terrain.terrainData.size;
             var corner = land.Terrain.transform.position;
             Vector2 Somewhere(float x, float z, float step) =>
                 new(corner.x + x + (float)random.NextDouble() * step, corner.z + z + (float)random.NextDouble() * step);
 
-            var conifers = course.Def.scene switch { CourseScene.Rapids => 0.85, CourseScene.Lake => 0.2, _ => 0.3 };
+            var conifers = scene switch { CourseScene.Rapids => 0.85, CourseScene.Lake => 0.2, _ => 0.3 };
             var woods = Shapes3D.Group(parent, "Woods");
             const float treeStep = 8.5f;
             for (var z = 0f; z < size.z - treeStep; z += treeStep)
@@ -362,19 +384,6 @@ namespace RushAhead.Render
                     Cull(Shapes3D.Model("Shrub", palette.shrubMeshes[pick], palette.shrubMaterials[pick], scree, ground,
                         1f + 1.6f * (float)random.NextDouble(), (float)random.NextDouble() * 360f, 0.05f), 0.015f);
                 }
-            }
-
-            // Mist lying along the valley floor here and there.
-            var mist = new Material(palette.foam) { name = "Mist", color = new Color(0.93f, 0.95f, 1f, 0.07f) };
-            var river = course.River;
-            for (var i = 0; i < 10; i++)
-            {
-                var at = river.At((i + 0.5f) / 10f * river.Length);
-                var side = random.NextDouble() < 0.5 ? -1f : 1f;
-                var spot = at.Centre + at.Left * (side * (at.HalfWidth + RimWidth + MaxLean + 30f + 30f * (float)random.NextDouble()));
-                var cloud = Shapes3D.MeshObject("Mist", Shapes3D.Disc(20f + 14f * (float)random.NextDouble(), 24), parent,
-                    SimSpace.ToWorld(spot, land.Height(spot) + 2.5f + 4f * (float)random.NextDouble()), mist);
-                cloud.GetComponent<MeshRenderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             }
         }
 

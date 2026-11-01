@@ -117,7 +117,7 @@ namespace RushAhead.Tests
             Run(15f);
 
             // Terminal speed where thrust equals quadratic drag: sqrt(2 * thrust / forwardDrag).
-            var terminal = Mathf.Sqrt(2f * leafBlower.thrustNewtons / config.forwardDrag);
+            var terminal = Mathf.Sqrt(2f * leafBlower.thrustNewtons * config.thrustMultiplier / config.forwardDrag);
             Assert.That(boat.ForwardSpeed, Is.EqualTo(terminal).Within(terminal * 0.1f));
         }
 
@@ -198,7 +198,7 @@ namespace RushAhead.Tests
             rearLeft.BurstOnce = rearRight.BurstOnce = true;
             world.Advance(Dt);
 
-            var expected = 2f * leafBlower.burstImpulse / config.mass;
+            var expected = 2f * leafBlower.burstImpulse * config.thrustMultiplier / config.mass;
             Assert.That(boat.ForwardSpeed, Is.EqualTo(expected).Within(expected * 0.15f));
             Assert.That(boat.Crew[2].Tank.Air, Is.EqualTo(leafBlower.airCapacity - leafBlower.burstCost).Within(0.5f));
         }

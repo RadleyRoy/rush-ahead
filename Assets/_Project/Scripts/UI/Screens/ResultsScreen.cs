@@ -1,4 +1,4 @@
-using System.Text;
+using System.Collections.Generic;
 using RushAhead.Render;
 using RushAhead.Sim;
 using UnityEngine;
@@ -18,7 +18,8 @@ namespace RushAhead.UI
         Label versus;
         Label opened;
         Label teams;
-        Label splits;
+        VisualElement splits;
+        readonly List<(VisualElement cell, Label name, Label time, Label delta)> splitCells = new();
         Label details;
         VisualElement hostButtons;
         VisualElement joinerRow;
@@ -63,7 +64,9 @@ namespace RushAhead.UI
             teams = Ui.Text("", "h3");
             panel.Add(teams);
             panel.Add(Ui.Spacer());
-            splits = Ui.Text("", "body");
+            splits = Ui.El("row");
+            splits.style.flexWrap = Wrap.Wrap;
+            splits.style.alignItems = Align.FlexStart;
             panel.Add(splits);
             details = Ui.Text("", "small muted");
             panel.Add(details);
@@ -103,7 +106,7 @@ namespace RushAhead.UI
                 ? run.Winner >= 0 ? run.Winner == run.MyRaft ? $"{mine} raft wins! That's you!" : $"{GameController.TeamName(run.Winner)} raft wins!"
                     : run.Out && run.RivalOut ? "Both rafts ran out of lives!" : "Nobody made it home!"
                 : run.Out ? "Out of lives!" : !run.Finished ? "Out of time" : run.NewBest ? "New best!" : "Finished!");
-            var againText = !run.TeamRace && run.Out ? "Try again" : "Race again";
+            var againText = !run.TeamRace && run.Out ? "TRY AGAIN" : "RACE AGAIN";
             if (again.text != againText) again.text = againText;
             Ui.Set(time, run.Finished ? Ui.Time(run.Seconds) : "--");
             // The stars arrive one at a time, each with a ding a little higher than the last; then any fanfare.
@@ -142,23 +145,36 @@ namespace RushAhead.UI
                 Ui.Set(teams, $"{mine} {me}   {theirs} {them}{margin}");
             }
 
-            Ui.Set(splits, Splits(run));
+            ShowSplits(run);
             Ui.Set(details, $"{run.Lives} of {Race.MaxLives} lives left, {run.Capsizes} capsize{(run.Capsizes == 1 ? "" : "s")}.   A star for every life you finish with.");
         }
 
-        static string Splits(RaceInfo run)
+        /// <summary>A cell per checkpoint: its name, the time there, and how that compares with your best (green ahead, red behind).</summary>
+        void ShowSplits(RaceInfo run)
         {
-            if (run.Splits == null || run.Splits.Count == 0) return "";
-            var text = new StringBuilder();
-            for (var i = 0; i < run.Splits.Count; i++)
+            var count = run.Splits?.Count ?? 0;
+            while (splitCells.Count < count)
             {
-                if (i > 0) text.Append("    ");
-                text.Append(i == run.Gates - 1 ? "Finish " : $"CP{i + 1} ").Append(Ui.Time(run.Splits[i]));
-                var delta = run.SplitDeltas != null && i < run.SplitDeltas.Count ? run.SplitDeltas[i] : float.NaN;
-                if (!float.IsNaN(delta)) text.Append(" (").Append(Ui.Delta(delta)).Append(')');
+                var name = Ui.Text("", "split-name");
+                var at = Ui.Text("", "split-time");
+                var delta = Ui.Text("", "split-delta");
+                var cell = Ui.El("split", name, at, delta);
+                splits.Add(cell);
+                splitCells.Add((cell, name, at, delta));
             }
 
-            return text.ToString();
+            for (var i = 0; i < splitCells.Count; i++)
+            {
+                var (cell, name, at, delta) = splitCells[i];
+                Ui.Show(cell, i < count);
+                if (i >= count) continue;
+                Ui.Set(name, i == run.Gates - 1 ? "FINISH" : $"CP{i + 1}");
+                Ui.Set(at, Ui.Time(run.Splits[i]));
+                var change = run.SplitDeltas != null && i < run.SplitDeltas.Count ? run.SplitDeltas[i] : float.NaN;
+                Ui.Set(delta, float.IsNaN(change) ? "" : Ui.Delta(change));
+                Ui.SetClass(delta, "good", change <= 0f);
+                Ui.SetClass(delta, "bad", change > 0f);
+            }
         }
 
         string HostName()

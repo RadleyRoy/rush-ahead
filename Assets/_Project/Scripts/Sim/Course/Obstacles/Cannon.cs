@@ -46,6 +46,13 @@ namespace RushAhead.Sim
             return Mathf.Abs(Vector2.Dot(offset, new Vector2(-jet.y, jet.x))) < JetRadius + margin;
         }
 
+        public override void Zones(double seconds, List<Vector2> lines)
+        {
+            var jet = Jet(seconds);
+            var half = Mathf.Max(0.05f, JetRadius + RaftRadius * 0.8f - RaftRadius);
+            Box(lines, Muzzle + jet * (Reach * 0.5f), jet, Reach * 0.5f, half);
+        }
+
         public override void Step(double seconds, float dt, IReadOnlyList<Boat> boats)
         {
             var jet = Jet(seconds);

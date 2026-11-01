@@ -12,7 +12,6 @@ namespace RushAhead.Render
     /// </summary>
     public sealed class HazardViews : MonoBehaviour
     {
-        const float BridgeClearance = 0.45f; // the log's lowest point above the water
 
         Hazards hazards;
         River river;
@@ -25,6 +24,9 @@ namespace RushAhead.Render
 
         /// <summary>The race clock, in seconds.</summary>
         public Func<double> Clock;
+
+        /// <summary>The boost lanes' glowing chevrons.</summary>
+        public BoostViews Boosts { get; private set; }
 
         public static HazardViews Build(Course course, ArtPalette palette, Transform parent)
         {
@@ -40,6 +42,7 @@ namespace RushAhead.Render
             for (var i = 0; i < def.geysers.Length; i++) view.BuildGeyser(def.geysers[i]);
             foreach (var obstacle in course.Hazards.Obstacles)
                 if (ObstacleView.For(obstacle, palette, view.transform) is { } other) view.others.Add(other);
+            view.Boosts = BoostViews.Build(course.Hazards.Boosts, palette, view.transform);
             view.Pose(0);
             return view;
         }
@@ -106,9 +109,8 @@ namespace RushAhead.Render
         {
             var def = hazards.Layout.swingers[i];
             var at = river.At(def.distance);
-            var amplitude = Mathf.Max(0.5f, at.HalfWidth - 0.6f);
-            var rope = amplitude / Mathf.Sin(55f * Mathf.Deg2Rad); // swings out to 55 degrees
-            var pivotHeight = rope + BridgeClearance;
+            var rope = hazards.LogRope(i); // the sim's own rope, so the log is drawn where it hits
+            var pivotHeight = rope + Hazards.LogClearance;
             var wood = palette.Planks;
             var yaw = Quaternion.LookRotation(SimSpace.Direction(at.Tangent)); // local x runs across the river
 
@@ -121,7 +123,8 @@ namespace RushAhead.Render
 
             var log = Shapes3D.Group(transform, "Swinging log");
             var bark = palette.Tinted(palette.wood, new Color(0.42f, 0.28f, 0.17f));
-            Shapes3D.Primitive(PrimitiveType.Cylinder, log, Vector3.zero, new Vector3(0.6f, def.logLength * 0.5f, 0.6f), bark, Quaternion.Euler(90f, 0f, 0f), "Log");
+            Shapes3D.Primitive(PrimitiveType.Cylinder, log, Vector3.zero, new Vector3(2f * Hazards.LogRadius, def.logLength * 0.5f, 2f * Hazards.LogRadius), bark,
+                Quaternion.Euler(90f, 0f, 0f), "Log");
             var ropes = new Transform[2];
             for (var r = 0; r < 2; r++)
                 ropes[r] = Shapes3D.Primitive(PrimitiveType.Cylinder, transform, Vector3.zero, new Vector3(0.06f, 1f, 0.06f), palette.Tinted(palette.wood, new Color(0.8f, 0.7f, 0.5f)), name: "Rope").transform;

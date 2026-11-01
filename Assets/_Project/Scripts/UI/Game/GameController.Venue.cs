@@ -1,3 +1,4 @@
+using RushAhead.Content;
 using RushAhead.Render;
 using RushAhead.Sim;
 using UnityEngine;
@@ -7,6 +8,25 @@ namespace RushAhead.UI
     /// <summary>Venues: the practice lagoon (0) or a course.</summary>
     public sealed partial class GameController
     {
+        static bool showHitZones = CommandLine.Has("-rushahead-hitzones");
+        HitZoneOverlay hitZones;
+
+        /// <summary>
+        /// Lines on the water showing what really hits on a course (colliders and each obstacle's reach): from
+        /// <c>-rushahead-hitzones</c> or the developer overlay.
+        /// </summary>
+        public bool ShowHitZones
+        {
+            get => showHitZones;
+            set
+            {
+                showHitZones = value;
+                if (value && hitZones == null && courseView != null)
+                    hitZones = HitZoneOverlay.Attach(courseView.transform, course.Hazards, ClockSeconds, palette);
+                if (hitZones != null) hitZones.gameObject.SetActive(value);
+            }
+        }
+
         /// <summary>Tears down the current venue and builds another. Joined, its barrels only show where the host says.</summary>
         void LoadVenue(int index)
         {
@@ -22,6 +42,15 @@ namespace RushAhead.UI
                 Debug.Log($"[RushAhead] {course.Def.displayName}: round dealt from seed {layoutSeed}, {course.Layout.Count} obstacles");
                 courseView = CourseView.Build(course, palette);
                 courseView.Obstacles.Clock = ClockSeconds;
+                if (showHitZones) ShowHitZones = true;
+                var boosts = courseView.Obstacles.Boosts;
+                boosts.Watched = () => ViewedBoat.RenderPosition;
+                boosts.Entered += () =>
+                {
+                    chase?.Kick(1f);
+                    var audio = GameAudio.Instance;
+                    if (audio != null) audio.Play(audio.Bank.Burst, 0.9f, 1.45f);
+                };
                 barrels.AddRange(course.Barrels);
                 barrelBodies.AddRange(course.BarrelBodies);
                 runner.World.WaterVelocity = course.WaterVelocityAt;
@@ -54,6 +83,7 @@ namespace RushAhead.UI
             course = null;
             if (courseView != null) Destroy(courseView.gameObject);
             courseView = null;
+            hitZones = null; // went with the course view
             if (lagoon != null)
             {
                 lagoon.SetActive(false); // out of the physics world now, not at the end of the frame
@@ -76,11 +106,21 @@ namespace RushAhead.UI
 
             CourseDressing.Water(scenery, Vector2.zero, 2f * h + new Vector2(120f, 120f), palette);
 
-            // Banks all round, walked counter-clockwise so each cliff builds outward, away from the water.
+            // Banks all round, walked counter-clockwise so each builds outward, away from the water: low land with a
+            // rocky shore rising into wooded hills, like the courses' (blocky cliffs if the land's art isn't there).
             var corners = new[] { new Vector2(-h.x, -h.y), new Vector2(h.x, -h.y), new Vector2(h.x, h.y), new Vector2(-h.x, h.y) };
             PhysicsBodies.CreateWallLoop(corners).transform.SetParent(lagoon.transform, true);
-            for (var i = 0; i < corners.Length; i++)
-                CourseDressing.CliffBank(scenery, corners[i], corners[(i + 1) % corners.Length], 7f, palette, random);
+            if (palette.HasLand)
+            {
+                var land = GorgeTerrain.BuildPond(h, CourseScene.Creek, palette, scenery);
+                CourseView.Plant(land, CourseScene.Creek, BankStyle.For(CourseScene.Creek, palette), palette, scenery, random);
+                for (var i = 0; i < corners.Length; i++) RockyShore(scenery, corners[i], corners[(i + 1) % corners.Length], land, random);
+            }
+            else
+            {
+                for (var i = 0; i < corners.Length; i++)
+                    CourseDressing.CliffBank(scenery, corners[i], corners[(i + 1) % corners.Length], 7f, palette, random);
+            }
 
             // A slalom down the middle, then a gate between two rocks with 0.8 m to spare for the 3.2 m raft.
             foreach (var (position, radius) in new[]
@@ -103,6 +143,25 @@ namespace RushAhead.UI
                 CourseDressing.Barrel(scenery, barrel.transform, BarrelRadius, palette);
                 barrels.Add(barrel);
                 barrelBodies.Add(barrel.GetComponent<Rigidbody2D>());
+            }
+        }
+
+        /// <summary>Scanned boulders along one side of the lagoon, just outside the wall the raft bumps: half sunk, in uneven clumps.</summary>
+        void RockyShore(Transform parent, Vector2 from, Vector2 to, GorgeTerrain.Land land, System.Random random)
+        {
+            if (palette.boulderMeshes.Length == 0) return;
+            var along = to - from;
+            var length = along.magnitude;
+            var direction = along / length;
+            var outward = new Vector2(direction.y, -direction.x);
+            var shore = Shapes3D.Group(parent, "Shore");
+            for (var d = 0f; d < length; d += 1.4f + 3.6f * (float)(random.NextDouble() * random.NextDouble()))
+            {
+                var spot = from + direction * d + outward * (0.4f + 1.4f * (float)random.NextDouble());
+                var pick = random.Next(palette.boulderMeshes.Length);
+                var width = 1.1f + 2.2f * (float)(random.NextDouble() * random.NextDouble());
+                Shapes3D.Model("Boulder", palette.boulderMeshes[pick], palette.boulderMaterials[pick], shore, SimSpace.ToWorld(spot, Mathf.Min(0.1f, land.Height(spot))),
+                    width, (float)random.NextDouble() * 360f, 0.5f);
             }
         }
 

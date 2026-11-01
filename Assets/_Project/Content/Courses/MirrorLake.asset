@@ -89,7 +89,7 @@ MonoBehaviour:
   - 205.78314
   - 265.55185
   - 329.3601
-  flow: 2.2
+  flow: 4.4
   rocks:
   - position: {x: 51.331535, y: 10.228128}
     radius: 3.5
@@ -133,8 +133,8 @@ MonoBehaviour:
     weight: 1
   - kind: 17
     weight: 1
-  minObstacles: 9
-  maxObstacles: 12
+  minObstacles: 8
+  maxObstacles: 11
   wheels: []
   crocodiles: []
   swingers: []

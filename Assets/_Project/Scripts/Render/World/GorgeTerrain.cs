@@ -9,6 +9,8 @@ namespace RushAhead.Render
     /// The river runs along the top of a ridge; its cliffs fall to a valley floor with scree heaped at their feet, open
     /// near the cliffs and rolling up into wooded hills further off, painted by what the ground is doing there: scree on
     /// the heaps and steep slopes, earth and leaf litter under the trees, grass in the open, moss and rock on the hills.
+    /// The practice lagoon gets the same land round a pond instead (<see cref="BuildPond"/>): low banks just above the
+    /// water, rising into the same hills.
     /// </summary>
     public static class GorgeTerrain
     {
@@ -127,28 +129,65 @@ namespace RushAhead.Render
                 }
             }
 
-            // The shape of the land.
-            var floor = -style.Drop;
-            var bottom = floor - 4f;
-            var top = floor + Talus + HillHeight * 1.3f + 6f;
+            // How far out from the cliff foot each point is.
             var edge = new float[Resolution, Resolution];
-            var heights = new float[Resolution, Resolution];
             for (var y = 0; y < Resolution; y++)
             for (var x = 0; x < Resolution; x++)
             {
                 var k = nearest[y, x];
-                var out_ = k < 0 ? Margin : Mathf.Sqrt(best[y, x]) - samples[k].HalfWidth - foot;
-                edge[y, x] = out_;
-                var p = Point(x, y);
-                heights[y, x] = (GroundHeight(out_, p, floor) - bottom) / (top - bottom);
+                edge[y, x] = k < 0 ? Margin : Mathf.Sqrt(best[y, x]) - samples[k].HalfWidth - foot;
             }
 
-            var data = new TerrainData { heightmapResolution = Resolution, name = "Gorge" };
+            // The valley floor lies the drop below the water; under the ridge it's hidden by the cliffs.
+            var floor = -style.Drop;
+            return Raise(edge, min, span, floor, Talus, floor + Talus, course.Def.scene, palette, parent, "Gorge land");
+        }
+
+        /// <summary>
+        /// The land round a rectangular pond centred on the origin: banks a little above the water at its edges, rising
+        /// into wooded hills further off. Below the water inside.
+        /// </summary>
+        public static Land BuildPond(Vector2 halfSize, CourseScene scene, ArtPalette palette, Transform parent)
+        {
+            var min = -halfSize - Vector2.one * Margin;
+            var span = 2f * (halfSize + Vector2.one * Margin);
+            var cell = span / (Resolution - 1);
+            var edge = new float[Resolution, Resolution];
+            for (var y = 0; y < Resolution; y++)
+            for (var x = 0; x < Resolution; x++)
+            {
+                var p = min + new Vector2(x * cell.x, y * cell.y);
+                var d = new Vector2(Mathf.Abs(p.x) - halfSize.x, Mathf.Abs(p.y) - halfSize.y);
+                edge[y, x] = d.x > 0f || d.y > 0f ? Vector2.Max(d, Vector2.zero).magnitude : Mathf.Max(d.x, d.y);
+            }
+
+            return Raise(edge, min, span, PondBank, PondBank * 0.6f, -1.5f, scene, palette, parent, "Lagoon land");
+        }
+
+        const float PondBank = 0.9f; // the lagoon's banks stand this far above the water
+
+        /// <summary>Shapes and paints a terrain from how far out each heightmap point is from the water's edge.</summary>
+        /// <param name="floor">The ground's height just out from the edge (before the heap against it).</param>
+        /// <param name="talus">How high the ground heaps against the edge.</param>
+        /// <param name="under">The ground's height inside the edge.</param>
+        static Land Raise(float[,] edge, Vector2 min, Vector2 span, float floor, float talus, float under, CourseScene scene, ArtPalette palette,
+            Transform parent, string name)
+        {
+            var cell = span / (Resolution - 1);
+            Vector2 Point(int x, int y) => min + new Vector2(x * cell.x, y * cell.y);
+            var bottom = Mathf.Min(floor, under) - 4f;
+            var top = floor + talus + HillHeight * 1.3f + 6f;
+            var heights = new float[Resolution, Resolution];
+            for (var y = 0; y < Resolution; y++)
+            for (var x = 0; x < Resolution; x++)
+                heights[y, x] = (GroundHeight(edge[y, x], Point(x, y), floor, talus, under) - bottom) / (top - bottom);
+
+            var data = new TerrainData { heightmapResolution = Resolution, name = name };
             data.size = new Vector3(span.x, top - bottom, span.y);
             data.SetHeights(0, 0, heights);
 
             // Paint it: four layers, so phones draw it in one pass.
-            var layers = Layers(course.Def.scene, palette);
+            var layers = Layers(scene, palette);
             data.terrainLayers = layers.terrain;
             data.alphamapResolution = SplatResolution;
             var weights = new float[SplatResolution, SplatResolution, 4];
@@ -166,7 +205,7 @@ namespace RushAhead.Render
             data.baseMapResolution = 128;
 
             var go = Terrain.CreateTerrainGameObject(data);
-            go.name = "Gorge land";
+            go.name = name;
             Object.Destroy(go.GetComponent<TerrainCollider>()); // the game's physics is 2D
             go.transform.SetParent(parent, false);
             go.transform.position = new Vector3(min.x, bottom, min.y);
@@ -180,11 +219,11 @@ namespace RushAhead.Render
         }
 
         /// <summary>The ground's height <paramref name="out_"/> metres out from the cliff foot.</summary>
-        static float GroundHeight(float out_, Vector2 p, float floor)
+        static float GroundHeight(float out_, Vector2 p, float floor, float talusHeight, float under)
         {
-            if (out_ < 0f) return floor + Talus; // under the ridge: hidden by the cliffs, level with the scree against them
+            if (out_ < 0f) return under;
             var heap = 1f - out_ / TalusWidth;
-            var talus = heap > 0f ? Talus * heap * heap : 0f;
+            var talus = heap > 0f ? talusHeight * heap * heap : 0f;
             var ripple = (Mathf.PerlinNoise(p.x * 0.06f + 11f, p.y * 0.06f + 5f) - 0.5f) * 1.4f;
             var rise = Mathf.Clamp01((out_ - HillsFrom) / 95f);
             rise = rise * rise * (3f - 2f * rise);

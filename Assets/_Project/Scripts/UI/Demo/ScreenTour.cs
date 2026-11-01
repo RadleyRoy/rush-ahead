@@ -100,7 +100,8 @@ namespace RushAhead.UI
         void Plan()
         {
             Shot(0.6f, "00-title");
-            Shot(3.2f, "01-menu");
+            Wait("the menu", () => game.Ui.Flow.Screen == AppScreen.MainMenu, 15f);
+            Shot(0.8f, "01-menu");
 
             Press(0.2f, "menu-animal");
             Shot(1.2f, "02-animal");

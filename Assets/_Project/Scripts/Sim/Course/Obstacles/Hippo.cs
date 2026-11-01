@@ -61,6 +61,11 @@ namespace RushAhead.Sim
             }
         }
 
+        public override void Zones(double seconds, List<Vector2> lines)
+        {
+            if (Pose(seconds).bubbling > 0f || Pose(seconds).rise > 0f) Circle(lines, Position, Radius - RaftRadius * 0.4f);
+        }
+
         public override bool BraceNeeded(Vector2 position, double seconds, float lookahead)
         {
             if (Vector2.Distance(position, Position) > Radius + RaftRadius + 1f) return false;

@@ -30,6 +30,9 @@ namespace RushAhead.EditorTools
             foreach (var folder in new[] { Meshes, Generated, Ground }) ContentBootstrap.EnsureFolder(folder);
             PrepareModels();
 
+            var reaches = palette.rockMeshes.Select(m => m != null ? RockReach(m, 0.3f) : (Vector3.zero, Vector2.zero)).ToArray();
+            palette.rockReach = reaches.Select(r => r.Item1).ToArray();
+            palette.rockMiddle = reaches.Select(r => r.Item2).ToArray();
             palette.shrubMeshes = new[] { Simplified("shrub_02", 2500), Simplified("shrub_04", 2500), Simplified("weed_plant_02", 1500), Simplified("nettle_plant", 1500) };
             palette.shrubMaterials = new[] { Cutout("shrub_02"), Cutout("shrub_04"), Cutout("weed_plant_02"), Cutout("nettle_plant") };
 
@@ -78,6 +81,55 @@ namespace RushAhead.EditorTools
                 importer.importLights = false;
                 importer.SaveAndReimport();
             }
+        }
+
+        /// <summary>
+        /// How a rock mesh reaches from its middle, as shares of the width <see cref="Shapes3D.Model"/> places it at (its
+        /// widest flat side): seen from above, its narrowest and widest sides over the waterline when <paramref name="sink"/>
+        /// of it is sunk, and the least it reaches in any direction at all (for a boulder that rolls).
+        /// </summary>
+        static (Vector3 reach, Vector2 middle) RockReach(Mesh mesh, float sink)
+        {
+            var bounds = mesh.bounds;
+            var width = Mathf.Max(bounds.size.x, bounds.size.z);
+            var waterline = bounds.min.y + sink * bounds.size.y;
+            var middle = new Vector2(bounds.center.x, bounds.center.z);
+            var vertices = mesh.vertices;
+            const int directions = 72;
+            var supports = new float[directions];
+            Vector2 Direction(int k) => new(Mathf.Cos(k * Mathf.PI * 2f / directions), Mathf.Sin(k * Mathf.PI * 2f / directions));
+            for (var k = 0; k < directions; k++)
+            {
+                supports[k] = float.MinValue;
+                foreach (var v in vertices)
+                    if (v.y >= waterline) supports[k] = Mathf.Max(supports[k], Vector2.Dot(new Vector2(v.x, v.z), Direction(k)));
+            }
+
+            // The footprint's own middle (opposite sides reach equally far from it), not the bounding box's.
+            var shift = Vector2.zero;
+            for (var k = 0; k < directions / 2; k++) shift += Direction(k) * ((supports[k] - supports[k + directions / 2]) * 0.5f);
+            middle = shift * (2f / (directions / 2));
+            float narrowest = float.MaxValue, widest = 0f;
+            for (var k = 0; k < directions; k++)
+            {
+                var support = supports[k] - Vector2.Dot(middle, Direction(k));
+                narrowest = Mathf.Min(narrowest, support);
+                widest = Mathf.Max(widest, support);
+            }
+
+            var round = float.MaxValue;
+            for (var k = 0; k < 160; k++) // directions spread evenly over a sphere
+            {
+                var y = 1f - 2f * (k + 0.5f) / 160f;
+                var r = Mathf.Sqrt(1f - y * y);
+                var a = k * 2.39996323f;
+                var direction = new Vector3(Mathf.Cos(a) * r, y, Mathf.Sin(a) * r);
+                var support = 0f;
+                foreach (var v in vertices) support = Mathf.Max(support, Vector3.Dot(v - bounds.center, direction));
+                round = Mathf.Min(round, support);
+            }
+
+            return (new Vector3(narrowest, widest, round) / width, (middle - new Vector2(bounds.center.x, bounds.center.z)) / width);
         }
 
         static IEnumerable<Mesh> Models(string folder) =>

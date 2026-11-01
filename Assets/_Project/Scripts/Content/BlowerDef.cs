@@ -28,8 +28,8 @@ namespace RushAhead.Content
 
         [Header("Thrust")]
         [Min(0f)] public float thrustNewtons = 45f;
-        [Min(1f)] public float spoolUpMs = 260f;
-        [Min(1f)] public float spoolDownMs = 180f;
+        [Min(1f)] public float spoolUpMs = 160f;
+        [Min(1f)] public float spoolDownMs = 110f;
 
         [Header("Air cone (pushes other bodies)")]
         [Range(1f, 60f)] public float coneHalfAngleDeg = 18f;

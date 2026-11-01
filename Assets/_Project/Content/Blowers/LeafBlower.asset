@@ -16,8 +16,8 @@ MonoBehaviour:
   blurb: 'The all-rounder: strong push, slow to wind up.'
   color: {r: 1, g: 0.55, b: 0.15, a: 1}
   thrustNewtons: 45
-  spoolUpMs: 260
-  spoolDownMs: 180
+  spoolUpMs: 156
+  spoolDownMs: 108
   coneHalfAngleDeg: 18
   range: 4.5
   falloffExp: 1.6

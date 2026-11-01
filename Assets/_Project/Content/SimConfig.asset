@@ -20,12 +20,12 @@ MonoBehaviour:
   linearDamping: 0.02
   angularDamping: 0.05
   hullBounciness: 0.2
-  forwardDrag: 5
+  forwardDrag: 3
   lateralDrag: 40
   angularDrag: 18
   waterCarry: 1
   nozzleTurnDegPerSec: 420
-  thrustMultiplier: 1
+  thrustMultiplier: 1.8
   coneCoupling: 0.5
   seatRadius: 0.99
   tiltInertia: 40
@@ -34,7 +34,7 @@ MonoBehaviour:
   tiltDamping: 1.7
   heelArm: 0.5
   turnHeelCoupling: 0.15
-  impactKickScale: 0.004
+  impactKickScale: 0.0025
   capsizeAngle: 0.55
   capsizeHoldSeconds: 0.4
   braceDampingMultiplier: 3

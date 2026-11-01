@@ -33,7 +33,7 @@ namespace RushAhead.UI
             var height = Screen.height / scale;
 
             var boat = Game.ViewedBoat;
-            GUILayout.BeginArea(new Rect(10f, height - 150f, 320f, 140f), GUI.skin.box);
+            GUILayout.BeginArea(new Rect(10f, height - 180f, 320f, 170f), GUI.skin.box);
             GUILayout.Label($"{fps:0} fps   {Game.Session} {Game.Phase}");
             if (boat != null)
             {
@@ -42,6 +42,8 @@ namespace RushAhead.UI
 
             if (Game.NetStatus.Length > 0) GUILayout.Label(Game.NetStatus);
             if (GUILayout.Button(tuning ? "Close tuning" : "Tune")) tuning = !tuning;
+            var zones = GUILayout.Toggle(Game.ShowHitZones, "Show what hits");
+            if (zones != Game.ShowHitZones) Game.ShowHitZones = zones;
             GUILayout.EndArea();
 
             if (tuning) DrawTuning(width, height);

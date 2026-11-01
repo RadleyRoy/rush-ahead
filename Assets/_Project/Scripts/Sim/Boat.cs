@@ -90,6 +90,15 @@ namespace RushAhead.Sim
 
         public const float FallSeconds = 1.4f;
 
+        /// <summary>The water's velocity a moment ahead along the raft's path (set by the world each tick), for following bends.</summary>
+        public Vector2 WaterAhead { get; set; }
+
+        /// <summary>How far ahead along its path, in seconds, the world samples the water for <see cref="WaterAhead"/>.</summary>
+        public const float BendLookSeconds = 0.25f;
+
+        const float BendCarryOver = 5f; // the current carries a raft round a bend at up to this much over its own speed
+        const float MaxImpactKick = 1.6f; // a hard ram at full speed; more is the physics squeezing a pinned raft, not a hit
+
         /// <summary>The share of the crew bracing on the last tick (ducking a swinging log needs half).</summary>
         public float BracedFraction { get; private set; }
 
@@ -217,7 +226,7 @@ namespace RushAhead.Sim
             {
                 Body.AddForceAtLocalPoint(force, crew.SeatOffset);
                 Body.PushBodiesInCone(nozzle, airDirection, spec, thrust * crew.Spool * config.coneCoupling, false, coneSign);
-                heel = HeelPerUnit(force);
+                heel = HeelPerUnit(force) / Mathf.Max(1f, config.thrustMultiplier); // more push, not more lean
             }
 
             if (input.Burst && !crew.Braced && !stunned && share > 0f && crew.Tank.TryBurst())
@@ -226,7 +235,7 @@ namespace RushAhead.Sim
                 var impulse = BlowerMath.ReactionForce(airDirection, burstImpulse, 1f, spec.special);
                 Body.AddForceAtLocalPoint(impulse, crew.SeatOffset, impulse: true);
                 Body.PushBodiesInCone(nozzle, airDirection, spec, burstImpulse * config.coneCoupling, true, coneSign);
-                Tilt.Kick(HeelPerUnit(impulse)); // an impulse changes tilt velocity directly
+                Tilt.Kick(HeelPerUnit(impulse) / Mathf.Max(1f, config.thrustMultiplier)); // an impulse changes tilt velocity directly
                 crew.SecondsSinceBurst = 0f;
                 crew.BurstCount++;
             }
@@ -258,6 +267,15 @@ namespace RushAhead.Sim
             var along = water / flow;
             var behind = Mathf.Clamp(flow - Vector2.Dot(Body.Velocity, along), 0f, flow);
             Body.AddForce(along * (behind * config.waterCarry * Body.Mass));
+
+            // Round a bend the current carries a raft with it: its path turns as the water's does, at up to a little over
+            // the water's own speed. Any speed beyond that is the crew's own to steer round the bend.
+            var velocity = Body.Velocity;
+            var travelled = velocity.magnitude * BendLookSeconds;
+            if (travelled < 0.3f || WaterAhead.sqrMagnitude < 0.25f) return;
+            var turn = Mathf.Clamp(Vector2.SignedAngle(water, WaterAhead) * Mathf.Deg2Rad / travelled, -0.08f, 0.08f); // radians per metre
+            var carried = Mathf.Min(velocity.magnitude, flow + BendCarryOver);
+            Body.AddForce(new Vector2(-velocity.y, velocity.x).normalized * (turn * carried * carried * Body.Mass * config.bendCarry));
         }
 
         void StepTilt(Vector2 heelAccel, int bracedCount, float dt)
@@ -266,7 +284,7 @@ namespace RushAhead.Sim
             if (impact != Vector2.zero)
             {
                 var local = Body.LocalVector(impact);
-                Tilt.Kick(new Vector2(-local.y, -local.x) * config.impactKickScale);
+                Tilt.Kick(Vector2.ClampMagnitude(new Vector2(-local.y, -local.x) * config.impactKickScale, MaxImpactKick));
             }
 
             if (State is BoatState.Capsized or BoatState.Fallen)

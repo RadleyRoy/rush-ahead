@@ -232,6 +232,7 @@ namespace RushAhead.UI
             LoadVenue(0);
 
             chase = Camera.main.gameObject.AddComponent<ChaseCamera>();
+            SpeedLines.Attach(chase, palette);
             chase.TargetPosition = () => ViewedBoat.RenderPosition;
             chase.TargetVelocity = () => ViewedBoat.Velocity;
             chase.TargetDrop = () => RaftView != null ? RaftView.Drop : 0f;

@@ -89,6 +89,12 @@ namespace RushAhead.Sim
             foreach (var boat in boats) AlongTheWall(boat, at, TrunkWidth, GapCentre, gapWidth, dt);
         }
 
+        public override void Zones(double seconds, List<Vector2> lines)
+        {
+            var (tilt, _, washed) = Pose(seconds);
+            if (tilt > 0f && washed <= 0f) Box(lines, Middle, at.Left, Length * 0.5f - RaftRadius, TrunkWidth * 0.5f);
+        }
+
         public override bool BraceNeeded(Vector2 position, double seconds, float lookahead)
         {
             if (!Under(position, 1f)) return false;

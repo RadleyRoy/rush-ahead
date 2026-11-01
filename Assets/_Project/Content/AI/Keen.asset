@@ -14,7 +14,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: RushAhead.Content::RushAhead.Content.AiProfile
   displayName: Keen
   blurb: Enthusiastic and slightly wrong. A good crew to learn with.
-  cruiseSpeed: 2.9
+  cruiseSpeed: 6.1
   reactionSeconds: 0.3
   aimWobbleDeg: 12
   airDiscipline: 0.55

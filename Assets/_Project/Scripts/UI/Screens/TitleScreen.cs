@@ -4,16 +4,19 @@ using UnityEngine.UIElements;
 namespace RushAhead.UI
 {
     /// <summary>
-    /// The start page: "Rush Ahead" with "created by Radley" beneath it, over the colours of the water, while the
-    /// game loads behind it. It stays a moment, can be tapped away after a short beat, then fades to the menu.
+    /// The start page: "Rush Ahead" with "created by Radley" beneath it, on dark glass cut by a few hot slanted
+    /// streaks, while the game loads behind it. It stays a moment, can be tapped away after a short beat, then fades to
+    /// the menu.
     /// </summary>
     public sealed class TitleScreen : GameScreen
     {
         const float ShowSeconds = 2.2f;
         const float SkippableAfter = 0.6f;
         const float FadeSeconds = 0.5f;
-        static readonly Color Sky = new(0.45f, 0.82f, 1f);
-        static readonly Color Water = new(0.06f, 0.55f, 0.82f);
+        const float LongestStep = 1f / 30f; // a loading hitch mustn't skip the fade
+        static readonly Color Top = new(0.086f, 0.1f, 0.125f);
+        static readonly Color Bottom = new(0.043f, 0.051f, 0.063f);
+        static readonly Color Accent = new(1f, 0.416f, 0.169f);
 
         float shownFor;
         float fading = -1f;
@@ -27,13 +30,13 @@ namespace RushAhead.UI
 
         public override void Build()
         {
-            Root.style.backgroundImage = Gradients.Vertical(Sky, Water);
+            Root.style.backgroundImage = Gradients.Vertical(Top, Bottom);
             Root.AddToClassList("center");
 
-            var waves = new VisualElement { pickingMode = PickingMode.Ignore };
-            waves.AddToClassList("layer");
-            waves.generateVisualContent += DrawWaves;
-            Root.Add(waves);
+            var streaks = new VisualElement { pickingMode = PickingMode.Ignore };
+            streaks.AddToClassList("layer");
+            streaks.generateVisualContent += DrawStreaks;
+            Root.Add(streaks);
 
             Root.Add(Ui.Text("Rush Ahead", "wordmark"));
             Root.Add(Ui.Text("created by Radley", "byline"));
@@ -53,12 +56,13 @@ namespace RushAhead.UI
 
         public override void Refresh()
         {
-            shownFor += Time.unscaledDeltaTime;
+            var dt = Mathf.Min(Time.unscaledDeltaTime, LongestStep);
+            shownFor += dt;
             Ui.Set(status, "Inflating the raft" + new string('.', 1 + (int)(Time.unscaledTime * 3f) % 3));
             if (fading < 0f && shownFor >= ShowSeconds) Leave();
             if (fading < 0f) return;
 
-            fading += Time.unscaledDeltaTime / FadeSeconds;
+            fading += dt / FadeSeconds;
             Root.style.opacity = 1f - fading;
             if (fading >= 1f) Flow.TitleDone();
         }
@@ -70,25 +74,45 @@ namespace RushAhead.UI
             if (fading < 0f) fading = 0f;
         }
 
-        void DrawWaves(MeshGenerationContext context)
+        /// <summary>Slanted streaks racing in from the left, one in the accent, and a thin accent rule under the name.</summary>
+        void DrawStreaks(MeshGenerationContext context)
         {
             var rect = context.visualElement.contentRect;
             var painter = context.painter2D;
-            painter.lineWidth = 6f;
-            painter.strokeColor = new Color(1f, 1f, 1f, 0.22f);
-            for (var line = 0; line < 3; line++)
+            var h = rect.height;
+            var w = rect.width;
+            (float y, float thick, float length, Color color)[] streaks =
             {
-                var y = rect.height * (0.72f + line * 0.07f);
+                (0.2f, 0.012f, 0.34f, new Color(1f, 1f, 1f, 0.05f)),
+                (0.27f, 0.006f, 0.22f, new Color(1f, 1f, 1f, 0.08f)),
+                (0.74f, 0.03f, 0.46f, new Color(Accent.r, Accent.g, Accent.b, 0.9f)),
+                (0.79f, 0.01f, 0.3f, new Color(1f, 1f, 1f, 0.12f)),
+                (0.83f, 0.004f, 0.18f, new Color(1f, 1f, 1f, 0.1f)),
+            };
+            foreach (var (y, thick, length, color) in streaks)
+            {
+                var top = h * y;
+                var bottom = top + h * thick;
+                var lean = (bottom - top) * 1.2f;
+                painter.fillColor = color;
                 painter.BeginPath();
-                for (var x = 0f; x <= rect.width; x += 24f)
-                {
-                    var point = new Vector2(x, y + Mathf.Sin(x * 0.012f + line * 1.7f) * 10f);
-                    if (x == 0f) painter.MoveTo(point);
-                    else painter.LineTo(point);
-                }
-
-                painter.Stroke();
+                painter.MoveTo(new Vector2(0f, top));
+                painter.LineTo(new Vector2(w * length + lean, top));
+                painter.LineTo(new Vector2(w * length, bottom));
+                painter.LineTo(new Vector2(0f, bottom));
+                painter.ClosePath();
+                painter.Fill();
             }
+
+            // The same streaks, mirrored and fainter, leaving from the right.
+            painter.fillColor = new Color(1f, 1f, 1f, 0.06f);
+            painter.BeginPath();
+            painter.MoveTo(new Vector2(w * 0.7f, h * 0.12f));
+            painter.LineTo(new Vector2(w, h * 0.12f));
+            painter.LineTo(new Vector2(w, h * 0.135f));
+            painter.LineTo(new Vector2(w * 0.7f - h * 0.018f, h * 0.135f));
+            painter.ClosePath();
+            painter.Fill();
         }
     }
 }

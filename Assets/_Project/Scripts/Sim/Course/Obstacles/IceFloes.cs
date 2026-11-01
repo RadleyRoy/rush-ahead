@@ -88,7 +88,7 @@ namespace RushAhead.Sim
                 if (up < 0.5f) continue;
                 var here = River.Project(position);
                 if (here.Distance < from - Length || here.Distance > to + Length + RaftRadius) continue;
-                var eta = Mathf.Clamp((here.Distance - from) / 4f, 0f, 1.5f);
+                var eta = Mathf.Clamp((here.Distance - from) / (ApproachSpeed - 4f), 0f, 1.5f);
                 var (later, _, _) = Floe(i, seconds + eta);
                 var reach = Width * 0.5f + RaftRadius + 0.6f;
                 across = Clear(Clear(across, River.Project(later).Lateral, reach, limit), here.Lateral, reach, limit);

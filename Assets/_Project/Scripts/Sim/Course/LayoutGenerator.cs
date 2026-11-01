@@ -15,15 +15,20 @@ namespace RushAhead.Sim
     public static class LayoutGenerator
     {
         const float RaftRadius = 1.6f;
-        const float Gap = 5f; // clear water between one obstacle's stretch and the next
-        const float BraceGap = 25f; // between two obstacles you have to brace for
-        const float BraceRoom = 10f; // either side of one you have to brace for: a braced crew isn't blowing, so it can't dodge
-        const float LaneRoom = 12f; // between two that each send a raft to one side: room to cross over between them
+        const float Gap = 6.5f; // clear water between one obstacle's stretch and the next
+        const float BraceGap = 34f; // between two obstacles you have to brace for
+        const float BraceRoom = 14f; // either side of one you have to brace for: a braced crew isn't blowing, so it can't dodge
+        const float LaneRoom = 16f; // between two that each send a raft to one side: room to cross over between them
         const float RespawnPastGate = 3f;
-        const float RunUp = 14f; // clear water after a place a raft comes back, before the next obstacle starts
+        const float RunUp = 20f; // clear water after a place a raft comes back, before the next obstacle starts
         const int TriesPerObstacle = 150;
 
         const int Redeals = 8;
+
+        /// <summary>Rafts come at twice the speed they used to: most obstacles' timetables run this much quicker to keep up.</summary>
+        const float Tempo = 0.75f;
+
+        static float Quick(float seconds, float tempo = Tempo) => seconds * tempo;
 
         public static CourseLayout Generate(CourseDef def, River river, int seed)
         {
@@ -46,7 +51,7 @@ namespace RushAhead.Sim
             var dice = new Dice(seed);
             var count = dice.Range(def.minObstacles, def.maxObstacles + 1);
             var deal = new Deal(def, river);
-            var from = def.startDistance + 18f;
+            var from = def.startDistance + 26f;
             var to = def.FinishDistance - 6f;
             for (var tries = 0; deal.Count < count && tries < count * TriesPerObstacle; tries++)
             {
@@ -64,6 +69,9 @@ namespace RushAhead.Sim
                     if (deal.Pick(dice, distance, out var kind) && deal.TryPlace(dice, kind, distance)) break;
             }
 
+            // Boost lanes in the free water left between obstacles: about one per 110 m.
+            var lanes = Mathf.Clamp(Mathf.RoundToInt((to - from) / 110f), 2, 5);
+            for (var tries = 0; deal.Boosts < lanes && tries < 600; tries++) deal.TryBoost(dice, dice.Range(from, to - BoostLane.Length));
             return deal.Layout;
         }
 
@@ -109,6 +117,41 @@ namespace RushAhead.Sim
             readonly List<AcrossSpot> dams = new();
             readonly List<SideSpot> pelicans = new();
             readonly List<CrossingSpot> netBoats = new();
+            readonly List<BoostSpot> boosts = new();
+
+            public int Boosts => boosts.Count;
+
+            /// <summary>A boost lane at <paramref name="distance"/> if the water there is free: off every obstacle, respawn, whirlpool and rock.</summary>
+            public void TryBoost(Dice dice, float distance)
+            {
+                var from = distance - 2f;
+                var to = distance + BoostLane.Length + 2f;
+                foreach (var (takenFrom, takenTo, _, _) in taken)
+                    if (from < takenTo + 2f && to > takenFrom - 2f) return; // right up to an obstacle: the fast line is the risky one
+
+                // Never into a tight bend (the lane itself only pushes as fast as the next bend allows).
+                for (var d = distance; d <= distance + BoostLane.Length + 20f; d += 3f)
+                    if (Mathf.Abs(river.At(d).Curvature) > 0.045f) return;
+                foreach (var boost in boosts)
+                    if (from < boost.distance + BoostLane.Length + 20f && to > boost.distance - 20f) return;
+                foreach (var respawn in respawns)
+                    if (from < respawn + 4f && to > respawn - 4f) return;
+                foreach (var pool in def.whirlpools)
+                {
+                    var poolAt = river.Project(pool.position).Distance;
+                    if (from < poolAt + pool.radius + 3f && to > poolAt - pool.radius - 3f) return;
+                }
+
+                var at = river.At(distance + BoostLane.Length * 0.5f);
+                var across = dice.Range(-1f, 1f) * Mathf.Max(0f, at.HalfWidth - BoostLane.HalfWidth - 1.8f);
+                foreach (var rock in def.rocks)
+                {
+                    var rockAt = river.Project(rock.position);
+                    if (rockAt.Distance > from && rockAt.Distance < to && Mathf.Abs(rockAt.Lateral - across) < rock.radius + BoostLane.HalfWidth + 1.6f) return;
+                }
+
+                boosts.Add(new BoostSpot(distance, across));
+            }
 
             public Deal(CourseDef def, River river)
             {
@@ -127,7 +170,7 @@ namespace RushAhead.Sim
                 cannons = cannons.ToArray(), rapids = rapids.ToArray(), weirs = weirs.ToArray(), bumpers = bumpers.ToArray(),
                 ferries = ferries.ToArray(), bears = bears.ToArray(), trees = trees.ToArray(), turtles = turtles.ToArray(), shoals = shoals.ToArray(),
                 waterspouts = waterspouts.ToArray(), eels = eels.ToArray(), mudslides = mudslides.ToArray(), floes = floes.ToArray(), dams = dams.ToArray(),
-                pelicans = pelicans.ToArray(), netBoats = netBoats.ToArray(),
+                pelicans = pelicans.ToArray(), netBoats = netBoats.ToArray(), boosts = boosts.ToArray(),
             };
 
             /// <summary>A kind from the menu, by weight, among those the water here suits.</summary>
@@ -183,7 +226,7 @@ namespace RushAhead.Sim
             {
                 var at = river.At(distance);
                 var half = at.HalfWidth;
-                var length = kind == ObstacleKind.Rapids ? dice.Range(25f, 35f) : kind == ObstacleKind.IceFloes ? IceFloes.Run : 0f;
+                var length = kind == ObstacleKind.Rapids ? dice.Range(20f, 28f) : kind == ObstacleKind.IceFloes ? IceFloes.Run : 0f;
                 var from = distance - Reach(kind, half);
                 var to = distance + length + Reach(kind, half);
                 if (to > def.FinishDistance - 3f) return false;
@@ -232,41 +275,41 @@ namespace RushAhead.Sim
                         across = side * half * 0.5f;
                         if (!ClearOfRocks(distance, across, radius)) return false;
                         // Turning so the arms that meet a raft coming downstream sweep it toward the middle.
-                        wheels.Add(new WheelSpot(at.Centre + at.Left * across, radius, 4, dice.Range(90f, 120f) * side));
+                        wheels.Add(new WheelSpot(at.Centre + at.Left * across, radius, 4, dice.Range(110f, 145f) * side));
                         break;
                     case ObstacleKind.Crocodile:
-                        crocs.Add(new CrocSpot(distance, side, half >= 6f ? dice.Range(0.38f, 0.45f) : 0.3f, dice.Range(3.4f, 4.4f), dice.Range(0f, 4f)));
+                        crocs.Add(new CrocSpot(distance, side, half >= 6f ? dice.Range(0.38f, 0.45f) : 0.3f, Quick(dice.Range(3.4f, 4.4f)), dice.Range(0f, 4f)));
                         break;
                     case ObstacleKind.SwingingLog:
-                        swingers.Add(new SwingSpot(distance, dice.Range(2.6f, 3.4f), dice.Range(0f, 3f), dice.Range(4f, 4.5f)));
+                        swingers.Add(new SwingSpot(distance, Quick(dice.Range(2.6f, 3.4f)), dice.Range(0f, 3f), dice.Range(4f, 4.5f)));
                         break;
                     case ObstacleKind.Geyser:
                         radius = dice.Range(1.6f, 2.2f);
                         across = dice.Range(-1f, 1f) * Mathf.Max(0f, half - radius - 1f);
                         if (!ClearOfRocks(distance, across, radius)) return false;
-                        geysers.Add(new GeyserSpot(at.Centre + at.Left * across, radius, dice.Range(2.8f, 3.5f), dice.Range(0f, 3f)));
+                        geysers.Add(new GeyserSpot(at.Centre + at.Left * across, radius, Quick(dice.Range(2.8f, 3.5f)), dice.Range(0f, 3f)));
                         break;
                     case ObstacleKind.Rockslide:
-                        rockslides.Add(new RockslideSpot(distance, side, dice.Range(4.5f, 5.5f), dice.Range(0f, 5f), dice.Range(1.2f, 1.4f)));
+                        rockslides.Add(new RockslideSpot(distance, side, Quick(dice.Range(4.5f, 5.5f)), dice.Range(0f, 5f), dice.Range(1.2f, 1.4f)));
                         break;
                     case ObstacleKind.Hippo:
                         across = dice.Range(-1f, 1f) * Mathf.Max(0f, half - 2.6f);
                         if (!ClearOfRocks(distance, across, 1.6f)) return false;
-                        hippos.Add(new HippoSpot(distance, across, dice.Range(4f, 5f), dice.Range(0f, 4f)));
+                        hippos.Add(new HippoSpot(distance, across, Quick(dice.Range(4f, 5f)), dice.Range(0f, 4f)));
                         break;
                     case ObstacleKind.Sluice:
                         if (Mathf.Abs(at.Curvature) > 0.03f) return false; // a straight run: room to see the gap and line up
-                        sluices.Add(new SluiceSpot(distance, Mathf.Min(dice.Range(5.5f, 6f), 2f * half - 1.5f), dice.Range(4.5f, 5.5f), dice.Range(0f, 5f)));
+                        sluices.Add(new SluiceSpot(distance, Mathf.Min(dice.Range(5.5f, 6f), 2f * half - 1.5f), Quick(dice.Range(4.5f, 5.5f)), dice.Range(0f, 5f)));
                         break;
                     case ObstacleKind.Sweeper:
                         if (!ClearOfRocks(distance, side * 0.4f * half, 0.6f * half)) return false;
-                        sweepers.Add(new SweeperSpot(distance, side * 0.4f * half, 1f * half, dice.Range(45f, 60f) * (dice.Value() < 0.5f ? -1f : 1f)));
+                        sweepers.Add(new SweeperSpot(distance, side * 0.4f * half, 1f * half, dice.Range(55f, 72f) * (dice.Value() < 0.5f ? -1f : 1f)));
                         break;
                     case ObstacleKind.Cannon:
-                        cannons.Add(new CannonSpot(distance, side, dice.Range(2.6f, 3.2f), dice.Range(0f, 3f), dice.Range(25f, 35f)));
+                        cannons.Add(new CannonSpot(distance, side, Quick(dice.Range(2.6f, 3.2f)), dice.Range(0f, 3f), dice.Range(25f, 35f)));
                         break;
                     case ObstacleKind.Rapids:
-                        rapids.Add(new RapidsSpot(distance, distance + length, dice.Range(1.8f, 2.6f)));
+                        rapids.Add(new RapidsSpot(distance, distance + length, dice.Range(2.6f, 3.8f)));
                         break;
                     case ObstacleKind.Weir:
                         if (Mathf.Abs(at.Curvature) > 0.03f) return false; // never on a bend, where a braced crew can't steer round it
@@ -283,10 +326,10 @@ namespace RushAhead.Sim
                         ferries.Add(new FerrySpot(distance, Mathf.Max(dice.Range(5.5f, 7f), 1.5f * (half - Ferry.Width * 0.5f + 0.4f)), dice.Range(0f, 6f)));
                         break;
                     case ObstacleKind.Bear:
-                        bears.Add(new BearSpot(distance, side, dice.Range(3.2f, 3.8f), dice.Range(0f, 3f)));
+                        bears.Add(new BearSpot(distance, side, Quick(dice.Range(3.2f, 3.8f)), dice.Range(0f, 3f)));
                         break;
                     case ObstacleKind.FallingTree:
-                        trees.Add(new SideSpot(distance, side, dice.Range(6.5f, 8f), dice.Range(0f, 8f)));
+                        trees.Add(new SideSpot(distance, side, Quick(dice.Range(6.5f, 8f)), dice.Range(0f, 8f)));
                         break;
                     case ObstacleKind.Turtle:
                         turtles.Add(new CrossingSpot(distance, dice.Range(7f, 9f), dice.Range(0f, 9f)));
@@ -298,20 +341,20 @@ namespace RushAhead.Sim
                         waterspouts.Add(new CrossingSpot(distance, dice.Range(10f, 13f), dice.Range(0f, 13f)));
                         break;
                     case ObstacleKind.ElectricEels:
-                        eels.Add(new AcrossSpot(distance, dice.Range(3.2f, 4.2f), dice.Range(0f, 4f)));
+                        eels.Add(new AcrossSpot(distance, Quick(dice.Range(3.2f, 4.2f), 0.85f), dice.Range(0f, 4f)));
                         break;
                     case ObstacleKind.Mudslide:
-                        mudslides.Add(new SideSpot(distance, side, dice.Range(5f, 6.5f), dice.Range(0f, 6f)));
+                        mudslides.Add(new SideSpot(distance, side, Quick(dice.Range(5f, 6.5f)), dice.Range(0f, 6f)));
                         break;
                     case ObstacleKind.IceFloes:
-                        floes.Add(new AcrossSpot(distance, dice.Range(7f, 9f), dice.Range(0f, 9f)));
+                        floes.Add(new AcrossSpot(distance, Quick(dice.Range(7f, 9f), 0.6f), dice.Range(0f, 9f)));
                         break;
                     case ObstacleKind.BeaverDam:
                         if (Mathf.Abs(at.Curvature) > 0.03f) return false; // a straight run: room to see which gap is open and line up
-                        dams.Add(new AcrossSpot(distance, half >= 8f ? dice.Range(9.5f, 11f) : dice.Range(7f, 8.5f), dice.Range(0f, 11f)));
+                        dams.Add(new AcrossSpot(distance, Quick(half >= 8f ? dice.Range(9.5f, 11f) : dice.Range(7f, 8.5f), 0.8f), dice.Range(0f, 11f)));
                         break;
                     case ObstacleKind.Pelican:
-                        pelicans.Add(new SideSpot(distance, side, dice.Range(3.8f, 4.8f), dice.Range(0f, 5f)));
+                        pelicans.Add(new SideSpot(distance, side, Quick(dice.Range(3.8f, 4.8f), 0.85f), dice.Range(0f, 5f)));
                         break;
                     case ObstacleKind.NetBoat:
                         netBoats.Add(new CrossingSpot(distance, dice.Range(6.5f, 8.5f), dice.Range(0f, 8f)));

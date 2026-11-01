@@ -329,7 +329,8 @@ namespace RushAhead.UI
             // Leave the subject where the screen's panels don't cover it: most screens keep their panels on the right.
             showcase.ScreenOffset = Flow.Screen switch
             {
-                AppScreen.MainMenu or AppScreen.Title or AppScreen.Results => -0.42f,
+                AppScreen.MainMenu => -0.04f, // between the records and the buttons
+                AppScreen.Title or AppScreen.Results => -0.42f,
                 AppScreen.YourAnimal => -0.5f,
                 _ => 0f,
             };

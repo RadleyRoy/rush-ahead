@@ -178,8 +178,8 @@ namespace RushAhead.Render
                 // Vertex colours skip the gamma conversion material colours get, so convert for the Linear colour space
                 // ourselves; otherwise the slices come out as washed-out pastels.
                 var color = PlayerColor(seat).linear;
-                var mesh = Shapes3D.Sector(radius + 0.08f, radius + 1.8f, centre - half + gap, centre + half - gap,
-                    new Color(color.r, color.g, color.b, 0.36f), new Color(color.r, color.g, color.b, 0.06f));
+                var mesh = Shapes3D.Sector(radius + 0.08f, radius + 0.4f, centre - half + gap, centre + half - gap,
+                    new Color(color.r, color.g, color.b, 0.75f), new Color(color.r, color.g, color.b, 0.1f));
                 // The air material has no opacity cap (foam's is 55%), and the sort order keeps the colour above the
                 // white foam ring, which sits at the same distance from the camera.
                 var slice = Shapes3D.MeshObject($"Slice {seat}", mesh, transform, new Vector3(0f, 0.03f, 0f), palette.air);

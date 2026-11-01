@@ -90,7 +90,7 @@ namespace RushAhead.UI
             tagLayer = Ui.El("layer");
             tagLayer.pickingMode = PickingMode.Ignore;
             Root.Add(tagLayer);
-            pushMarker = new Swatch(new Color(1f, 0.85f, 0.2f, 0.9f), 44f) { pickingMode = PickingMode.Ignore };
+            pushMarker = new Swatch(new Color(1f, 0.416f, 0.169f, 0.9f), 44f) { pickingMode = PickingMode.Ignore };
             pushMarker.style.position = Position.Absolute;
             tagLayer.Add(pushMarker);
 
@@ -114,7 +114,8 @@ namespace RushAhead.UI
             clockPanel.style.paddingTop = clockPanel.style.paddingBottom = 16;
             clockPanel.style.minWidth = 440;
             clock = Ui.Text("0:00.0", "h1");
-            clock.style.fontSize = 88;
+            clock.style.fontSize = 96;
+            clock.style.letterSpacing = 2;
             checkpoint = Ui.Text("", "small");
             split = Ui.Text("", "h3");
             hearts = new HeartRow(38f, Race.MaxLives);
@@ -188,7 +189,7 @@ namespace RushAhead.UI
             Root.Add(watching);
 
             // Bottom right (left, left-handed): Burst with its air, and Brace.
-            burst = Visual("Burst", "btn");
+            burst = Visual("Burst", "btn btn--round");
             burst.style.width = burst.style.height = 220;
             burst.style.borderTopLeftRadius = burst.style.borderTopRightRadius = burst.style.borderBottomLeftRadius = burst.style.borderBottomRightRadius = 110;
             burst.style.paddingLeft = burst.style.paddingRight = 0;
@@ -209,7 +210,7 @@ namespace RushAhead.UI
             orderBar.style.bottom = 36;
             orderBar.style.left = new Length(50, LengthUnit.Percent);
             orderBar.style.translate = new Translate(new Length(-50, LengthUnit.Percent), 0);
-            orderBar.style.backgroundColor = new Color(0.035f, 0.086f, 0.19f, 0.8f);
+            orderBar.style.backgroundColor = new Color(0.047f, 0.055f, 0.07f, 0.76f);
             foreach (var (_, id, label) in Orders)
             {
                 var button = Visual(label, "segment");
@@ -270,8 +271,9 @@ namespace RushAhead.UI
 
         static VisualElement Visual(string text, string classes)
         {
-            var label = Ui.Text(text, classes);
+            var label = Ui.Text(classes.Contains("btn") || classes.Contains("segment") ? text.ToUpperInvariant() : text, classes);
             label.pickingMode = PickingMode.Ignore;
+            if (classes.Contains("btn") && !classes.Contains("btn--round")) Ui.Slant(label);
             return label;
         }
 
@@ -537,7 +539,7 @@ namespace RushAhead.UI
             Ui.Set(pauseTitle, session == SessionKind.Solo ? "Paused" : "The race goes on");
             Ui.Show(restart, Game.CanEditRaft && Game.Run.Active);
             Ui.Show(toLobby, Game.CanEditRaft);
-            leave.text = session == SessionKind.Solo ? "Main menu" : session == SessionKind.Hosting ? "End the game" : "Leave the game";
+            leave.text = (session == SessionKind.Solo ? "Main menu" : session == SessionKind.Hosting ? "End the game" : "Leave the game").ToUpperInvariant();
         }
 
         Loadout? MyLook()
@@ -615,15 +617,16 @@ namespace RushAhead.UI
                     made.style.width = 300;
                     made.style.marginLeft = -150;
                     made.style.unityTextAlign = TextAnchor.MiddleCenter;
-                    made.style.fontSize = 34;
-                    made.style.textShadow = new TextShadow { offset = new Vector2(2f, 3f), color = new Color(0f, 0f, 0f, 0.7f) };
+                    made.style.fontSize = 30;
+                    made.style.letterSpacing = 2;
+                    made.style.textShadow = new TextShadow { offset = new Vector2(0f, 2f), blurRadius = 6f, color = new Color(0f, 0f, 0f, 0.85f) };
                     tagLayer.Add(made);
                     tags.Add(made);
                 }
 
                 var tag = tags[used++];
                 var name = string.IsNullOrEmpty(entry.Loadout.Name) ? $"P{seat % crew + 1}" : entry.Loadout.Name;
-                Ui.Set(tag, entry.Yours ? "You" : entry.Kept ? $"{name} (away)" : entry.Ai ? "AI" : name);
+                Ui.Set(tag, (entry.Yours ? "You" : entry.Kept ? $"{name} (away)" : entry.Ai ? "AI" : name).ToUpperInvariant());
                 tag.style.color = RaftView.PlayerColor(seat % crew);
                 tag.style.left = at.Value.x;
                 tag.style.top = at.Value.y - 24f;
@@ -710,7 +713,7 @@ namespace RushAhead.UI
             painter.Arc(centre, radius, 0f, 360f);
             painter.Stroke();
             if (air <= 0.01f) return;
-            painter.strokeColor = new Color(1f, 0.79f, 0.24f);
+            painter.strokeColor = new Color(1f, 0.416f, 0.169f);
             painter.BeginPath();
             painter.Arc(centre, radius, -90f, -90f + 360f * Mathf.Clamp01(air));
             painter.Stroke();

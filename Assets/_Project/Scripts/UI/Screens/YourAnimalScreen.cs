@@ -175,7 +175,7 @@ namespace RushAhead.UI
             for (var i = 0; i < furs.Count; i++)
             {
                 var on = i == look.Fur;
-                var edge = on ? new Color(1f, 0.79f, 0.24f) : new Color(1f, 1f, 1f, 0.15f);
+                var edge = on ? new Color(1f, 0.416f, 0.169f) : new Color(1f, 1f, 1f, 0.15f);
                 furs[i].style.borderTopColor = furs[i].style.borderBottomColor = furs[i].style.borderLeftColor = furs[i].style.borderRightColor = edge;
             }
 

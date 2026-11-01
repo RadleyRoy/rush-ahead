@@ -384,6 +384,20 @@ namespace RushAhead.Content
     }
 
 
+    /// <summary>A boost lane: glowing chevrons on the water that give a raft riding them a surge of speed. Dealt with the round.</summary>
+    [Serializable]
+    public struct BoostSpot
+    {
+        [Tooltip("Where it starts, down the river.")] public float distance;
+        [Tooltip("Its middle, across the river (positive is the left).")] public float across;
+
+        public BoostSpot(float distance, float across)
+        {
+            this.distance = distance;
+            this.across = across;
+        }
+    }
+
     /// <summary>The kinds of obstacle a course can be dealt each round (see <see cref="CourseDef.menu"/>).</summary>
     public enum ObstacleKind
     {
@@ -506,6 +520,7 @@ namespace RushAhead.Content
         public AcrossSpot[] dams = Array.Empty<AcrossSpot>();
         public SideSpot[] pelicans = Array.Empty<SideSpot>();
         public CrossingSpot[] netBoats = Array.Empty<CrossingSpot>();
+        public BoostSpot[] boosts = Array.Empty<BoostSpot>();
 
         /// <summary>Whether every round deals a fresh random layout (otherwise the fixed lists are the layout).</summary>
         public bool HasMenu => menu != null && menu.Length > 0;
@@ -513,7 +528,7 @@ namespace RushAhead.Content
         public float FinishDistance => gates.Length > 0 ? gates[^1] : 0f;
 
         /// <summary>A rough time for a decent crew (3 m/s on average): the AI tests give each skill a multiple of it.</summary>
-        public float ExpectedSeconds => FinishDistance / 3f;
+        public float ExpectedSeconds => FinishDistance / 6f;
 
         /// <summary>Stars for a run: one for each life left at the finish (any layout is fair that way); none without finishing.</summary>
         public static int Stars(bool finished, int livesLeft) => finished ? Mathf.Clamp(livesLeft, 0, 3) : 0;

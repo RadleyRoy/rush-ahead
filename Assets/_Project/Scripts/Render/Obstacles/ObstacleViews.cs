@@ -87,9 +87,11 @@ namespace RushAhead.Render
             if (palette.HasRocks)
             {
                 // Centred on the group, so it spins about its middle as it rolls.
-                var rock = Shapes3D.Model("Rock", palette.rockMeshes[1 % palette.rockMeshes.Length], palette.rockMaterials[1 % palette.rockMaterials.Length], boulder,
-                    Vector3.zero, slide.Spot.radius * 2.2f);
-                rock.transform.localPosition -= Vector3.up * slide.Spot.radius;
+                // The roundest scan, sized so it reaches the boulder's radius every way it rolls.
+                var pick = CourseDressing.RoundestRock(palette);
+                var rock = Shapes3D.Model("Rock", palette.rockMeshes[pick], palette.rockMaterials[pick], boulder, Vector3.zero,
+                    slide.Spot.radius * 1.02f / palette.RockReach(pick).z);
+                rock.transform.localPosition -= Vector3.up * (palette.rockMeshes[pick].bounds.size.y * rock.transform.localScale.y * 0.5f); // its middle on the pivot
             }
             else Part(PrimitiveType.Sphere, boulder, Vector3.zero, Vector3.one * (slide.Spot.radius * 2f), Tint(palette.rock, new Color(0.47f, 0.44f, 0.4f)), name: "Rock");
             axis = SimSpace.Direction(at.Tangent) * side; // rolling across the river turns it about the river's line
@@ -440,7 +442,9 @@ namespace RushAhead.Render
             // The paw goes up as it rears, then sweeps down and across the water.
             var reach = swipe > 0f ? Mathf.Lerp(-70f, 40f, swipe) : Mathf.Lerp(20f, -70f, rear);
             arm.localRotation = Quaternion.Euler(reach, 30f * swipe * bear.Spot.side, 0f);
-            arm.localScale = Vector3.one * (1f + 1.2f * swipe); // the swipe reaches well out over the water
+            // The swipe stretches the arm out to the paw's reach over the water (Bear.Reach past the lip), not fatter.
+            var stretch = 1f + 1.45f * swipe;
+            arm.localScale = new Vector3(1f + 0.35f * swipe, 1f + 0.35f * swipe, stretch);
         }
     }
 }

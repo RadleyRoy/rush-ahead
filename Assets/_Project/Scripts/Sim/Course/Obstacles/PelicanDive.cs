@@ -70,6 +70,12 @@ namespace RushAhead.Sim
             }
         }
 
+        public override void Zones(double seconds, List<Vector2> lines)
+        {
+            var (target, shadow, _) = Pose(seconds);
+            if (shadow > 0f) Circle(lines, target, Splash - RaftRadius * 0.5f);
+        }
+
         public override bool BraceNeeded(Vector2 position, double seconds, float lookahead)
         {
             var (target, shadow, _) = Pose(seconds);

@@ -26,7 +26,7 @@ namespace RushAhead.Sim
         [Range(0f, 1f)] public float hullBounciness = 0.2f;
 
         [Header("Water drag (quadratic, hull-local)")]
-        [Min(0f)] public float forwardDrag = 5f;
+        [Min(0f)] public float forwardDrag = 3f;
         [Tooltip("The keel. lateral/forward of about 8 makes the raft track along the way the crew faces instead of " +
                  "sliding; set it equal to forward drag for a free-spinning, puck-like ring.")]
         [Min(0f)] public float lateralDrag = 40f;
@@ -34,13 +34,15 @@ namespace RushAhead.Sim
         [Tooltip("How quickly moving water brings a raft that's slower than it up to its speed, per second. Drag alone takes " +
                  "about ten seconds to get an idle raft drifting; this is what makes the river carry it. Never slows a faster raft.")]
         [Min(0f)] public float waterCarry = 1f;
+        [Tooltip("How fully the current carries a raft round a bend: 1 turns it with the water up to a little over the water's own speed.")]
+        [Min(0f)] public float bendCarry = 1f;
 
         [Header("Blowers")]
         [Tooltip("How fast an animal can swing its blower round, in degrees per second. Turns stick flicks and " +
                  "8-way keyboard steps into a quick sweep, so the thrust changes direction smoothly.")]
         [Range(90f, 1440f)] public float nozzleTurnDegPerSec = 420f;
         [Tooltip("Global multiplier on every blower's thrust and burst, for feel tuning.")]
-        [Min(0f)] public float thrustMultiplier = 1f;
+        [Min(0f)] public float thrustMultiplier = 1.8f;
         [Tooltip("How much of the air's push reaches bodies in the cone (air pushes others less than it pushes you).")]
         [Range(0f, 2f)] public float coneCoupling = 0.5f;
 
@@ -60,7 +62,7 @@ namespace RushAhead.Sim
         [Min(0f)] public float heelArm = 0.5f;
         [Tooltip("Turning at speed heels the boat outward.")]
         [Min(0f)] public float turnHeelCoupling = 0.15f;
-        [Min(0f)] public float impactKickScale = 0.004f;
+        [Min(0f)] public float impactKickScale = 0.0025f;
         [Range(0.1f, 1.5f)] public float capsizeAngle = 0.55f;
         [Min(0f)] public float capsizeHoldSeconds = 0.4f;
         [Min(1f)] public float braceDampingMultiplier = 3f;

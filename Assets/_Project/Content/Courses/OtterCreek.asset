@@ -98,7 +98,7 @@ MonoBehaviour:
   - 217.68004
   - 292.56107
   - 358.3304
-  flow: 2.6
+  flow: 5.2
   rocks:
   - position: {x: 42.06088, y: 17.408642}
     radius: 1.4
@@ -121,10 +121,10 @@ MonoBehaviour:
   currents:
   - from: 101.35322
     to: 138.3941
-    speed: 0.9
+    speed: 1.35
   - from: 161.14226
     to: 184.20012
-    speed: -0.5
+    speed: -0.75
   whirlpools: []
   menu:
   - kind: 0

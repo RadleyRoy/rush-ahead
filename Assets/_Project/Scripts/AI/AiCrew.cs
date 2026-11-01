@@ -16,7 +16,7 @@ namespace RushAhead.AI
     /// </summary>
     public sealed class AiCrew
     {
-        const float LookaheadMetres = 7f;
+        const float LookaheadMetres = 12f;
         const float LaneShare = 0.85f; // how far toward its own lane a Team Race crew steers
         const float SpeedGain = 0.8f; // throttle per m/s of velocity error
         const float BraceOrderSeconds = 3f;
@@ -67,7 +67,8 @@ namespace RushAhead.AI
         public Func<float, float, float, float> SteerAcross { get; set; }
 
         const float LookEvery = 0.25f; // seconds between second looks at a hazard not yet noticed
-        const float EdgeSense = 3.2f; // metres from the edge where the crew starts steering back in
+        const float BendGrip = 7f; // metres per second squared: how hard the crew and current together can turn the raft
+        const float EdgeSense = 4.5f; // metres from the edge where the crew starts steering back in (it comes up fast)
 
         bool hazardNoticed;
         float sinceLook;
@@ -160,7 +161,7 @@ namespace RushAhead.AI
                     var air = -spin * new Vector2(-arm.y, arm.x);
                     airAngle = Mathf.Atan2(air.y, air.x);
                     requestedLocal = (airAngle - boat.Body.AngleRad) * Mathf.Rad2Deg;
-                    throttle = Mathf.Clamp(Mathf.Abs(turnRate.Value - boat.Body.AngularVelocityRad) * 0.6f, 0f, 0.6f);
+                    throttle = Mathf.Clamp(Mathf.Abs(turnRate.Value - boat.Body.AngularVelocityRad) * 0.35f, 0f, 0.35f); // gently: the blowers are strong
                 }
 
                 var share = CrewSectors.Clamp(requestedLocal, seat.Index, boat.Crew.Length, out var allowedLocal);
@@ -263,7 +264,8 @@ namespace RushAhead.AI
                     if (River != null)
                     {
                         var at = River.Project(boat.Body.Position);
-                        var ahead = River.At(at.Distance + LookaheadMetres);
+                        var speed = boat.Body.Velocity.magnitude;
+                        var ahead = River.At(at.Distance + Mathf.Max(LookaheadMetres, speed * 1.1f)); // further ahead the faster it goes
                         // Keep to this crew's side of the line, wide enough apart that two rafts (3.2 m each) pass without
                         // trading paint, and out of each other's exhaust; the clamp keeps clear of the banks.
                         var across = Mathf.Clamp(ahead.LineOffset * ahead.HalfWidth + LaneShare * Course.LaneOffset(ahead, Lane, Lanes),
@@ -272,10 +274,19 @@ namespace RushAhead.AI
                         Target = ahead.Centre + ahead.Left * across;
                         var desired = Toward(Target.Value);
 
+                        // Ease off for a tight bend coming up: no faster than the crew can get the raft round it.
+                        var bend = 0f;
+                        for (var d = 4f; d <= 4f + speed * 2.5f; d += 5f) bend = Mathf.Max(bend, Mathf.Abs(River.At(at.Distance + d).Curvature));
+                        if (desired.HasValue && bend > 0.005f)
+                        {
+                            var allowed = Mathf.Sqrt(BendGrip / bend);
+                            if (desired.Value.magnitude > allowed) desired = desired.Value.normalized * allowed;
+                        }
+
                         // Near the edge there's nothing to stop a fall: steer back in, harder the closer it gets.
                         var room = at.HalfWidth - Mathf.Abs(at.Lateral);
                         if (desired.HasValue && room < EdgeSense)
-                            desired += -Mathf.Sign(at.Lateral) * new Vector2(-at.Tangent.y, at.Tangent.x) * ((EdgeSense - room) * 1.8f);
+                            desired += -Mathf.Sign(at.Lateral) * new Vector2(-at.Tangent.y, at.Tangent.x) * ((EdgeSense - room) * 2.4f);
                         return desired;
                     }
 

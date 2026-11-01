@@ -16,8 +16,8 @@ MonoBehaviour:
   blurb: 'Sucks instead of blows: pulls the raft where it points.'
   color: {r: 1, g: 0.85, b: 0.2, a: 1}
   thrustNewtons: 40
-  spoolUpMs: 400
-  spoolDownMs: 200
+  spoolUpMs: 240
+  spoolDownMs: 120
   coneHalfAngleDeg: 22
   range: 5
   falloffExp: 1.6

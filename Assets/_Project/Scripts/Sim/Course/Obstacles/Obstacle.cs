@@ -13,6 +13,9 @@ namespace RushAhead.Sim
     {
         protected const float RaftRadius = 1.6f;
 
+        /// <summary>How fast a raft comes down on an obstacle, for guessing when it'll get there.</summary>
+        protected const float ApproachSpeed = 12f;
+
         /// <summary>For barriers a raft runs into or is pressed against (see <see cref="BoatPhysics.Cushioned"/>).</summary>
         protected static PhysicsMaterial2D Slick => BoatPhysics.Cushioned;
 
@@ -36,6 +39,45 @@ namespace RushAhead.Sim
         /// metres down the river and aiming at <paramref name="to"/>, never further out than <paramref name="limit"/>.
         /// </summary>
         public virtual float SteerAcross(float from, float to, float across, double seconds, float limit) => across;
+
+        /// <summary>
+        /// For the hit-zone overlay: the outline a raft's rim has to touch for this obstacle's scripted knock to land, as
+        /// pairs of points on the water (each pair one line). Its solid parts are traced from their colliders.
+        /// </summary>
+        public virtual void Zones(double seconds, List<Vector2> lines)
+        {
+        }
+
+        /// <summary>A circle as lines (a small dot if it's smaller than that).</summary>
+        public static void Circle(List<Vector2> lines, Vector2 centre, float radius)
+        {
+            radius = Mathf.Max(radius, 0.05f);
+            const int segments = 28;
+            for (var i = 0; i < segments; i++)
+            {
+                float a = i * Mathf.PI * 2f / segments, b = (i + 1) * Mathf.PI * 2f / segments;
+                lines.Add(centre + new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * radius);
+                lines.Add(centre + new Vector2(Mathf.Cos(b), Mathf.Sin(b)) * radius);
+            }
+        }
+
+        /// <summary>A rectangle as lines: <paramref name="halfAlong"/> either way along <paramref name="axis"/>, <paramref name="halfAcross"/> either way across it.</summary>
+        public static void Box(List<Vector2> lines, Vector2 centre, Vector2 axis, float halfAlong, float halfAcross)
+        {
+            var side = new Vector2(-axis.y, axis.x);
+            halfAlong = Mathf.Max(halfAlong, 0.05f);
+            halfAcross = Mathf.Max(halfAcross, 0.05f);
+            var corners = new[]
+            {
+                centre + axis * halfAlong + side * halfAcross, centre - axis * halfAlong + side * halfAcross,
+                centre - axis * halfAlong - side * halfAcross, centre + axis * halfAlong - side * halfAcross,
+            };
+            for (var i = 0; i < 4; i++)
+            {
+                lines.Add(corners[i]);
+                lines.Add(corners[(i + 1) % 4]);
+            }
+        }
 
         /// <summary>One knock per raft per pass of each part: not again for <paramref name="gap"/> seconds.</summary>
         protected bool Ready(Boat boat, double seconds, int part = 0, double gap = 1.0) => Owner.Ready(boat, this, part, seconds, gap);

@@ -83,10 +83,17 @@ namespace RushAhead.Sim
             }
         }
 
+        public override void Zones(double seconds, List<Vector2> lines)
+        {
+            var (near, far) = Net(seconds);
+            var centre = at.Centre + at.Left * ((near + far) * 0.5f);
+            Box(lines, centre, at.Tangent, NetDepth * 0.5f - RaftRadius * 0.3f, Mathf.Abs(far - near) * 0.5f - RaftRadius * 0.5f);
+        }
+
         public override float SteerAcross(float from, float to, float across, double seconds, float limit)
         {
             if (!Between(spot.distance, NetDepth + RaftRadius + 1f, from, to)) return across;
-            var eta = Mathf.Clamp((spot.distance - from) / 6f, 0f, 1.5f);
+            var eta = Mathf.Clamp((spot.distance - from) / ApproachSpeed, 0f, 1.5f);
             foreach (var t in new[] { seconds + eta, seconds })
             {
                 var (_, far) = Net(t);

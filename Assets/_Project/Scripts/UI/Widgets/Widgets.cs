@@ -8,7 +8,7 @@ namespace RushAhead.UI
     /// <summary>One to three stars, drawn (the built-in font has no star glyph).</summary>
     public sealed class StarRow : VisualElement
     {
-        static readonly Color Lit = new(1f, 0.79f, 0.24f);
+        static readonly Color Lit = new(1f, 0.416f, 0.169f);
         static readonly Color Unlit = new(1f, 1f, 1f, 0.18f);
         readonly float size;
         int lit;
@@ -56,11 +56,11 @@ namespace RushAhead.UI
         }
     }
 
-    /// <summary>A raft's lives as hearts, full or empty (the built-in font has no heart either).</summary>
+    /// <summary>A raft's lives as slanted bars, lit or spent.</summary>
     public sealed class HeartRow : VisualElement
     {
-        static readonly Color Full = new(1f, 0.36f, 0.42f);
-        static readonly Color Empty = new(1f, 1f, 1f, 0.2f);
+        static readonly Color Full = new(0.96f, 0.97f, 0.98f);
+        static readonly Color Empty = new(1f, 1f, 1f, 0.16f);
         readonly float size;
         readonly int hearts;
         int full;
@@ -90,15 +90,18 @@ namespace RushAhead.UI
         void Draw(MeshGenerationContext context)
         {
             var painter = context.painter2D;
+            var lean = size * 0.22f;
+            var top = size * 0.28f;
+            var bottom = size * 0.72f;
             for (var i = 0; i < hearts; i++)
             {
-                var c = new Vector2(size * 0.5f + i * size * 1.25f, size * 0.5f);
-                var s = size;
+                var left = i * size * 1.25f;
                 painter.fillColor = i < full ? Full : Empty;
                 painter.BeginPath();
-                painter.MoveTo(c + new Vector2(0f, s * 0.42f));
-                painter.BezierCurveTo(c + new Vector2(-s * 0.62f, s * 0.02f), c + new Vector2(-s * 0.5f, -s * 0.5f), c + new Vector2(0f, -s * 0.2f));
-                painter.BezierCurveTo(c + new Vector2(s * 0.5f, -s * 0.5f), c + new Vector2(s * 0.62f, s * 0.02f), c + new Vector2(0f, s * 0.42f));
+                painter.MoveTo(new Vector2(left + lean, top));
+                painter.LineTo(new Vector2(left + size, top));
+                painter.LineTo(new Vector2(left + size - lean, bottom));
+                painter.LineTo(new Vector2(left, bottom));
                 painter.ClosePath();
                 painter.Fill();
             }
@@ -177,7 +180,7 @@ namespace RushAhead.UI
             var fill = new VisualElement();
             fill.style.height = 14;
             fill.style.width = new Length(Mathf.Clamp01(value) * 100f, LengthUnit.Percent);
-            fill.style.backgroundColor = new Color(1f, 0.79f, 0.24f);
+            fill.style.backgroundColor = new Color(1f, 0.416f, 0.169f);
             fill.style.borderTopLeftRadius = fill.style.borderTopRightRadius = fill.style.borderBottomLeftRadius = fill.style.borderBottomRightRadius = 7;
             track.Add(fill);
             Add(track);
@@ -191,6 +194,15 @@ namespace RushAhead.UI
         {
             var texture = new Texture2D(1, height, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Bilinear };
             for (var y = 0; y < height; y++) texture.SetPixel(0, y, Color.Lerp(bottom, top, y / (height - 1f)));
+            texture.Apply();
+            return texture;
+        }
+
+        /// <summary>A wide, short texture fading from left to right.</summary>
+        public static Texture2D Horizontal(Color left, Color right, int width = 128)
+        {
+            var texture = new Texture2D(width, 1, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp, filterMode = FilterMode.Bilinear };
+            for (var x = 0; x < width; x++) texture.SetPixel(x, 0, Color.Lerp(left, right, x / (width - 1f)));
             texture.Apply();
             return texture;
         }

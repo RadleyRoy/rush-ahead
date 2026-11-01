@@ -115,14 +115,23 @@ namespace RushAhead.Sim
             last = position;
         }
 
+        public override void Zones(double seconds, List<Vector2> lines)
+        {
+            var (position, height, _, _, _) = Boulder(seconds);
+            if (height > -1f) Circle(lines, position, spot.radius + 0.2f);
+        }
+
+        /// <summary>When the boulder will cross where the raft will be by then (coming down the river at the usual speed).</summary>
         public override bool BraceNeeded(Vector2 position, double seconds, float lookahead)
         {
             var here = River.Project(position);
-            if (Mathf.Abs(here.Distance - spot.distance) > spot.radius + RaftRadius + 1f) return false;
+            var reach = spot.radius + RaftRadius + 1f;
+            if (here.Distance > spot.distance + reach || here.Distance < spot.distance - reach - ApproachSpeed * lookahead) return false;
             for (var t = 0f; t <= lookahead; t += 0.1f)
             {
                 var (boulder, _, _, crossing, _) = Boulder(seconds + t);
-                if (crossing && Vector2.Distance(boulder, position) < spot.radius + RaftRadius + 1f) return true;
+                var ahead = position + at.Tangent * Mathf.Min(ApproachSpeed * t, spot.distance + reach - here.Distance);
+                if (crossing && Vector2.Distance(boulder, ahead) < reach) return true;
             }
 
             return false;

@@ -16,8 +16,8 @@ MonoBehaviour:
   blurb: 'Weak and wide, but instant: no wind-up at all.'
   color: {r: 0.9, g: 0.25, b: 0.28, a: 1}
   thrustNewtons: 18
-  spoolUpMs: 90
-  spoolDownMs: 90
+  spoolUpMs: 54
+  spoolDownMs: 54
   coneHalfAngleDeg: 34
   range: 2.6
   falloffExp: 1.6

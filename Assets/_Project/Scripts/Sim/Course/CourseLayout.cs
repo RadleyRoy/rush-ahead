@@ -38,6 +38,9 @@ namespace RushAhead.Sim
         public SideSpot[] pelicans = Array.Empty<SideSpot>();
         public CrossingSpot[] netBoats = Array.Empty<CrossingSpot>();
 
+        /// <summary>Boost lanes in the free water between obstacles (not counted as obstacles).</summary>
+        public BoostSpot[] boosts = Array.Empty<BoostSpot>();
+
         /// <summary>How many obstacles in all.</summary>
         public int Count => wheels.Length + crocodiles.Length + swingers.Length + geysers.Length + rockslides.Length + hippos.Length +
                             sluices.Length + sweepers.Length + cannons.Length + rapids.Length + weirs.Length + bumpers.Length + ferries.Length + bears.Length +
@@ -51,7 +54,7 @@ namespace RushAhead.Sim
             hippos = def.hippos, sluices = def.sluices, sweepers = def.sweepers, cannons = def.cannons, rapids = def.rapids, weirs = def.weirs,
             bumpers = def.bumpers, ferries = def.ferries, bears = def.bears, trees = def.trees, turtles = def.turtles, shoals = def.shoals,
             waterspouts = def.waterspouts, eels = def.eels, mudslides = def.mudslides, floes = def.floes, dams = def.dams, pelicans = def.pelicans,
-            netBoats = def.netBoats,
+            netBoats = def.netBoats, boosts = def.boosts,
         };
     }
 }

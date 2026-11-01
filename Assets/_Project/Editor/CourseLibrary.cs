@@ -70,7 +70,7 @@ namespace RushAhead.EditorTools
         {
             c.displayName = "Otter Creek";
             c.blurb = "Weave the rocks, ride the current and shove through the barrels. New obstacles every round.";
-            c.flow = 2.6f;
+            c.flow = 5.2f;
             c.river = new[]
             {
                 new RiverPoint(0f, 0f, 16f),
@@ -117,8 +117,8 @@ namespace RushAhead.EditorTools
 
             c.currents = new[]
             {
-                new CurrentZone(s.Near(6) + 2f, s.Near(8) + 6f, 0.9f), // ride it
-                new CurrentZone(s.Near(10) - 6f, s.Near(11) + 2f, -0.5f), // the gorge pushes back
+                new CurrentZone(s.Near(6) + 2f, s.Near(8) + 6f, 1.35f), // ride it
+                new CurrentZone(s.Near(10) - 6f, s.Near(11) + 2f, -0.75f), // the gorge pushes back
             };
 
             // Obstacles: a fresh layout every round, dealt from these.
@@ -181,7 +181,7 @@ namespace RushAhead.EditorTools
             c.blurb = "Wide water round three islands, never calm for long. New obstacles every round.";
             c.scene = CourseScene.Lake;
             c.starsToUnlock = 1;
-            c.flow = 2.2f;
+            c.flow = 4.4f;
             c.river = new[]
             {
                 new RiverPoint(0f, 0f, 18f),
@@ -225,8 +225,8 @@ namespace RushAhead.EditorTools
                 new ObstacleChance(ObstacleKind.Pelican), new ObstacleChance(ObstacleKind.NetBoat),
                 new ObstacleChance(ObstacleKind.Waterspout),
             };
-            c.minObstacles = 9;
-            c.maxObstacles = 12;
+            c.minObstacles = 8;
+            c.maxObstacles = 11;
         }
 
         /// <summary>Switchbacks through beaver country, drifting logs and a log jam in the big pool.</summary>
@@ -236,7 +236,7 @@ namespace RushAhead.EditorTools
             c.blurb = "Switchbacks through beaver country, logs adrift and a jam to bash through. New obstacles every round.";
             c.scene = CourseScene.Creek;
             c.starsToUnlock = 2;
-            c.flow = 3f;
+            c.flow = 6f;
             c.river = new[]
             {
                 new RiverPoint(0f, 0f, 14f),
@@ -277,7 +277,7 @@ namespace RushAhead.EditorTools
                 s.Log(jam - 4f, -4f, 20f, 4f), s.Log(jam - 2f, 3f, -35f, 4.5f), s.Log(jam + 2f, -1f, 80f, 4f), s.Log(jam + 5f, 5f, 10f, 3.5f),
                 s.Log(jam + 7f, -5f, 50f, 4f),
             };
-            c.currents = new[] { new CurrentZone(s.Near(4), s.Near(6), 0.7f), new CurrentZone(s.Near(11), s.Near(13), 0.6f) };
+            c.currents = new[] { new CurrentZone(s.Near(4), s.Near(6), 1.05f), new CurrentZone(s.Near(11), s.Near(13), 0.9f) };
 
             // Obstacles: a fresh layout every round, dealt from these.
             c.menu = new[]
@@ -291,8 +291,8 @@ namespace RushAhead.EditorTools
                 new ObstacleChance(ObstacleKind.FallingTree), new ObstacleChance(ObstacleKind.BeaverDam, 1.3f),
                 new ObstacleChance(ObstacleKind.Mudslide), new ObstacleChance(ObstacleKind.Turtle),
             };
-            c.minObstacles = 9;
-            c.maxObstacles = 13;
+            c.minObstacles = 8;
+            c.maxObstacles = 11;
         }
 
         /// <summary>Narrow channels through the reeds, where there's no steering round a hippo: brace or dodge.</summary>
@@ -302,7 +302,7 @@ namespace RushAhead.EditorTools
             c.blurb = "Narrow channels with nowhere to hide, and a whirlpool in the big pool. New obstacles every round.";
             c.scene = CourseScene.Lake;
             c.starsToUnlock = 4;
-            c.flow = 2.6f;
+            c.flow = 5.2f;
             c.river = new[]
             {
                 new RiverPoint(0f, 0f, 14f),
@@ -336,8 +336,8 @@ namespace RushAhead.EditorTools
             c.rocks = new[] { s.Rock(s.Near(12) + 2f, -4f, 1f) };
             var pool = s.Near(7);
             c.barrels = new[] { s.Spot(pool - 6f, 6f), s.Spot(pool + 5f, 7f), s.Spot(pool + 2f, -8f) };
-            c.currents = new[] { new CurrentZone(s.Near(2), s.Near(5), 0.5f), new CurrentZone(s.Near(9), s.Near(11), -0.4f) };
-            c.whirlpools = new[] { s.Whirlpool(pool, -3f, 6f, 1.3f, 0.6f) };
+            c.currents = new[] { new CurrentZone(s.Near(2), s.Near(5), 0.75f), new CurrentZone(s.Near(9), s.Near(11), -0.6f) };
+            c.whirlpools = new[] { s.Whirlpool(pool, -3f, 6f, 1.95f, 0.9f) };
 
             // Obstacles: a fresh layout every round, dealt from these.
             c.menu = new[]
@@ -349,8 +349,8 @@ namespace RushAhead.EditorTools
                 new ObstacleChance(ObstacleKind.ElectricEels), new ObstacleChance(ObstacleKind.Pelican),
                 new ObstacleChance(ObstacleKind.FallingTree), new ObstacleChance(ObstacleKind.BeaverDam),
             };
-            c.minObstacles = 9;
-            c.maxObstacles = 13;
+            c.minObstacles = 7;
+            c.maxObstacles = 10;
         }
 
         /// <summary>Fast water past three whirlpools and a rock slalom, then a long run to the finish.</summary>
@@ -360,7 +360,7 @@ namespace RushAhead.EditorTools
             c.blurb = "Three whirlpools in fast water, then a long run of white water. New obstacles every round.";
             c.scene = CourseScene.Rapids;
             c.starsToUnlock = 6;
-            c.flow = 3.6f;
+            c.flow = 7.2f;
             c.river = new[]
             {
                 new RiverPoint(0f, 0f, 16f),
@@ -397,13 +397,13 @@ namespace RushAhead.EditorTools
             c.logs = new[] { s.Log(s.Near(6) + 8f, 5f, 30f, 3.5f), s.Log(s.Near(8) - 6f, -4f, 70f, 3f) };
             c.currents = new[]
             {
-                new CurrentZone(s.Near(1) + 4f, s.Near(2) + 6f, 1f), new CurrentZone(s.Near(9), s.Near(11), 1.2f),
-                new CurrentZone(s.Near(12), s.Near(13) + 4f, -0.6f),
+                new CurrentZone(s.Near(1) + 4f, s.Near(2) + 6f, 1.5f), new CurrentZone(s.Near(9), s.Near(11), 1.8f),
+                new CurrentZone(s.Near(12), s.Near(13) + 4f, -0.9f),
             };
             c.whirlpools = new[]
             {
-                s.Whirlpool(s.Near(3), 3.5f, 5.5f, 1.4f, 0.7f), s.Whirlpool(s.Near(6), -3.5f, 6f, -1.6f, 0.8f),
-                s.Whirlpool(s.Near(8), 3.5f, 5.5f, 1.8f, 0.9f),
+                s.Whirlpool(s.Near(3), 3.5f, 5.5f, 2.1f, 1.05f), s.Whirlpool(s.Near(6), -3.5f, 6f, -2.4f, 1.2f),
+                s.Whirlpool(s.Near(8), 3.5f, 5.5f, 2.7f, 1.35f),
             };
 
             // Obstacles: a fresh layout every round, dealt from these.
@@ -418,8 +418,8 @@ namespace RushAhead.EditorTools
                 new ObstacleChance(ObstacleKind.Waterspout), new ObstacleChance(ObstacleKind.IceFloes),
                 new ObstacleChance(ObstacleKind.Mudslide), new ObstacleChance(ObstacleKind.ElectricEels),
             };
-            c.minObstacles = 11;
-            c.maxObstacles = 15;
+            c.minObstacles = 10;
+            c.maxObstacles = 13;
         }
 
         /// <summary>The longest and hardest: every kind of obstacle, the most of them, in the fastest water.</summary>
@@ -429,7 +429,7 @@ namespace RushAhead.EditorTools
             c.blurb = "The big one: the fastest water, and every kind of obstacle there is. New obstacles every round.";
             c.scene = CourseScene.Rapids;
             c.starsToUnlock = 8;
-            c.flow = 4.2f;
+            c.flow = 8.4f;
             c.river = new[]
             {
                 new RiverPoint(0f, 0f, 16f),
@@ -480,10 +480,10 @@ namespace RushAhead.EditorTools
             c.barrels = new[] { s.Spot(pool, 0f), s.Spot(pool + 4f, -2f) };
             c.currents = new[]
             {
-                new CurrentZone(s.Near(1) + 4f, s.Near(3), 1.1f), new CurrentZone(s.Near(5), s.Near(7), 1.2f),
-                new CurrentZone(s.Near(9) - 2f, s.Near(10) + 4f, -0.7f), new CurrentZone(s.Near(13), s.Near(16), 1f),
+                new CurrentZone(s.Near(1) + 4f, s.Near(3), 1.65f), new CurrentZone(s.Near(5), s.Near(7), 1.8f),
+                new CurrentZone(s.Near(9) - 2f, s.Near(10) + 4f, -1.05f), new CurrentZone(s.Near(13), s.Near(16), 1.5f),
             };
-            c.whirlpools = new[] { s.Whirlpool(s.Near(8), 4f, 6.5f, -1.8f, 0.9f), s.Whirlpool(s.Near(17), -4f, 6f, 1.6f, 0.8f) };
+            c.whirlpools = new[] { s.Whirlpool(s.Near(8), 4f, 6.5f, -2.7f, 1.35f), s.Whirlpool(s.Near(17), -4f, 6f, 2.4f, 1.2f) };
 
             // Obstacles: a fresh layout every round, dealt from these.
             c.menu = new[]
@@ -501,8 +501,8 @@ namespace RushAhead.EditorTools
                 new ObstacleChance(ObstacleKind.IceFloes), new ObstacleChance(ObstacleKind.BeaverDam),
                 new ObstacleChance(ObstacleKind.Pelican), new ObstacleChance(ObstacleKind.NetBoat),
             };
-            c.minObstacles = 15;
-            c.maxObstacles = 21;
+            c.minObstacles = 12;
+            c.maxObstacles = 17;
         }
     }
 }

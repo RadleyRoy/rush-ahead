@@ -195,9 +195,17 @@ namespace RushAhead.Render
             var rock = Shapes3D.Group(parent, "Rock", SimSpace.ToWorld(at));
             if (palette.HasRocks)
             {
+                // A roundish stone, sized so its narrowest side covers the rock the rafts bump into: no hit before you touch it.
                 var pick = random.Next(palette.rockMeshes.Length);
-                Shapes3D.Model("Boulder", palette.rockMeshes[pick], palette.rockMaterials[pick], rock, Vector3.zero, radius * 2.3f, (float)random.NextDouble() * 360f, 0.3f);
-                Shapes3D.MeshObject("Foam", Shapes3D.Disc(radius + 0.5f), rock, new Vector3(0f, 0.02f, 0f), palette.foam);
+                for (var tries = 0; tries < 8 && Roundness(palette, pick) < 0.6f; tries++) pick = random.Next(palette.rockMeshes.Length);
+                if (Roundness(palette, pick) < 0.6f) pick = RoundestFootprint(palette);
+                var reach = palette.RockReach(pick);
+                var width = radius * 1.04f / reach.x;
+                var yaw = (float)random.NextDouble() * 360f;
+                var middle = palette.rockMiddle != null && pick < palette.rockMiddle.Length ? palette.rockMiddle[pick] : Vector2.zero;
+                var offset = Quaternion.Euler(0f, yaw, 0f) * new Vector3(middle.x, 0f, middle.y) * width; // the footprint's middle on the rock's spot
+                Shapes3D.Model("Boulder", palette.rockMeshes[pick], palette.rockMaterials[pick], rock, -offset, width, yaw, 0.3f);
+                Shapes3D.MeshObject("Foam", Shapes3D.Disc(radius + 0.35f), rock, new Vector3(0f, 0.02f, 0f), palette.foam);
                 return;
             }
 
@@ -205,6 +213,25 @@ namespace RushAhead.Render
             Shapes3D.Primitive(PrimitiveType.Sphere, rock, new Vector3(0f, 0.15f, 0f), new Vector3(2f * radius, 1.5f * radius, 2f * radius), palette.rock, spin, "Boulder");
             Shapes3D.Primitive(PrimitiveType.Sphere, rock, spin * new Vector3(radius * 0.7f, 0.05f, radius * 0.3f), Vector3.one * radius * 0.9f, palette.rock, spin, "Stone");
             Shapes3D.MeshObject("Foam", Shapes3D.Disc(radius + 0.5f), rock, new Vector3(0f, 0.02f, 0f), palette.foam);
+        }
+
+        static float Roundness(ArtPalette palette, int i) => palette.RockReach(i).x / Mathf.Max(0.01f, palette.RockReach(i).y);
+
+        static int RoundestFootprint(ArtPalette palette)
+        {
+            var best = 0;
+            for (var i = 1; i < palette.rockMeshes.Length; i++)
+                if (Roundness(palette, i) > Roundness(palette, best)) best = i;
+            return best;
+        }
+
+        /// <summary>The roundest rock mesh all ways round, for a boulder that rolls.</summary>
+        public static int RoundestRock(ArtPalette palette)
+        {
+            var best = 0;
+            for (var i = 1; i < palette.rockMeshes.Length; i++)
+                if (palette.RockReach(i).z > palette.RockReach(best).z) best = i;
+            return best;
         }
 
         /// <summary>A floating striped barrel that follows a 2D physics body.</summary>

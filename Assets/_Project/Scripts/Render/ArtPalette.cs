@@ -81,6 +81,16 @@ namespace RushAhead.Render
 
         public bool HasRocks => rockMeshes != null && rockMeshes.Length > 0 && rockMeshes[0] != null;
 
+        [Tooltip("Per rock mesh, as shares of its width when placed: how far its narrowest (x) and widest (y) sides reach " +
+                 "from the middle seen from above at a 30% sunk waterline, and (z) the least it reaches in any direction.")]
+        public Vector3[] rockReach = Array.Empty<Vector3>();
+
+        [Tooltip("Per rock mesh: where its footprint's middle is, from the middle of its bounds, as a share of its width.")]
+        public Vector2[] rockMiddle = Array.Empty<Vector2>();
+
+        /// <summary>How a rock mesh reaches (see <see cref="rockReach"/>), or a plain round stone's when it hasn't been measured.</summary>
+        public Vector3 RockReach(int i) => rockReach != null && i < rockReach.Length && rockReach[i].x > 0.05f ? rockReach[i] : new Vector3(0.45f, 0.5f, 0.4f);
+
         /// <summary>Whether there's what a real terrain needs: its material and every ground layer.</summary>
         public bool HasLand => terrainMaterial != null && terrainLayers != null && terrainLayers.Length >= 6 && terrainLayers.All(l => l != null);
 

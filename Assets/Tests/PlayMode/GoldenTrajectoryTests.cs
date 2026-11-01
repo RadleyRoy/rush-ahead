@@ -17,13 +17,13 @@ namespace RushAhead.Tests
         const float Astern = Mathf.PI;
         const float TowardStarboard = -Mathf.PI / 2f;
 
-        // Recorded from the default SimConfig and leaf blower, 22 Oct 2026 (tuning signed off after phone play).
+        // Recorded from the default SimConfig and leaf blower, 1 Nov 2026 (Phase 16: about twice as fast).
         static readonly (int tick, float x, float y, float headingDeg, float lean)[] Expected =
         {
-            (60, 0.4680f, 0.0000f, 0.000f, 0.0722f),
-            (180, 4.7028f, -0.0030f, -6.216f, 0.0249f),
-            (300, 9.5858f, -0.3056f, -56.062f, 0.1599f),
-            (360, 10.7689f, 0.2610f, -83.148f, 0.0955f),
+            (60, 0.9987f, 0.0000f, 0.000f, 0.0769f),
+            (180, 8.8368f, -0.0226f, -12.656f, 0.0347f),
+            (300, 15.7926f, -1.8797f, -95.011f, 0.1203f),
+            (360, 16.9808f, -0.5216f, -134.589f, 0.1464f),
         };
 
         sealed class Script : ICrewInputSource

@@ -224,6 +224,18 @@ namespace RushAhead.Tests
         }
 
         [Test]
+        public void ABoostLane_SpeedsUpARaftRidingIt()
+        {
+            def.boosts = new[] { new BoostSpot(30f, 0f) };
+            Build();
+            var riding = Spawn(new Vector2(31f, 0f));
+            var beside = Spawn(new Vector2(31f, 5f));
+            Run(0.5f, riding, beside);
+            Assert.That(riding.Body.Velocity.x, Is.GreaterThan(2f), "surged down the river");
+            Assert.That(beside.Body.Velocity.magnitude, Is.LessThan(0.2f), "off the lane, nothing");
+        }
+
+        [Test]
         public void AFallingTree_FlipsAnUnbracedRaftUnderIt_ThenLiesAcrossWithAGapPastItsCrown()
         {
             def.trees = new[] { new SideSpot(40f, 1f, 8f, 0f), new SideSpot(30f, 1f, 8f, 0f), new SideSpot(50f, 1f, 8f, 0f) };

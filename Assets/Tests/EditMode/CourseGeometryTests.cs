@@ -352,6 +352,15 @@ namespace RushAhead.Tests
                     }
 
                     foreach (var chance in def.menu) dealt[chance.kind] = dealt.GetValueOrDefault(chance.kind) + CountOf(layout, chance.kind);
+
+                    if (def.HasMenu) Assert.That(layout.boosts.Length, Is.GreaterThanOrEqualTo(1), "a boost lane or two in the free water");
+                    foreach (var boost in layout.boosts)
+                    {
+                        OnCourse(boost.distance, "boost lane");
+                        var at = river.At(boost.distance + BoostLane.Length * 0.5f);
+                        Assert.That(Mathf.Abs(boost.across) + BoostLane.HalfWidth, Is.LessThan(at.HalfWidth), $"boost lane at {boost.distance:0} m is in the water");
+                        ClearOfRespawns(at.Centre + at.Left * boost.across, 0f, $"boost lane at {boost.distance:0} m");
+                    }
                 }
                 catch (AssertionException failure)
                 {

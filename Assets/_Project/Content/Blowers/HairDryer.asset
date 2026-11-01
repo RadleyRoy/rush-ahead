@@ -16,8 +16,8 @@ MonoBehaviour:
   blurb: 'Quick and precise: a narrow, long jet.'
   color: {r: 1, g: 0.45, b: 0.72, a: 1}
   thrustNewtons: 30
-  spoolUpMs: 140
-  spoolDownMs: 120
+  spoolUpMs: 84
+  spoolDownMs: 72
   coneHalfAngleDeg: 9
   range: 6.5
   falloffExp: 1.1

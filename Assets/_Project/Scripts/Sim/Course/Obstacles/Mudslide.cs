@@ -60,6 +60,14 @@ namespace RushAhead.Sim
             }
         }
 
+        public override void Zones(double seconds, List<Vector2> lines)
+        {
+            var flow = Flow(seconds, out _);
+            if (flow <= 0f) return;
+            var reach = Reach * flow - RaftRadius * 0.5f;
+            Box(lines, at.Centre + at.Left * (spot.side * (at.HalfWidth - reach * 0.5f)), at.Tangent, Along - RaftRadius * 0.5f, reach * 0.5f);
+        }
+
         public override float SteerAcross(float from, float to, float across, double seconds, float limit)
         {
             if (!Between(spot.distance, Along + RaftRadius, from, to)) return across;

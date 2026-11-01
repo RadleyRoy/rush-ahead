@@ -52,6 +52,11 @@ namespace RushAhead.Sim
             }
         }
 
+        public override void Zones(double seconds, List<Vector2> lines)
+        {
+            if (Warning(seconds, out _) > 0f) Box(lines, at.Centre, at.Tangent, Depth * 0.5f - RaftRadius * 0.4f, at.HalfWidth);
+        }
+
         public override bool BraceNeeded(Vector2 position, double seconds, float lookahead)
         {
             if (!Over(position, 1.5f)) return false;

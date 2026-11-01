@@ -285,7 +285,7 @@ namespace RushAhead.Tests
                 world.WaterVelocity = course.WaterVelocityAt;
                 world.Drifting.AddRange(course.BarrelBodies);
                 var boat = world.SpawnBoat(course.SpawnPosition, course.SpawnAngleRad, new[] { leafBlower, leafBlower, leafBlower, leafBlower });
-                var autopilot = SteadyCrew(boat, course, config, cruiseSpeed: 3.2f);
+                var autopilot = SteadyCrew(boat, course, config, cruiseSpeed: 6.7f);
                 Hook(autopilot, course, world, config);
                 var race = new Race(course, boat, world.Tick, config.tickRate);
 

@@ -118,7 +118,7 @@ MonoBehaviour:
   - 351.1555
   - 417.01556
   - 480.83768
-  flow: 4.2
+  flow: 8.4
   rocks:
   - position: {x: 48.601902, y: 20.506645}
     radius: 1.1
@@ -150,25 +150,25 @@ MonoBehaviour:
   currents:
   - from: 22.059847
     to: 54.620422
-    speed: 1.1
+    speed: 1.65
   - from: 89.05349
     to: 125.24874
-    speed: 1.2
+    speed: 1.8
   - from: 158.26204
     to: 181.5128
-    speed: -0.7
+    speed: -1.05
   - from: 230.49667
     to: 282.3421
-    speed: 1
+    speed: 1.5
   whirlpools:
   - position: {x: 114.35408, y: 55.23393}
     radius: 6.5
-    spin: -1.8
-    pull: 0.9
+    spin: -2.7
+    pull: 1.35
   - position: {x: 240.19102, y: 54.004562}
     radius: 6
-    spin: 1.6
-    pull: 0.8
+    spin: 2.4
+    pull: 1.2
   menu:
   - kind: 0
     weight: 1
@@ -218,8 +218,8 @@ MonoBehaviour:
     weight: 1
   - kind: 23
     weight: 1
-  minObstacles: 15
-  maxObstacles: 21
+  minObstacles: 12
+  maxObstacles: 17
   wheels: []
   crocodiles: []
   swingers: []

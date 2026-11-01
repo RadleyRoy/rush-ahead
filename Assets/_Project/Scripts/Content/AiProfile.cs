@@ -24,7 +24,7 @@ namespace RushAhead.Content
         [TextArea] public string blurb = "";
 
         [Tooltip("The speed it tries to keep the raft at, in metres per second.")]
-        [Range(1f, 5f)] public float cruiseSpeed = 3f;
+        [Range(1f, 12f)] public float cruiseSpeed = 6f;
 
         [Tooltip("How long it takes to act on what it sees, or on an order.")]
         [Range(0f, 1f)] public float reactionSeconds = 0.3f;
@@ -57,22 +57,22 @@ namespace RushAhead.Content
             {
                 case AiSkill.Clumsy:
                     p.blurb = "Means well. Slow to react, wobbly aim, and easily distracted.";
-                    p.cruiseSpeed = 2f; p.reactionSeconds = 0.6f; p.aimWobbleDeg = 30f;
+                    p.cruiseSpeed = 4.2f; p.reactionSeconds = 0.6f; p.aimWobbleDeg = 30f;
                     p.airDiscipline = 0.15f; p.braceInstinct = 0.25f; p.panicLean = 0.85f; p.burstWhenStuck = 0.2f; p.daydream = 0.25f;
                     break;
                 case AiSkill.Keen:
                     p.blurb = "Enthusiastic and slightly wrong. A good crew to learn with.";
-                    p.cruiseSpeed = 2.9f; p.reactionSeconds = 0.3f; p.aimWobbleDeg = 12f;
+                    p.cruiseSpeed = 6.1f; p.reactionSeconds = 0.3f; p.aimWobbleDeg = 12f;
                     p.airDiscipline = 0.55f; p.braceInstinct = 0.55f; p.panicLean = 0.7f; p.burstWhenStuck = 0.5f; p.daydream = 0.06f;
                     break;
                 case AiSkill.Ace:
                     p.blurb = "Sharp: holds a clean line, bursts when stuck, braces in time.";
-                    p.cruiseSpeed = 3.4f; p.reactionSeconds = 0.15f; p.aimWobbleDeg = 4f;
+                    p.cruiseSpeed = 7.1f; p.reactionSeconds = 0.15f; p.aimWobbleDeg = 4f;
                     p.airDiscipline = 0.9f; p.braceInstinct = 0.85f; p.panicLean = 0.6f; p.burstWhenStuck = 0.9f; p.daydream = 0f;
                     break;
                 case AiSkill.Steady:
                     p.blurb = "No personality: the course-testing autopilot.";
-                    p.cruiseSpeed = 3.2f; p.reactionSeconds = 0f; p.aimWobbleDeg = 0f;
+                    p.cruiseSpeed = 6.7f; p.reactionSeconds = 0f; p.aimWobbleDeg = 0f;
                     p.airDiscipline = 1f; p.braceInstinct = 0f; p.panicLean = 1f; p.burstWhenStuck = 0f; p.daydream = 0f;
                     break;
             }

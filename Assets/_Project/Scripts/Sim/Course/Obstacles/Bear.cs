@@ -10,7 +10,8 @@ namespace RushAhead.Sim
     /// </summary>
     public sealed class Bear : Obstacle
     {
-        public const float Reach = 3.8f; // how far over the water its paw sweeps
+        public const float Reach = 2.4f; // how far out over the water from the lip its paw sweeps (the view draws it this far)
+        public const float SweepHalf = 2f; // up and down the river either side of the bear
         const float Rear = 0.45f;
         const float Swipe = 0.65f;
         const float Done = 0.73f;
@@ -43,7 +44,8 @@ namespace RushAhead.Sim
             var offset = point - at.Centre;
             var along = Vector2.Dot(offset, at.Tangent);
             var across = Vector2.Dot(offset, at.Left) * spot.side; // positive toward the bear
-            return Mathf.Abs(along) < 2.5f + margin && across > at.HalfWidth - Reach - margin;
+            // The paw touches the raft's rim: its middle within a raft's radius of the paw's sweep.
+            return Mathf.Abs(along) < SweepHalf + RaftRadius + margin && across > at.HalfWidth - Reach - RaftRadius - margin;
         }
 
         public override void Step(double seconds, float dt, IReadOnlyList<Boat> boats)
@@ -52,9 +54,17 @@ namespace RushAhead.Sim
             if (swipe <= 0f) return;
             foreach (var boat in boats)
             {
-                if (!Afloat(boat) || !InReach(boat.Body.Position, RaftRadius * 0.7f) || !Ready(boat, seconds, gap: 1.5)) continue;
+                if (!Afloat(boat) || !InReach(boat.Body.Position, 0f) || !Ready(boat, seconds, gap: 1.5)) continue;
                 boat.Shove((-spot.side * at.Left + at.Tangent * 0.15f) * Fling, Heel, spin: 1f);
             }
+        }
+
+        /// <summary>The paw's sweep: from the lip out to <see cref="Reach"/>, while it swipes.</summary>
+        public override void Zones(double seconds, List<Vector2> lines)
+        {
+            if (Pose(seconds).swipe <= 0f && Pose(seconds).rear < 0.5f) return;
+            var middle = at.Centre + at.Left * (spot.side * (at.HalfWidth - Reach * 0.5f));
+            Box(lines, middle, at.Tangent, SweepHalf, Reach * 0.5f);
         }
 
         public override float SteerAcross(float from, float to, float across, double seconds, float limit)

@@ -21,7 +21,12 @@ namespace RushAhead.Sim
         public const float ArmWidth = 0.45f;
         const float RaftRadius = 1.6f;
         const float LogHalfWidth = 0.35f;
-        const float SwingLow = 0.75f; // within this share of its swing from the middle, the log hangs low enough to hit
+        public const float LogClearance = 0.45f; // a swinging log's middle above the water at the bottom of its swing
+        public const float SwingDegrees = 55f; // how far out either way it swings on its ropes
+        public const float LogRadius = 0.3f;
+        const float TubeTop = 0.75f; // the raft's tube, above the water
+        const float CrewTop = 1.5f; // the crew's heads
+        const float CrewReach = 1.15f; // how far out from the raft's middle the crew stand
         const float LogShove = 150f;
         const float LogHeel = 6f;
         const float GeyserShove = 90f;
@@ -36,6 +41,7 @@ namespace RushAhead.Sim
         readonly List<Rigidbody2D> crocs = new();
         readonly Dictionary<(Boat, object, int), double> lastHit = new();
         readonly List<Obstacle> obstacles = new();
+        readonly List<BoostLane> boosts = new();
         double lastSeconds = double.NaN;
         static readonly PhysicsMaterial2D Paddle = new("Paddle") { bounciness = 0.5f, friction = 0.2f };
 
@@ -102,6 +108,7 @@ namespace RushAhead.Sim
             foreach (var spot in def.dams) Add(new BeaverDam(course, parent, spot));
             foreach (var spot in def.pelicans) Add(new PelicanDive(course, spot));
             foreach (var spot in def.netBoats) Add(new NetBoat(course, parent, spot));
+            foreach (var spot in def.boosts) boosts.Add(new BoostLane(course, spot));
         }
 
         void Add(Obstacle obstacle)
@@ -112,6 +119,9 @@ namespace RushAhead.Sim
 
         /// <summary>The newer obstacles (rockslides, hippos, sluice gates and the rest), in the order the course lists them by type.</summary>
         public IReadOnlyList<Obstacle> Obstacles => obstacles;
+
+        /// <summary>This round's boost lanes.</summary>
+        public IReadOnlyList<BoostLane> Boosts => boosts;
 
         public CourseDef Def => course.Def;
 
@@ -157,10 +167,23 @@ namespace RushAhead.Sim
         {
             var swinger = Layout.swingers[i];
             var at = course.River.At(swinger.distance);
-            var amplitude = Mathf.Max(0.5f, at.HalfWidth - 0.6f);
+            var amplitude = SwingAmplitude(i);
             var angle = 2f * Mathf.PI * Phase(seconds, swinger.period, swinger.offset);
             var across = amplitude * Mathf.Sin(angle);
-            return (at.Centre + at.Left * across, at.Tangent, across, Mathf.Sign(Mathf.Cos(angle)), Mathf.Abs(across) < amplitude * SwingLow);
+            return (at.Centre + at.Left * across, at.Tangent, across, Mathf.Sign(Mathf.Cos(angle)), LogHeight(i, across) - LogRadius < CrewTop);
+        }
+
+        /// <summary>How far either way a swinging log's middle swings across the river.</summary>
+        float SwingAmplitude(int i) => Mathf.Max(0.5f, course.River.At(Layout.swingers[i].distance).HalfWidth - 0.6f);
+
+        /// <summary>The ropes a swinging log hangs from: long enough to swing it out to <see cref="SwingDegrees"/> either way.</summary>
+        public float LogRope(int i) => SwingAmplitude(i) / Mathf.Sin(SwingDegrees * Mathf.Deg2Rad);
+
+        /// <summary>How high a swinging log's middle hangs over the water when it's <paramref name="across"/> out from the bottom of its swing (the view draws it there).</summary>
+        public float LogHeight(int i, float across)
+        {
+            var rope = LogRope(i);
+            return LogClearance + rope - Mathf.Sqrt(Mathf.Max(0f, rope * rope - across * across));
         }
 
         /// <summary>A geyser: 0 when quiet, rising to 1 as it bubbles toward a spout; <paramref name="spouting"/> while it spouts.</summary>
@@ -179,6 +202,7 @@ namespace RushAhead.Sim
             var dt = double.IsNaN(lastSeconds) ? 1f / 60f : Mathf.Clamp((float)(seconds - lastSeconds), 0f, 0.1f);
             lastSeconds = seconds;
             foreach (var obstacle in obstacles) obstacle.Step(seconds, dt, boats);
+            foreach (var boost in boosts) boost.Step(dt, boats, course.WaterVelocityAt);
 
             for (var i = 0; i < wheels.Count; i++) wheels[i].MoveRotation(WheelAngleDeg(i, seconds));
             for (var i = 0; i < crocs.Count; i++)
@@ -195,11 +219,14 @@ namespace RushAhead.Sim
 
                 for (var i = 0; i < Layout.swingers.Length; i++)
                 {
-                    var (centre, along, _, swing, low) = Swing(i, seconds);
+                    // It hits what it passes through: the tube while it hangs that low, the crew while it's below their heads.
+                    var (centre, along, across, swing, _) = Swing(i, seconds);
                     var offset = raft - centre;
                     var lengthways = Mathf.Abs(Vector2.Dot(offset, along));
                     var sideways = Mathf.Abs(Vector2.Dot(offset, new Vector2(-along.y, along.x)));
-                    if (!low || lengthways > Layout.swingers[i].logLength * 0.5f + RaftRadius || sideways > LogHalfWidth + RaftRadius) continue;
+                    var underside = LogHeight(i, across) - LogRadius;
+                    var reach = underside < TubeTop ? RaftRadius : underside < CrewTop ? CrewReach : -1f;
+                    if (reach < 0f || lengthways > Layout.swingers[i].logLength * 0.5f + reach || sideways > LogHalfWidth + reach) continue;
                     if (boat.BracedFraction >= 0.5f || !Ready(boat, i, seconds)) continue; // ducked under it
                     boat.Shove(new Vector2(-along.y, along.x) * (swing * LogShove), LogHeel);
                 }
@@ -258,6 +285,31 @@ namespace RushAhead.Sim
         }
 
         /// <summary>
+        /// For the hit-zone overlay: what a raft's rim (or, for a log at head height, its crew) must touch to be hit:
+        /// each low-hanging log, a lunging crocodile's jaws, a spouting geyser, and every newer obstacle's own.
+        /// </summary>
+        public void Zones(double seconds, List<Vector2> lines)
+        {
+            for (var i = 0; i < Layout.swingers.Length; i++)
+            {
+                var (centre, along, _, _, low) = Swing(i, seconds);
+                if (low) Obstacle.Box(lines, centre, along, Layout.swingers[i].logLength * 0.5f, LogHalfWidth);
+            }
+
+            for (var i = 0; i < Layout.crocodiles.Length; i++)
+            {
+                var (head, heading, lunging) = Croc(i, seconds);
+                if (lunging) Obstacle.Circle(lines, head + new Vector2(Mathf.Cos(heading), Mathf.Sin(heading)) * (CrocLength * 0.5f), CrocRadius + 0.3f);
+            }
+
+            for (var i = 0; i < Layout.geysers.Length; i++)
+                if (GeyserWarning(i, seconds, out _) > 0f) Obstacle.Circle(lines, Layout.geysers[i].position, Layout.geysers[i].radius - RaftRadius * 0.5f);
+
+            foreach (var obstacle in obstacles) obstacle.Zones(seconds, lines);
+            foreach (var boost in boosts) Obstacle.Box(lines, boost.Middle, boost.At.Tangent, BoostLane.Length * 0.5f, BoostLane.HalfWidth);
+        }
+
+        /// <summary>
         /// For AI crews: where across the river to aim, to keep clear of what can be seen coming between where the raft
         /// is (<paramref name="from"/> metres down the river) and where it's aiming (<paramref name="to"/>): round a
         /// paddle wheel, away from a geyser that's bubbling, and over to the far side from a crocodile about to lunge.
@@ -268,6 +320,9 @@ namespace RushAhead.Sim
             var at = course.River.At(to);
             var limit = Mathf.Max(0f, at.HalfWidth - RaftRadius - 0.6f);
             bool Near(float distance, float reach) => distance + reach >= from && distance - reach <= to;
+
+            // A boost lane first, so anything to keep clear of afterwards wins.
+            foreach (var boost in boosts) across = boost.SteerAcross(from, across, limit);
 
             for (var i = 0; i < wheelSpots.Count; i++)
             {
