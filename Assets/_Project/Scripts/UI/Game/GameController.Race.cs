@@ -36,6 +36,7 @@ namespace RushAhead.UI
         public void ChooseVenue(int index)
         {
             if (!CanEditRaft || phase == RoomPhase.Racing) return;
+            layoutSeed = Random.Range(1, int.MaxValue); // every visit to a course deals a fresh layout
             LoadVenue(index);
             phase = RoomPhase.Lobby;
             Stage();
@@ -46,6 +47,7 @@ namespace RushAhead.UI
         public void StartRace()
         {
             if (!CanEditRaft || rafts.Count == 0) return;
+            if (layoutRaced) DealNewLayout(); // "Race again": a new round, a new layout
             phase = RoomPhase.Racing;
             StartRun();
         }
@@ -54,6 +56,7 @@ namespace RushAhead.UI
         public void BackToLobby()
         {
             if (!CanEditRaft) return;
+            if (layoutRaced) DealNewLayout(); // the lobby shows the next round's layout
             phase = RoomPhase.Lobby;
             Stage();
         }
@@ -93,6 +96,7 @@ namespace RushAhead.UI
                 if (course != null)
                 {
                     raft.Race = new Race(course, raft.Boat, now, config.tickRate, i, rafts.Count); // every raft starts on the same tick
+                    layoutRaced = true;
                 }
                 else
                 {
@@ -130,6 +134,7 @@ namespace RushAhead.UI
             StartTick = (uint)Mathf.Max(0, StartTick),
             Phase = phase,
             AiSkill = RoomAiSkill,
+            LayoutSeed = (uint)layoutSeed,
         });
 
         void StepRace(int tick)
@@ -273,7 +278,7 @@ namespace RushAhead.UI
                 recordedRun = (venue, start);
                 previousBest = info.Best;
                 var starsBefore = TotalStars;
-                info.NewBest = Records.Submit(def, team, info.Seconds, tracker.Splits);
+                info.NewBest = Records.Submit(def, team, info.Seconds, tracker.Splits, info.Stars);
                 opened = OpenedBetween(starsBefore, TotalStars);
                 if (info.NewBest) bestSplitsFor = (-1, false); // the next run compares against this one
             }

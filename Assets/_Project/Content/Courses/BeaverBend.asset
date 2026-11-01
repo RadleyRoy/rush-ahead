@@ -13,10 +13,10 @@ MonoBehaviour:
   m_Name: BeaverBend
   m_EditorClassIdentifier: RushAhead.Content::RushAhead.Content.CourseDef
   displayName: Beaver Bend
-  blurb: Switchbacks through beaver country. Shove the drifting logs aside, and bash
-    through the jam.
+  blurb: Switchbacks through beaver country, logs adrift and a jam to bash through.
+    New obstacles every round.
   scene: 0
-  starsToUnlock: 3
+  starsToUnlock: 2
   river:
   - position: {x: 0, y: 0}
     width: 14
@@ -69,14 +69,40 @@ MonoBehaviour:
   - position: {x: 196, y: 72}
     width: 14
     lineOffset: 0
+  - position: {x: 212, y: 70}
+    width: 14
+    lineOffset: 0
+  - position: {x: 228, y: 64}
+    width: 13
+    lineOffset: 0
+  - position: {x: 242, y: 56}
+    width: 13
+    lineOffset: 0.3
+  - position: {x: 256, y: 52}
+    width: 13
+    lineOffset: 0
+  - position: {x: 270, y: 54}
+    width: 14
+    lineOffset: -0.3
+  - position: {x: 286, y: 60}
+    width: 14
+    lineOffset: 0
+  - position: {x: 302, y: 62}
+    width: 14
+    lineOffset: 0
+  - position: {x: 316, y: 62}
+    width: 14
+    lineOffset: 0
   startDistance: 8
   gates:
   - 42.675205
   - 118.25967
   - 175.26859
   - 214.79008
-  - 243.04547
-  flow: 1.2
+  - 279.19406
+  - 337.28046
+  - 368.5387
+  flow: 3
   rocks:
   - position: {x: 58.448875, y: 55.824055}
     radius: 1.2
@@ -116,27 +142,60 @@ MonoBehaviour:
     to: 212.79008
     speed: 0.6
   whirlpools: []
-  wheels:
-  - position: {x: 87.361015, y: 37.992523}
-    radius: 2.6
-    arms: 3
-    degreesPerSecond: -60
-  crocodiles:
-  - distance: 195.99132
-    side: -1
-    reach: 0.35
-    period: 6
-    offset: 1
-  swingers:
-  - distance: 83.57433
-    period: 5
-    offset: 1
-    logLength: 3.5
-  - distance: 232.90749
-    period: 4.5
-    offset: 0
-    logLength: 3.5
+  menu:
+  - kind: 4
+    weight: 1
+  - kind: 2
+    weight: 1.3
+  - kind: 0
+    weight: 1
+  - kind: 6
+    weight: 1
+  - kind: 7
+    weight: 1
+  - kind: 1
+    weight: 1
+  - kind: 13
+    weight: 1
+  - kind: 5
+    weight: 1
+  - kind: 11
+    weight: 1
+  - kind: 9
+    weight: 0.6
+  - kind: 10
+    weight: 0.6
+  - kind: 14
+    weight: 1
+  - kind: 21
+    weight: 1.3
+  - kind: 19
+    weight: 1
+  - kind: 15
+    weight: 1
+  minObstacles: 9
+  maxObstacles: 13
+  wheels: []
+  crocodiles: []
+  swingers: []
   geysers: []
-  parSeconds: 100
-  twoStarSeconds: 84
-  threeStarSeconds: 71
+  rockslides: []
+  hippos: []
+  sluices: []
+  sweepers: []
+  cannons: []
+  rapids: []
+  weirs: []
+  bumpers: []
+  ferries: []
+  bears: []
+  trees: []
+  turtles: []
+  shoals: []
+  waterspouts: []
+  eels: []
+  mudslides: []
+  floes: []
+  dams: []
+  pelicans: []
+  netBoats: []

@@ -18,7 +18,8 @@ namespace RushAhead.UI
             }
             else
             {
-                course = Course.Build(courses[venue - 1]);
+                course = Course.Build(courses[venue - 1], layoutSeed);
+                Debug.Log($"[RushAhead] {course.Def.displayName}: round dealt from seed {layoutSeed}, {course.Layout.Count} obstacles");
                 courseView = CourseView.Build(course, palette);
                 courseView.Obstacles.Clock = ClockSeconds;
                 barrels.AddRange(course.Barrels);
@@ -30,6 +31,15 @@ namespace RushAhead.UI
             if (Mode == NetMode.Joined)
                 foreach (var barrel in barrels) PhysicsBodies.Freeze(barrel);
             recordedRun = (-1, -1);
+            layoutRaced = false;
+        }
+
+        /// <summary>Host or solo: deals a fresh layout of obstacles for the next round (rebuilding the course with it).</summary>
+        void DealNewLayout()
+        {
+            if (Mode == NetMode.Joined || venue == 0 || !courses[venue - 1].HasMenu) return;
+            layoutSeed = Random.Range(1, int.MaxValue);
+            LoadVenue(venue);
         }
 
         void UnloadVenue()

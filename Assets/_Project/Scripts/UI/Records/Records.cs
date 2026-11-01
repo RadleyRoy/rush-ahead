@@ -6,19 +6,16 @@ using UnityEngine;
 namespace RushAhead.UI
 {
     /// <summary>
-    /// This device's best run on each course, kept apart for Co-op and Team Race (two rafts sharing a river are slower),
-    /// with the time at each checkpoint so later runs can be compared as they go.
+    /// This device's best on each course, kept apart for Co-op and Team Race (two rafts sharing a river are slower): the
+    /// most stars (lives left at the finish) and, separately, the fastest time with its time at each checkpoint so later
+    /// runs can be compared as they go. Every round deals a new layout, so the time is a bragging number, not a target.
     /// </summary>
     public static class Records
     {
         /// <summary>The best time, or 0 if there isn't one yet.</summary>
         public static float BestTime(CourseDef course, bool teamRace) => PlayerPrefs.GetFloat(Key("best", course, teamRace), 0f);
 
-        public static int BestStars(CourseDef course, bool teamRace)
-        {
-            var best = BestTime(course, teamRace);
-            return best > 0f ? course.Stars(best) : 0;
-        }
+        public static int BestStars(CourseDef course, bool teamRace) => PlayerPrefs.GetInt(Key("stars", course, teamRace), 0);
 
         /// <summary>A course's stars toward opening the next ones: the better of its Co-op and Team Race bests.</summary>
         public static int StarsOn(CourseDef course) => Mathf.Max(BestStars(course, false), BestStars(course, true));
@@ -42,9 +39,15 @@ namespace RushAhead.UI
             return splits;
         }
 
-        /// <summary>Keeps this run if it's the best yet. Returns whether it was.</summary>
-        public static bool Submit(CourseDef course, bool teamRace, float seconds, IReadOnlyList<float> splits)
+        /// <summary>Keeps this run's stars if they're the most yet, and its time if it's the fastest. Returns whether the time was.</summary>
+        public static bool Submit(CourseDef course, bool teamRace, float seconds, IReadOnlyList<float> splits, int stars)
         {
+            if (stars > BestStars(course, teamRace))
+            {
+                PlayerPrefs.SetInt(Key("stars", course, teamRace), stars);
+                PlayerPrefs.Save();
+            }
+
             var best = BestTime(course, teamRace);
             if (best > 0f && seconds >= best) return false;
 
@@ -63,6 +66,7 @@ namespace RushAhead.UI
                 foreach (var team in new[] { false, true })
                 {
                     PlayerPrefs.DeleteKey(Key("best", course, team));
+                    PlayerPrefs.DeleteKey(Key("stars", course, team));
                     PlayerPrefs.DeleteKey(Key("splits", course, team));
                 }
 

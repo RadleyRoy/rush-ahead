@@ -78,6 +78,6 @@ namespace RushAhead.UI
 
         public bool Active => Course != null;
         public bool TeamRace => Rafts > 1;
-        public int Stars => Finished ? Course.Stars(Seconds) : 0;
+        public int Stars => CourseDef.Stars(Finished, Lives);
     }
 }

@@ -46,6 +46,10 @@ namespace RushAhead.EditorTools
             palette.blowerTrim = Lit("BlowerTrim", new Color(0.18f, 0.18f, 0.22f), 0.4f);
             palette.air = Soft("Air", Color.white, puff);
             palette.foam = Soft("Foam", new Color(1f, 1f, 1f, 0.55f), puff);
+            PolyHavenArt.Apply(palette); // photo textures and scanned models over the flat colours, where we have them
+            NatureArt.Apply(palette); // the land, its plants and the trees' foliage
+            SculptBootstrap.Apply(palette); // the sculpted animals and their fur
+            RaftArt.Apply(palette); // rubber, fabric and rope
 
             EditorUtility.SetDirty(palette);
             return palette;
@@ -53,6 +57,8 @@ namespace RushAhead.EditorTools
 
         public static Material Sky()
         {
+            var photographed = PolyHavenArt.Sky();
+            if (photographed != null) return photographed;
             var sky = LoadOrCreateMaterial("Sky", "Skybox/Procedural");
             sky.SetColor("_SkyTint", new Color(0.55f, 0.72f, 1f));
             sky.SetColor("_GroundColor", new Color(0.62f, 0.72f, 0.78f));
@@ -67,8 +73,10 @@ namespace RushAhead.EditorTools
         static Material Water()
         {
             var material = LoadOrCreateMaterial("Water", "RushAhead/Water");
-            material.SetColor("_BaseColor", new Color(0.13f, 0.66f, 0.95f));
-            material.SetColor("_RippleColor", new Color(0.62f, 0.9f, 1f));
+            material.SetColor("_BaseColor", new Color(0.08f, 0.42f, 0.55f));
+            material.SetColor("_DeepColor", new Color(0.04f, 0.24f, 0.33f));
+            material.SetColor("_RippleColor", new Color(0.6f, 0.84f, 0.9f));
+            material.SetFloat("_Reflect", 0.6f);
             EditorUtility.SetDirty(material);
             return material;
         }

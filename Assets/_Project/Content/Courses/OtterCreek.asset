@@ -13,8 +13,8 @@ MonoBehaviour:
   m_Name: OtterCreek
   m_EditorClassIdentifier: RushAhead.Content::RushAhead.Content.CourseDef
   displayName: Otter Creek
-  blurb: Weave the rocks, ride the current, shove through the barrels and fight the
-    gorge.
+  blurb: Weave the rocks, ride the current and shove through the barrels. New obstacles
+    every round.
   scene: 0
   starsToUnlock: 0
   river:
@@ -63,13 +63,42 @@ MonoBehaviour:
   - position: {x: 172.5, y: 22.5}
     width: 16
     lineOffset: 0
+  - position: {x: 188, y: 20}
+    width: 15
+    lineOffset: 0
+  - position: {x: 204, y: 14}
+    width: 14
+    lineOffset: 0
+  - position: {x: 220, y: 10}
+    width: 14
+    lineOffset: 0.3
+  - position: {x: 236, y: 10}
+    width: 14
+    lineOffset: 0
+  - position: {x: 252, y: 14}
+    width: 14
+    lineOffset: -0.3
+  - position: {x: 268, y: 20}
+    width: 14
+    lineOffset: 0
+  - position: {x: 284, y: 22}
+    width: 15
+    lineOffset: 0
+  - position: {x: 300, y: 22}
+    width: 16
+    lineOffset: 0
+  - position: {x: 316, y: 22}
+    width: 16
+    lineOffset: 0
   startDistance: 8
   gates:
   - 43.41692
   - 103.35322
   - 162.00148
-  - 211.18199
-  flow: 1.2
+  - 217.68004
+  - 292.56107
+  - 358.3304
+  flow: 2.6
   rocks:
   - position: {x: 42.06088, y: 17.408642}
     radius: 1.4
@@ -97,23 +126,52 @@ MonoBehaviour:
     to: 184.20012
     speed: -0.5
   whirlpools: []
-  wheels:
-  - position: {x: 29.63407, y: 8.262752}
-    radius: 2.8
-    arms: 3
-    degreesPerSecond: 50
-  crocodiles:
-  - distance: 199.07907
-    side: -1
-    reach: 0.35
-    period: 7
-    offset: 2
-  swingers:
-  - distance: 119.68814
-    period: 5
-    offset: 0
-    logLength: 3.5
+  menu:
+  - kind: 0
+    weight: 1
+  - kind: 1
+    weight: 1
+  - kind: 2
+    weight: 1
+  - kind: 3
+    weight: 1
+  - kind: 11
+    weight: 1
+  - kind: 4
+    weight: 1
+  - kind: 5
+    weight: 1
+  - kind: 10
+    weight: 1
+  - kind: 14
+    weight: 1
+  - kind: 15
+    weight: 1
+  - kind: 22
+    weight: 1
+  minObstacles: 6
+  maxObstacles: 9
+  wheels: []
+  crocodiles: []
+  swingers: []
   geysers: []
-  parSeconds: 82
-  twoStarSeconds: 68
-  threeStarSeconds: 59
+  rockslides: []
+  hippos: []
+  sluices: []
+  sweepers: []
+  cannons: []
+  rapids: []
+  weirs: []
+  bumpers: []
+  ferries: []
+  bears: []
+  trees: []
+  turtles: []
+  shoals: []
+  waterspouts: []
+  eels: []
+  mudslides: []
+  floes: []
+  dams: []
+  pelicans: []
+  netBoats: []

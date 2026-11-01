@@ -57,14 +57,40 @@ other from pressing Burst or Brace.
 ## Courses
 
 The six courses are laid out in code (`Assets/_Project/Editor/CourseLibrary.cs`): the river, checkpoints, rocks,
-barrels and logs, currents and whirlpools, the river's flow, and the obstacles (paddle wheels, crocodiles, logs
-swinging under bridges, geysers). The assets in `Assets/_Project/Content/Courses` are made from it once and never
+barrels and logs, currents and whirlpools, the river's flow, and a menu of obstacles each course may be dealt, with how
+many. Every round deals a fresh layout from that menu (`Sim/Course/LayoutGenerator.cs`): only the seed goes over the
+network, and every device deals the same layout from it. The dealer keeps obstacles clear of the start, every respawn
+(with a run-up after it), the finish, whirlpools and rocks, spaces them out, never puts two brace-or-die ones back to
+back, and only puts the big ones where the river is wide enough. There are 24 kinds: paddle wheels, crocodiles, logs
+swinging under bridges and geysers (`Sim/Course/Hazards.cs`), plus rockslides, hippos, sluice gates, sweepers, water
+cannons, rapids, weirs, bumper buoys, ferries, bears, falling trees, snapping turtles, piranha shoals, waterspouts,
+electric eels, mudslides, ice floes, beaver dams, diving pelicans and net boats (`Sim/Course/Obstacles`). Every
+obstacle runs on the race clock, so nothing about them goes over the network. Stars are the lives a crew finishes
+with. The assets in `Assets/_Project/Content/Courses` are made from it once and never
 overwritten, so edits in the Inspector stick. After changing a layout in code, put every course back to the code's
 layout (keeping the assets, so nothing pointing at them breaks):
 
 ```bash
 "$UNITY" -batchmode -quit -projectPath . -executeMethod RushAhead.EditorTools.CourseLibrary.Rebuild -logFile -
 ```
+
+## Art
+
+Most of the world is built in code. The photographic parts (the sky, rock, ground, bark, planks, metal and sand
+textures, and scanned rocks, barrels, a buoy, a crate and a fern) come from [Poly Haven](https://polyhaven.com) under
+CC0, in `Assets/_Project/ThirdParty/PolyHaven` (see its `CREDITS.md`). `Editor/PolyHavenArt.cs` sets their import
+options and makes the materials, sky and post-processing look from them when the content bootstrap runs; without the
+files the game falls back to flat colours. Code-built surfaces use `Shaders/Triplanar.shader`, which projects a photo
+texture from three sides, so they need no texture coordinates.
+
+The land under each course is a Unity terrain shaped from the river when it loads (`Render/World/GorgeTerrain.cs`):
+scree at the cliff feet, a valley floor and hills, painted with four photo ground layers. Its woods are code-built
+trees (`Render/World/Flora.cs`) with leaf sprays stamped from a scanned leaf and needle sprays drawn in code; shrubs,
+mossy rocks and boulders are Poly Haven scans cut down to phone size with Unity's own mesh LOD tools
+(`Editor/NatureArt.cs`, `Editor/MeshCutter.cs`). The animals and the crocodile, hippo, bear and turtle are sculpted in
+code from smooth shapes melted together (`Render/Sculpt`), baked to meshes by the content bootstrap
+(`Editor/SculptBootstrap.cs`), and wear `Shaders/Fur.shader`, a velvet fur tinted per animal. The raft's rubber, rope
+and fabric are drawn in code (`Editor/RaftArt.cs`).
 
 ## Releasing
 
@@ -94,4 +120,9 @@ Builds/Windows/RushAhead.exe -screen-fullscreen 0 -screen-width 1200 -screen-hei
 - Two copies, one with `-rushahead-host 127.0.0.1` and one with `-rushahead-join 127.0.0.1`, each with
   its own `-rushahead-tour` folder: the host picks a course and starts, and the joiner follows it.
 - `-rushahead-course 1` skips the menus and races straight away; `-rushahead-dev` shows the tuning sliders.
+- With `-rushahead-demo <folder>`, `-rushahead-quality 1` (Low) to `3` (High) picks the graphics setting, and the log
+  gives frame times (average and slowest 5%) at each screenshot.
+- Run demo copies one at a time: several at once on one PC can corrupt DirectX 12's pipeline cache (then the game
+  crashes on quitting until the cache in `%LOCALAPPDATA%/Temp/Rush Ahead` is cleared). For a host and a joiner,
+  add `-force-d3d11` to both.
 - The tour saves best times like any race. Settings > Reset best times clears them.

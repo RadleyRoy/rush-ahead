@@ -100,6 +100,21 @@ namespace RushAhead.Tests
             }
         }
 
+        [Test]
+        public void TheSameSeed_DealsTheSameLayout_AndAnotherSeedADifferentOne()
+        {
+            var def = CourseAssets.All().Last();
+            var one = new Course(def, 7).Layout;
+            var again = new Course(def, 7).Layout;
+            var other = new Course(def, 8).Layout;
+            Assert.That(again.Count, Is.EqualTo(one.Count));
+            Assert.That(again.geysers.Select(g => g.position), Is.EqualTo(one.geysers.Select(g => g.position)));
+            Assert.That(again.crocodiles.Select(c => c.distance), Is.EqualTo(one.crocodiles.Select(c => c.distance)));
+            Assert.That(JsonUtility.ToJson(again), Is.EqualTo(JsonUtility.ToJson(one)), "every spot the same");
+            other.Seed = one.Seed;
+            Assert.That(JsonUtility.ToJson(other), Is.Not.EqualTo(JsonUtility.ToJson(one)), "another round, another layout");
+        }
+
         static IEnumerable<TestCaseData> ShippedCourses() => CourseAssets.All().Select(c => new TestCaseData(c).SetName($"{c.name} is laid out sensibly"));
 
         [TestCaseSource(nameof(ShippedCourses))]
@@ -114,7 +129,6 @@ namespace RushAhead.Tests
             Assert.That(def.startDistance, Is.LessThan(def.gates[0] - 5f), "the start is upstream of the first gate");
             for (var i = 1; i < def.gates.Length; i++) Assert.That(def.gates[i], Is.GreaterThan(def.gates[i - 1] + 10f), "gates in order, well apart");
             Assert.That(def.FinishDistance, Is.LessThan(river.Length - 5f), "room past the finish line");
-            Assert.That(def.threeStarSeconds, Is.LessThan(def.twoStarSeconds).And.LessThan(def.parSeconds));
 
             foreach (var rock in def.rocks)
             {
@@ -162,36 +176,192 @@ namespace RushAhead.Tests
                     Assert.That(Vector2.Distance(spot, at), Is.GreaterThan(reach + raftRadius + 4f), $"{what} right where a raft starts or comes back");
             }
 
-            foreach (var wheel in def.wheels)
+            // Obstacles are dealt fresh every round: check 200 rounds' layouts. Each in the water, leaving a way past, and clear
+            // of every place a raft starts or comes back.
+            var dealt = new Dictionary<ObstacleKind, int>();
+            for (var seed = 1; seed <= (def.HasMenu ? 200 : 1); seed++)
             {
-                var at = river.Project(wheel.position);
-                Assert.That(Mathf.Abs(at.Lateral) + wheel.radius, Is.LessThan(at.HalfWidth + 0.5f), $"wheel at {wheel.position} is in the water");
-                Assert.That(at.HalfWidth - Mathf.Abs(at.Lateral) + wheel.radius, Is.LessThan(2f * at.HalfWidth - 2f * raftRadius - 1f),
-                    $"wheel at {wheel.position} leaves no way past");
-                ClearOfRespawns(wheel.position, wheel.radius, $"wheel at {wheel.position}");
+                var layout = new Course(def, seed).Layout;
+                try
+                {
+                    if (def.HasMenu)
+                        Assert.That(layout.Count, Is.InRange(def.minObstacles, def.maxObstacles), "between the course's least and most obstacles");
+                    foreach (var wheel in layout.wheels)
+                    {
+                        var at = river.Project(wheel.position);
+                        Assert.That(Mathf.Abs(at.Lateral) + wheel.radius, Is.LessThan(at.HalfWidth + 0.5f), $"wheel at {wheel.position} is in the water");
+                        Assert.That(at.HalfWidth - Mathf.Abs(at.Lateral) + wheel.radius, Is.LessThan(2f * at.HalfWidth - 2f * raftRadius - 1f),
+                            $"wheel at {wheel.position} leaves no way past");
+                        ClearOfRespawns(wheel.position, wheel.radius, $"wheel at {wheel.position}");
+                    }
+
+                    foreach (var geyser in layout.geysers)
+                    {
+                        var at = river.Project(geyser.position);
+                        Assert.That(Mathf.Abs(at.Lateral) + geyser.radius, Is.LessThan(at.HalfWidth), $"geyser at {geyser.position} is in the water");
+                        ClearOfRespawns(geyser.position, geyser.radius, $"geyser at {geyser.position}");
+                    }
+
+                    foreach (var croc in layout.crocodiles)
+                    {
+                        Assert.That(croc.reach, Is.InRange(0.1f, 0.5f), "a crocodile lunges part way across, never right over");
+                        Assert.That(Mathf.Abs(croc.side), Is.EqualTo(1f), "a crocodile waits on one side or the other");
+                        ClearOfRespawns(river.At(croc.distance).Centre, river.At(croc.distance).HalfWidth, $"crocodile at {croc.distance:0} m");
+                    }
+
+                    foreach (var swing in layout.swingers)
+                    {
+                        Assert.That(swing.distance, Is.InRange(def.startDistance + 10f, def.FinishDistance - 5f), "a swinging log on the course");
+                        ClearOfRespawns(river.At(swing.distance).Centre, 2f, $"swinging log at {swing.distance:0} m");
+                        foreach (var gate in course.Gates)
+                            Assert.That(Mathf.Abs(gate.Distance - swing.distance), Is.GreaterThan(6f), "a bridge right on a checkpoint");
+                    }
+
+                    // The newer obstacles: on the course, in the water where they sit in it, and clear of every respawn.
+                    void OnCourse(float distance, string what) =>
+                        Assert.That(distance, Is.InRange(def.startDistance + 10f, def.FinishDistance - 3f), $"{what} at {distance:0} m is on the course");
+                    Vector2 Middle(float distance) => river.At(distance).Centre;
+                    foreach (var slide in layout.rockslides)
+                    {
+                        OnCourse(slide.distance, "rockslide");
+                        ClearOfRespawns(Middle(slide.distance), 2f, $"rockslide at {slide.distance:0} m");
+                    }
+
+                    foreach (var hippo in layout.hippos)
+                    {
+                        OnCourse(hippo.distance, "hippo");
+                        Assert.That(Mathf.Abs(hippo.across) + Hippo.Radius, Is.LessThan(river.At(hippo.distance).HalfWidth), $"hippo at {hippo.distance:0} m is in the water");
+                        ClearOfRespawns(Middle(hippo.distance) + river.At(hippo.distance).Left * hippo.across, Hippo.Radius, $"hippo at {hippo.distance:0} m");
+                    }
+
+                    foreach (var sluice in layout.sluices)
+                    {
+                        OnCourse(sluice.distance, "sluice gate");
+                        Assert.That(sluice.gap, Is.InRange(2f * raftRadius + 0.4f, 2f * river.At(sluice.distance).HalfWidth - 1f), "a gap a raft fits through, in a wall");
+                        ClearOfRespawns(Middle(sluice.distance), 2f, $"sluice gate at {sluice.distance:0} m");
+                    }
+
+                    foreach (var sweeper in layout.sweepers)
+                    {
+                        OnCourse(sweeper.distance, "sweeper");
+                        var at = river.At(sweeper.distance);
+                        Assert.That(Mathf.Abs(sweeper.across) + Sweeper.PostRadius, Is.LessThan(at.HalfWidth), "its post is in the water");
+                        Assert.That(sweeper.length, Is.LessThanOrEqualTo(2f * at.HalfWidth), "no longer than the river is wide");
+                        ClearOfRespawns(at.Centre + at.Left * sweeper.across, 2f, $"sweeper at {sweeper.distance:0} m");
+                    }
+
+                    foreach (var cannon in layout.cannons)
+                    {
+                        OnCourse(cannon.distance, "water cannon");
+                        ClearOfRespawns(Middle(cannon.distance), 1f, $"water cannon at {cannon.distance:0} m");
+                    }
+
+                    foreach (var rapid in layout.rapids)
+                    {
+                        OnCourse(rapid.from, "rapids");
+                        OnCourse(rapid.to, "rapids");
+                        Assert.That(rapid.to, Is.GreaterThan(rapid.from + 5f), "rapids run downstream");
+                    }
+
+                    foreach (var weir in layout.weirs)
+                    {
+                        OnCourse(weir.distance, "weir");
+                        ClearOfRespawns(Middle(weir.distance), 1f, $"weir at {weir.distance:0} m");
+                    }
+
+                    foreach (var bumper in layout.bumpers)
+                    {
+                        var at = river.Project(bumper.position);
+                        Assert.That(Mathf.Abs(at.Lateral) + bumper.radius, Is.LessThan(at.HalfWidth - 0.3f), $"bumper at {bumper.position} is in the water");
+                        ClearOfRespawns(bumper.position, bumper.radius, $"bumper at {bumper.position}");
+                    }
+
+                    foreach (var ferry in layout.ferries)
+                    {
+                        OnCourse(ferry.distance, "ferry");
+                        ClearOfRespawns(Middle(ferry.distance), 2.2f, $"ferry at {ferry.distance:0} m");
+                    }
+
+                    foreach (var bear in layout.bears)
+                    {
+                        OnCourse(bear.distance, "bear");
+                        ClearOfRespawns(Middle(bear.distance), 2f, $"bear at {bear.distance:0} m");
+                    }
+
+                    foreach (var tree in layout.trees)
+                    {
+                        OnCourse(tree.distance, "falling tree");
+                        Assert.That(Mathf.Abs(tree.side), Is.EqualTo(1f), "a tree stands on one side or the other");
+                        ClearOfRespawns(Middle(tree.distance), 3f, $"falling tree at {tree.distance:0} m");
+                    }
+
+                    void Crossing(CrossingSpot[] spots, float reach, string what)
+                    {
+                        foreach (var spot in spots)
+                        {
+                            OnCourse(spot.distance, what);
+                            ClearOfRespawns(Middle(spot.distance), reach, $"{what} at {spot.distance:0} m");
+                        }
+                    }
+
+                    Crossing(layout.turtles, Turtle.Radius, "turtle");
+                    Crossing(layout.shoals, PiranhaShoal.Radius, "piranha shoal");
+                    Crossing(layout.waterspouts, Waterspout.Pull, "waterspout");
+                    Crossing(layout.netBoats, 2.5f, "net boat");
+                    foreach (var eel in layout.eels)
+                    {
+                        OnCourse(eel.distance, "eel bed");
+                        ClearOfRespawns(Middle(eel.distance), ElectricEels.Depth * 0.5f, $"eel bed at {eel.distance:0} m");
+                    }
+
+                    foreach (var slide in layout.mudslides)
+                    {
+                        OnCourse(slide.distance, "mudslide");
+                        ClearOfRespawns(Middle(slide.distance), 3f, $"mudslide at {slide.distance:0} m");
+                    }
+
+                    foreach (var floe in layout.floes)
+                    {
+                        OnCourse(floe.distance, "ice floes");
+                        OnCourse(floe.distance + IceFloes.Run, "ice floes");
+                        for (var d = floe.distance; d <= floe.distance + IceFloes.Run; d += 2f)
+                            ClearOfRespawns(Middle(d), 0f, $"ice floes from {floe.distance:0} m");
+                    }
+
+                    void NoRockAt(float distance, float reach, string what)
+                    {
+                        foreach (var rock in def.rocks)
+                            Assert.That(Mathf.Abs(river.Project(rock.position).Distance - distance), Is.GreaterThan(reach),
+                                $"a rock by the {what} at {distance:0} m: a raft gets wedged between them");
+                    }
+
+                    foreach (var sluice in layout.sluices) NoRockAt(sluice.distance, 5f, "sluice gate");
+                    foreach (var tree in layout.trees) NoRockAt(tree.distance, 5f, "fallen tree");
+                    foreach (var dam in layout.dams)
+                    {
+                        NoRockAt(dam.distance, 5f, "beaver dam");
+                        OnCourse(dam.distance, "beaver dam");
+                        Assert.That(Mathf.Abs(river.At(dam.distance).Curvature), Is.LessThanOrEqualTo(0.03f), "a beaver dam on a straight");
+                        ClearOfRespawns(Middle(dam.distance), 2f, $"beaver dam at {dam.distance:0} m");
+                    }
+
+                    foreach (var pelican in layout.pelicans)
+                    {
+                        OnCourse(pelican.distance, "pelican");
+                        ClearOfRespawns(Middle(pelican.distance), PelicanDive.Splash, $"pelican at {pelican.distance:0} m");
+                    }
+
+                    foreach (var chance in def.menu) dealt[chance.kind] = dealt.GetValueOrDefault(chance.kind) + CountOf(layout, chance.kind);
+                }
+                catch (AssertionException failure)
+                {
+                    Assert.Fail($"Round {seed}: {failure.Message}");
+                }
             }
 
-            foreach (var geyser in def.geysers)
-            {
-                var at = river.Project(geyser.position);
-                Assert.That(Mathf.Abs(at.Lateral) + geyser.radius, Is.LessThan(at.HalfWidth), $"geyser at {geyser.position} is in the water");
-                ClearOfRespawns(geyser.position, geyser.radius, $"geyser at {geyser.position}");
-            }
-
-            foreach (var croc in def.crocodiles)
-            {
-                Assert.That(croc.reach, Is.InRange(0.1f, 0.5f), "a crocodile lunges part way across, never right over");
-                Assert.That(Mathf.Abs(croc.side), Is.EqualTo(1f), "a crocodile waits on one side or the other");
-                ClearOfRespawns(river.At(croc.distance).Centre, river.At(croc.distance).HalfWidth, $"crocodile at {croc.distance:0} m");
-            }
-
-            foreach (var swing in def.swingers)
-            {
-                Assert.That(swing.distance, Is.InRange(def.startDistance + 10f, def.FinishDistance - 5f), "a swinging log on the course");
-                ClearOfRespawns(river.At(swing.distance).Centre, 2f, $"swinging log at {swing.distance:0} m");
-                foreach (var gate in course.Gates)
-                    Assert.That(Mathf.Abs(gate.Distance - swing.distance), Is.GreaterThan(6f), "a bridge right on a checkpoint");
-            }
+            foreach (var chance in def.menu)
+                if (chance.weight > 0f)
+                    Assert.That(dealt.GetValueOrDefault(chance.kind), Is.GreaterThan(0), $"{chance.kind} is on the menu but never fits anywhere on the course");
 
             // The river never comes back near itself, or one stretch's banks would stand in another's water.
             var samples = river.Samples;
@@ -203,6 +373,35 @@ namespace RushAhead.Tests
                 Assert.That(gap, Is.GreaterThan(12f), $"the river passes within {gap:0} m of itself at {samples[i].Distance:0} m and {samples[j].Distance:0} m");
             }
         }
+
+        static int CountOf(CourseLayout layout, ObstacleKind kind) => kind switch
+        {
+            ObstacleKind.Wheel => layout.wheels.Length,
+            ObstacleKind.Crocodile => layout.crocodiles.Length,
+            ObstacleKind.SwingingLog => layout.swingers.Length,
+            ObstacleKind.Geyser => layout.geysers.Length,
+            ObstacleKind.Rockslide => layout.rockslides.Length,
+            ObstacleKind.Hippo => layout.hippos.Length,
+            ObstacleKind.Sluice => layout.sluices.Length,
+            ObstacleKind.Sweeper => layout.sweepers.Length,
+            ObstacleKind.Cannon => layout.cannons.Length,
+            ObstacleKind.Rapids => layout.rapids.Length,
+            ObstacleKind.Weir => layout.weirs.Length,
+            ObstacleKind.Bumper => layout.bumpers.Length,
+            ObstacleKind.Ferry => layout.ferries.Length,
+            ObstacleKind.Bear => layout.bears.Length,
+            ObstacleKind.FallingTree => layout.trees.Length,
+            ObstacleKind.Turtle => layout.turtles.Length,
+            ObstacleKind.PiranhaShoal => layout.shoals.Length,
+            ObstacleKind.Waterspout => layout.waterspouts.Length,
+            ObstacleKind.ElectricEels => layout.eels.Length,
+            ObstacleKind.Mudslide => layout.mudslides.Length,
+            ObstacleKind.IceFloes => layout.floes.Length,
+            ObstacleKind.BeaverDam => layout.dams.Length,
+            ObstacleKind.Pelican => layout.pelicans.Length,
+            ObstacleKind.NetBoat => layout.netBoats.Length,
+            _ => 0,
+        };
 
         [Test]
         public void AWhirlpool_CarriesWaterRoundAndIn_AndIsStillAtItsMiddleAndRim()

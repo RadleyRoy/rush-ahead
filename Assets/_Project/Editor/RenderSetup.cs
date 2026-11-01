@@ -49,7 +49,7 @@ namespace RushAhead.EditorTools
         }
 
         /// <summary>Sun, sky, ambient light and haze for a bright outdoor cartoon look, saved with the open scene.</summary>
-        public static void LightScene(Material sky)
+        public static void LightScene(Material sky, RushAhead.Render.ArtPalette palette = null)
         {
             var legacy2DLight = GameObject.Find("Global Light 2D");
             if (legacy2DLight != null) Object.DestroyImmediate(legacy2DLight);
@@ -76,6 +76,24 @@ namespace RushAhead.EditorTools
             RenderSettings.fogColor = new Color(0.76f, 0.88f, 1f);
             RenderSettings.fogStartDistance = 45f;
             RenderSettings.fogEndDistance = 150f;
+
+            // The photographed sky lights reflections (the water, wet rock) and the look gets its post-processing.
+            if (palette != null && palette.skyCubemap != null)
+            {
+                RenderSettings.defaultReflectionMode = UnityEngine.Rendering.DefaultReflectionMode.Custom;
+                RenderSettings.customReflectionTexture = palette.skyCubemap;
+                RenderSettings.fogColor = new Color(0.72f, 0.8f, 0.88f);
+            }
+
+            var post = GameObject.Find("Post-processing");
+            if (palette != null && palette.post != null)
+            {
+                if (post == null) post = new GameObject("Post-processing");
+                if (!post.TryGetComponent(out UnityEngine.Rendering.Volume volume)) volume = post.AddComponent<UnityEngine.Rendering.Volume>();
+                volume.isGlobal = true;
+                volume.sharedProfile = palette.post;
+            }
+            else if (post != null) Object.DestroyImmediate(post);
         }
     }
 }

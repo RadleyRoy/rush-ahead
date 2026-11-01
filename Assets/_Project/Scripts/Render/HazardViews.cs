@@ -21,6 +21,7 @@ namespace RushAhead.Render
         readonly List<(Transform body, Transform jaw)> crocs = new();
         readonly List<(Transform log, Transform[] ropes, Vector3 pivot, float rope)> logs = new();
         readonly List<(Transform bubbles, Transform spout, Renderer ring)> geysers = new();
+        readonly List<ObstacleView> others = new();
 
         /// <summary>The race clock, in seconds.</summary>
         public Func<double> Clock;
@@ -32,20 +33,22 @@ namespace RushAhead.Render
             view.hazards = course.Hazards;
             view.river = course.River;
             view.palette = palette;
-            var def = course.Def;
+            var def = course.Layout;
             for (var i = 0; i < def.wheels.Length; i++) view.BuildWheel(def.wheels[i]);
             for (var i = 0; i < def.crocodiles.Length; i++) view.BuildCroc();
             for (var i = 0; i < def.swingers.Length; i++) view.BuildSwinger(i);
             for (var i = 0; i < def.geysers.Length; i++) view.BuildGeyser(def.geysers[i]);
+            foreach (var obstacle in course.Hazards.Obstacles)
+                if (ObstacleView.For(obstacle, palette, view.transform) is { } other) view.others.Add(other);
             view.Pose(0);
             return view;
         }
 
         void BuildWheel(Content.WheelSpot spot)
         {
-            var wood = palette.Tinted(palette.wood, new Color(0.6f, 0.4f, 0.22f));
+            var wood = palette.Planks;
             var root = Shapes3D.Group(transform, "Paddle wheel", SimSpace.ToWorld(spot.position));
-            Shapes3D.Primitive(PrimitiveType.Cylinder, root, new Vector3(0f, 0.9f, 0f), new Vector3(0.7f, 0.9f, 0.7f), palette.Tinted(palette.rock, new Color(0.45f, 0.42f, 0.4f)), name: "Post");
+            Shapes3D.Primitive(PrimitiveType.Cylinder, root, new Vector3(0f, 0.9f, 0f), new Vector3(0.7f, 0.9f, 0.7f), palette.Metal, name: "Post");
             Shapes3D.MeshObject("Foam", Shapes3D.Disc(spot.radius + 0.4f), root, new Vector3(0f, 0.02f, 0f), palette.foam);
             var spin = Shapes3D.Group(root, "Arms");
             var arms = Mathf.Max(2, spot.arms);
@@ -65,6 +68,23 @@ namespace RushAhead.Render
             var belly = palette.Tinted(palette.animal, new Color(0.75f, 0.8f, 0.5f));
             var root = Shapes3D.Group(transform, "Crocodile");
             var length = Hazards.CrocLength;
+            if (palette.HasCreature(Creature.CrocBody) && palette.HasCreature(Creature.CrocJaw))
+            {
+                var hide = palette.Hide(new Color(0.27f, 0.36f, 0.19f), new Color(0.7f, 0.7f, 0.48f), new Color(0.14f, 0.18f, 0.1f), new Color(0.93f, 0.9f, 0.8f));
+                Shapes3D.MeshObject("Body", palette.CreatureMesh(Creature.CrocBody), root, Vector3.zero, hide);
+                var upper = Shapes3D.Group(root, "Upper jaw", new Vector3(0.8f, 0.18f, 0f));
+                Shapes3D.MeshObject("Snout", palette.CreatureMesh(Creature.CrocJaw), upper, Vector3.zero, hide);
+                foreach (var side in new[] { -1f, 1f })
+                {
+                    Shapes3D.Primitive(PrimitiveType.Sphere, root, new Vector3(0.64f, 0.32f, 0.13f * side), Vector3.one * 0.11f, palette.eyeWhite, name: "Eye");
+                    Shapes3D.Primitive(PrimitiveType.Sphere, root, new Vector3(0.68f, 0.335f, 0.13f * side), Vector3.one * 0.065f, palette.eyeDark, name: "Pupil");
+                }
+
+                Shapes3D.MeshObject("Foam", Shapes3D.Disc(1.2f), root, new Vector3(0f, 0.02f, 0f), palette.foam);
+                crocs.Add((root, upper));
+                return;
+            }
+
             Shapes3D.Primitive(PrimitiveType.Capsule, root, new Vector3(-0.1f, 0.12f, 0f), new Vector3(0.75f, length * 0.32f, 0.6f), skin, Quaternion.Euler(0f, 0f, 90f), "Body");
             Shapes3D.Primitive(PrimitiveType.Cube, root, new Vector3(-length * 0.5f, 0.1f, 0f), new Vector3(0.9f, 0.18f, 0.28f), skin, name: "Tail");
             for (var ridge = 0; ridge < 5; ridge++)
@@ -84,12 +104,12 @@ namespace RushAhead.Render
 
         void BuildSwinger(int i)
         {
-            var def = hazards.Def.swingers[i];
+            var def = hazards.Layout.swingers[i];
             var at = river.At(def.distance);
             var amplitude = Mathf.Max(0.5f, at.HalfWidth - 0.6f);
             var rope = amplitude / Mathf.Sin(55f * Mathf.Deg2Rad); // swings out to 55 degrees
             var pivotHeight = rope + BridgeClearance;
-            var wood = palette.Tinted(palette.wood, new Color(0.55f, 0.38f, 0.22f));
+            var wood = palette.Planks;
             var yaw = Quaternion.LookRotation(SimSpace.Direction(at.Tangent)); // local x runs across the river
 
             // The bridge: a post on each side and a plank deck over the river.
@@ -132,7 +152,8 @@ namespace RushAhead.Render
 
         void Pose(double seconds)
         {
-            var def = hazards.Def;
+            foreach (var other in others) other.Pose(seconds);
+            var def = hazards.Layout;
             for (var i = 0; i < wheels.Count; i++)
                 wheels[i].localRotation = Quaternion.Euler(0f, -hazards.WheelAngleDeg(i, seconds), 0f); // anticlockwise in the sim is a negative turn about y
 

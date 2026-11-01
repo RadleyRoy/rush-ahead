@@ -13,6 +13,7 @@ namespace RushAhead.Render
     {
         public Material Cliff;
         public Material CliffDeep; // the cliff's darker lower face
+        public Material Lip; // the stone (or sand) edge between the water and the drop
         public Material Ground;
 
         /// <summary>From the water down to the gorge floor, in metres.</summary>
@@ -29,6 +30,7 @@ namespace RushAhead.Render
         {
             var style = Make(scene, palette);
             style.CliffDeep = palette.Tinted(palette.cliff, Color.Lerp(style.Cliff.color, new Color(0.2f, 0.18f, 0.22f), 0.35f));
+            style.Lip = scene == CourseScene.Lake && palette.sand != null ? palette.sand : style.Cliff;
             return style;
         }
 
@@ -191,6 +193,14 @@ namespace RushAhead.Render
         public static void Rock(Transform parent, Vector2 at, float radius, ArtPalette palette, System.Random random)
         {
             var rock = Shapes3D.Group(parent, "Rock", SimSpace.ToWorld(at));
+            if (palette.HasRocks)
+            {
+                var pick = random.Next(palette.rockMeshes.Length);
+                Shapes3D.Model("Boulder", palette.rockMeshes[pick], palette.rockMaterials[pick], rock, Vector3.zero, radius * 2.3f, (float)random.NextDouble() * 360f, 0.3f);
+                Shapes3D.MeshObject("Foam", Shapes3D.Disc(radius + 0.5f), rock, new Vector3(0f, 0.02f, 0f), palette.foam);
+                return;
+            }
+
             var spin = Quaternion.Euler(0f, (float)random.NextDouble() * 360f, 0f);
             Shapes3D.Primitive(PrimitiveType.Sphere, rock, new Vector3(0f, 0.15f, 0f), new Vector3(2f * radius, 1.5f * radius, 2f * radius), palette.rock, spin, "Boulder");
             Shapes3D.Primitive(PrimitiveType.Sphere, rock, spin * new Vector3(radius * 0.7f, 0.05f, radius * 0.3f), Vector3.one * radius * 0.9f, palette.rock, spin, "Stone");
@@ -201,8 +211,14 @@ namespace RushAhead.Render
         public static void Barrel(Transform parent, Transform physicsBody, float radius, ArtPalette palette)
         {
             var barrel = Shapes3D.Group(parent, "Barrel");
-            Shapes3D.Primitive(PrimitiveType.Cylinder, barrel, new Vector3(0f, 0.25f, 0f), new Vector3(2f * radius, 0.45f, 2f * radius), palette.barrel, name: "Drum");
-            Shapes3D.Primitive(PrimitiveType.Cylinder, barrel, new Vector3(0f, 0.3f, 0f), new Vector3(2f * radius + 0.04f, 0.07f, 2f * radius + 0.04f), palette.barrelBand, name: "Band");
+            if (palette.barrelMesh != null)
+                Shapes3D.Model("Drum", palette.barrelMesh, palette.barrelMaterial, barrel, Vector3.zero, 2f * radius, 0f, 0.35f);
+            else
+            {
+                Shapes3D.Primitive(PrimitiveType.Cylinder, barrel, new Vector3(0f, 0.25f, 0f), new Vector3(2f * radius, 0.45f, 2f * radius), palette.barrel, name: "Drum");
+                Shapes3D.Primitive(PrimitiveType.Cylinder, barrel, new Vector3(0f, 0.3f, 0f), new Vector3(2f * radius + 0.04f, 0.07f, 2f * radius + 0.04f), palette.barrelBand, name: "Band");
+            }
+
             Shapes3D.MeshObject("Foam", Shapes3D.Disc(radius + 0.35f), barrel, new Vector3(0f, 0.02f, 0f), palette.foam);
             barrel.gameObject.AddComponent<FollowBody>().Source = physicsBody;
         }

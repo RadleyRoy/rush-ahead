@@ -34,6 +34,8 @@ namespace RushAhead.Render
 
         float yawRad;
         float lookDown;
+        float rush; // 0 idling to 1 flat out down fast water: the view widens and drops closer
+        Camera view;
         Vector3 focus;
         Vector2 smoothedVelocity;
 
@@ -42,7 +44,7 @@ namespace RushAhead.Render
 
         void Awake()
         {
-            var view = GetComponent<Camera>();
+            view = GetComponent<Camera>();
             view.orthographic = false;
             view.fieldOfView = FieldOfView;
             view.nearClipPlane = 0.3f;
@@ -56,6 +58,12 @@ namespace RushAhead.Render
         /// a second, and the shake grows with the square of what's left, so small knocks stay small.
         /// </summary>
         public void Shake(float amount) => trauma = Mathf.Min(1f, trauma + amount);
+
+        void OnDisable()
+        {
+            rush = 0f;
+            if (view != null) view.fieldOfView = FieldOfView; // the menu cameras share it
+        }
 
         public void SnapTo(Vector2 position, float headingRad)
         {
@@ -74,6 +82,8 @@ namespace RushAhead.Render
             smoothedVelocity = Vector2.Lerp(smoothedVelocity, raw, 1f - Mathf.Exp(-HeadingSmoothing * dt));
             var velocity = smoothedVelocity;
             var speed = velocity.magnitude;
+            rush = Mathf.Lerp(rush, Mathf.InverseLerp(2.5f, 9f, speed), 1f - Mathf.Exp(-3f * dt));
+            view.fieldOfView = FieldOfView + 14f * rush;
             if (speed > MinTurnSpeed)
             {
                 var strength = Mathf.Clamp01((speed - MinTurnSpeed) / 3f);
@@ -98,9 +108,10 @@ namespace RushAhead.Render
 
         void Place()
         {
-            var pitch = PitchDeg * Mathf.Deg2Rad;
-            var back = -SimSpace.Direction(Forward) * (Mathf.Cos(pitch) * Distance);
-            transform.position = focus + back + Vector3.up * (Mathf.Sin(pitch) * Distance);
+            var pitch = (PitchDeg - 6f * rush) * Mathf.Deg2Rad;
+            var distance = Distance * (1f - 0.15f * rush);
+            var back = -SimSpace.Direction(Forward) * (Mathf.Cos(pitch) * distance);
+            transform.position = focus + back + Vector3.up * (Mathf.Sin(pitch) * distance);
             transform.rotation = Quaternion.LookRotation(focus + Vector3.down * lookDown - transform.position);
         }
     }

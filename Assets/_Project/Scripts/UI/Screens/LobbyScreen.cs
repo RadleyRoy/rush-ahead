@@ -201,7 +201,7 @@ namespace RushAhead.UI
                 var best = Records.BestTime(def, team);
                 courseStars.Count = Records.BestStars(def, team);
                 Ui.Set(courseBest, best > 0f ? $"Best {Ui.Time(best)}" : "No time yet");
-                Ui.Set(courseTimes, $"Stars at {Ui.Time(def.threeStarSeconds)}, {Ui.Time(def.twoStarSeconds)} and {Ui.Time(def.parSeconds)}");
+                Ui.Set(courseTimes, "A star for every life you finish with. New obstacles every round.");
             }
 
             Ui.Show(changeCourse, canEdit);

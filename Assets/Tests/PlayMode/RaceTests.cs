@@ -267,17 +267,19 @@ namespace RushAhead.Tests
     {
         const float Dt = 1f / 60f;
 
-        static IEnumerable<TestCaseData> Courses() => AllCourses().Select(c => new TestCaseData(c).SetName($"{c.name} can be finished"));
+        // Every round deals a new layout: three rounds of each course.
+        static IEnumerable<TestCaseData> Courses() =>
+            AllCourses().SelectMany(c => new[] { 1, 2, 3 }.Select(seed => new TestCaseData(c, seed).SetName($"{c.name} round {seed} can be finished")));
 
         [TestCaseSource(nameof(Courses))]
-        public void TheAutopilot_FinishesTheCourse_InsideParAndAHalf(CourseDef def)
+        public void TheAutopilot_FinishesTheCourse_InTime(CourseDef def, int seed)
         {
             var previousMode = Physics2D.simulationMode;
             Physics2D.simulationMode = SimulationMode2D.Script;
             var config = ScriptableObject.CreateInstance<SimConfig>();
             var leafBlower = ScriptableObject.CreateInstance<BlowerDef>(); // the default blower
             var world = new SimWorld(config);
-            var course = Course.Build(def);
+            var course = Course.Build(def, seed);
             try
             {
                 world.WaterVelocity = course.WaterVelocityAt;
@@ -287,7 +289,7 @@ namespace RushAhead.Tests
                 Hook(autopilot, course, world, config);
                 var race = new Race(course, boat, world.Tick, config.tickRate);
 
-                var limit = race.StartTick + Mathf.CeilToInt(def.parSeconds * 1.5f * config.tickRate);
+                var limit = race.StartTick + Mathf.CeilToInt(def.ExpectedSeconds * 1.5f * config.tickRate);
                 var furthest = 0f;
                 while (race.Phase != RacePhase.Finished && race.Phase != RacePhase.Out && world.Tick < limit)
                 {
@@ -299,9 +301,8 @@ namespace RushAhead.Tests
                 }
 
                 var time = race.SecondsAt(world.Tick);
-                LogFlatOutTime(def, config, leafBlower);
-                Debug.Log($"[RushAhead] {def.name}: autopilot {(race.Phase == RacePhase.Finished ? "finished" : "did not finish")} in {time:0.0} s " +
-                          $"(par {def.parSeconds:0}, stars {def.Stars(time)}), capsizes {boat.CapsizeCount}, lives {boat.Lives}, gates {boat.GatesPassed}/{course.Gates.Count}, " +
+                Debug.Log($"[RushAhead] {def.name}: autopilot {(race.Phase == RacePhase.Finished ? "finished" : "did not finish")} round {seed} " +
+                          $"({course.Layout.Count} obstacles) in {time:0.0} s, capsizes {boat.CapsizeCount}, lives {boat.Lives}, gates {boat.GatesPassed}/{course.Gates.Count}, " +
                           $"furthest {furthest:0} m of {def.FinishDistance:0} m");
                 Assert.That(race.Phase, Is.EqualTo(RacePhase.Finished),
                     $"stuck {furthest:0} m down a {def.FinishDistance:0} m course after {time:0} s, with {boat.GatesPassed} of {course.Gates.Count} gates");
@@ -313,38 +314,6 @@ namespace RushAhead.Tests
                 Object.DestroyImmediate(leafBlower);
                 Object.DestroyImmediate(config);
                 Physics2D.simulationMode = previousMode;
-            }
-        }
-
-        /// <summary>For setting star times: the same crew pushing as hard as it can, reported but not asserted.</summary>
-        static void LogFlatOutTime(CourseDef def, SimConfig config, BlowerDef blower)
-        {
-            var world = new SimWorld(config);
-            var course = Course.Build(def);
-            try
-            {
-                world.WaterVelocity = course.WaterVelocityAt;
-                world.Drifting.AddRange(course.BarrelBodies);
-                var boat = world.SpawnBoat(course.SpawnPosition, course.SpawnAngleRad, new[] { blower, blower, blower, blower });
-                var autopilot = SteadyCrew(boat, course, config, cruiseSpeed: 6f);
-                Hook(autopilot, course, world, config);
-                var race = new Race(course, boat, world.Tick, config.tickRate);
-                var limit = race.StartTick + Mathf.CeilToInt(def.parSeconds * 1.5f * config.tickRate);
-                while (race.Phase != RacePhase.Finished && race.Phase != RacePhase.Out && world.Tick < limit)
-                {
-                    autopilot.Update(Dt);
-                    course.Hazards.Step(world.Tick / (double)config.tickRate, new[] { boat });
-                    world.Advance(Dt);
-                    race.Step(world.Tick);
-                }
-
-                Debug.Log($"[RushAhead] {def.name}: flat-out autopilot {(race.Phase == RacePhase.Finished ? "finished" : "did not finish")} " +
-                          $"in {race.SecondsAt(world.Tick):0.0} s, capsizes {boat.CapsizeCount}");
-            }
-            finally
-            {
-                world.DestroyAll();
-                course.Destroy();
             }
         }
 

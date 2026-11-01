@@ -76,6 +76,12 @@ namespace RushAhead.UI
 
         // The venue: 0 is the practice lagoon, n is courses[n - 1]. Barrels are listed in an order every device agrees on.
         int venue;
+
+        /// <summary>The seed this round's obstacles were dealt from (the host's choice; joiners take it from the Race message).</summary>
+        int layoutSeed = 1;
+
+        /// <summary>Whether the layout now on the course has been raced: the next round deals a new one.</summary>
+        bool layoutRaced;
         GameObject lagoon;
         Course course;
         CourseView courseView;

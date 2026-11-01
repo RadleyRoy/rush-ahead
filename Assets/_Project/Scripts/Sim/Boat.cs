@@ -93,17 +93,32 @@ namespace RushAhead.Sim
         /// <summary>The share of the crew bracing on the last tick (ducking a swinging log needs half).</summary>
         public float BracedFraction { get; private set; }
 
+        /// <summary>Seconds left of an electric eel's jolt: until then the crew can't blow (bracing still works).</summary>
+        public float StunnedSeconds { get; set; }
+
         /// <summary>
         /// A knock from outside: a swinging log or a geyser. Pushes the raft and heels it over by <paramref name="heel"/>
         /// times what that push alone would, so it can capsize; a braced crew takes much less of it.
         /// </summary>
-        public void Shove(Vector2 impulse, float heel)
+        /// <param name="spin">How hard it also sets the raft spinning (it lands off-centre): 0 to 1.</param>
+        public void Shove(Vector2 impulse, float heel, float spin = 0f)
         {
             if (State != BoatState.Afloat) return;
             var soften = 1f - 0.75f * BracedFraction;
-            Body.AddForceAtLocalPoint(impulse * soften, Vector2.zero, impulse: true);
+            var offCentre = spin * 0.9f * Body.LocalVector(new Vector2(-impulse.y, impulse.x).normalized); // hit to one side of the middle
+            Body.AddForceAtLocalPoint(impulse * soften, offCentre, impulse: true);
             Tilt.Kick(HeelPerUnit(impulse) * (heel * soften));
             Shoved?.Invoke(this);
+        }
+
+        /// <summary>
+        /// A steady push or drag from the water (mud, a net, nibbling fish), one tick's worth as an impulse: bracing
+        /// doesn't soften it and it doesn't heel the raft.
+        /// </summary>
+        public void Push(Vector2 impulse)
+        {
+            if (State != BoatState.Afloat) return;
+            Body.AddForceAtLocalPoint(impulse, Vector2.zero, impulse: true);
         }
 
         /// <summary>A swinging log or geyser caught the raft.</summary>
@@ -146,6 +161,7 @@ namespace RushAhead.Sim
             var bracedCount = 0;
 
             CapsizeImmunitySeconds = Mathf.Max(0f, CapsizeImmunitySeconds - dt);
+            StunnedSeconds = Mathf.Max(0f, StunnedSeconds - dt);
             foreach (var crew in Crew)
             {
                 crew.SeatOffset = config.SeatOffset(crew.Seat, Crew.Length);
@@ -184,8 +200,9 @@ namespace RushAhead.Sim
             var spec = crew.Blower;
             var thrust = spec.thrustNewtons * config.thrustMultiplier;
 
-            // Braced crew stop blowing; burst-only blowers (bellows) have no continuous airflow to draw.
-            var requested = crew.Braced || thrust <= 0f ? 0f : Mathf.Clamp01(input.Throttle) * share;
+            // Braced and stunned crew stop blowing; burst-only blowers (bellows) have no continuous airflow to draw.
+            var stunned = StunnedSeconds > 0f;
+            var requested = crew.Braced || stunned || thrust <= 0f ? 0f : Mathf.Clamp01(input.Throttle) * share;
             crew.Tank.Tick(dt);
             crew.Spool = BlowerMath.Spool(crew.Spool, requested, dt, spec.spoolUpMs / 1000f, spec.spoolDownMs / 1000f);
             crew.SecondsSinceBurst += dt;
@@ -203,7 +220,7 @@ namespace RushAhead.Sim
                 heel = HeelPerUnit(force);
             }
 
-            if (input.Burst && !crew.Braced && share > 0f && crew.Tank.TryBurst())
+            if (input.Burst && !crew.Braced && !stunned && share > 0f && crew.Tank.TryBurst())
             {
                 var burstImpulse = spec.burstImpulse * config.thrustMultiplier * share;
                 var impulse = BlowerMath.ReactionForce(airDirection, burstImpulse, 1f, spec.special);
@@ -294,6 +311,7 @@ namespace RushAhead.Sim
             Body.Teleport(position, angleRad);
             TeleportCount++;
             Tilt.Reset();
+            StunnedSeconds = 0f;
             State = BoatState.Afloat;
             foreach (var crew in Crew)
             {

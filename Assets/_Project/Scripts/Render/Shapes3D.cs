@@ -29,6 +29,22 @@ namespace RushAhead.Render
             return go;
         }
 
+        /// <summary>
+        /// A scanned model, scaled so it's <paramref name="width"/> across (its widest flat side), standing on
+        /// <paramref name="localPosition"/> with its base <paramref name="sink"/> of its height below it.
+        /// </summary>
+        public static GameObject Model(string name, Mesh mesh, Material material, Transform parent, Vector3 localPosition, float width, float yawDeg = 0f, float sink = 0f)
+        {
+            var bounds = mesh.bounds;
+            var scale = width / Mathf.Max(0.01f, Mathf.Max(bounds.size.x, bounds.size.z));
+            var go = MeshObject(name, mesh, parent, Vector3.zero, material);
+            go.transform.localRotation = Quaternion.Euler(0f, yawDeg, 0f);
+            go.transform.localScale = Vector3.one * scale;
+            var centre = go.transform.localRotation * new Vector3(bounds.center.x, 0f, bounds.center.z) * scale;
+            go.transform.localPosition = localPosition - centre + Vector3.up * (-bounds.min.y * scale - sink * bounds.size.y * scale);
+            return go;
+        }
+
         public static GameObject MeshObject(string name, Mesh mesh, Transform parent, Vector3 localPosition, Material material)
         {
             var go = new GameObject(name);

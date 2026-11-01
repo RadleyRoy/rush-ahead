@@ -58,6 +58,16 @@ namespace RushAhead.UI
             Directory.CreateDirectory(demo.outputFolder);
             game.Router.Scripted = true;
             game.AllowSearching = false; // the Crew panel opens near the end; don't make the desktop firewall ask about it
+            Application.runInBackground = true; // a demo left behind other windows would otherwise pause where it stands
+
+            // The graphics setting to measure frame times at (the setting's own levels: 1 Low, 2 Medium, 3 High).
+            var qualityIndex = Array.IndexOf(args, QualityFlag);
+            if (qualityIndex >= 0 && qualityIndex + 1 < args.Length && int.TryParse(args[qualityIndex + 1], out var quality) &&
+                quality >= 0 && quality < QualitySettings.names.Length)
+            {
+                QualitySettings.SetQualityLevel(quality, true);
+                Render.Looks.PostProcessing(Camera.main, quality > 0);
+            }
 
             var crewIndex = Array.IndexOf(args, CrewFlag);
             if (crewIndex >= 0 && crewIndex + 1 < args.Length && int.TryParse(args[crewIndex + 1], out var crew) && crew >= 1 && crew <= CrewSectors.MaxCrew)
@@ -80,9 +90,12 @@ namespace RushAhead.UI
         }
 
         static readonly bool NoHud = CommandLine.Has("-rushahead-no-hud"); // clean shots for store art
+        const string QualityFlag = "-rushahead-quality";
+        readonly System.Collections.Generic.List<float> frameTimes = new();
 
         void Update()
         {
+            if (Time.frameCount > 30) frameTimes.Add(Time.unscaledDeltaTime);
             elapsed += Time.deltaTime;
             if (NoHud && game.Ui.Visible && elapsed > 0.9f) game.Ui.Visible = false;
             if (!titleShot && elapsed >= 0.5f)
@@ -154,12 +167,27 @@ namespace RushAhead.UI
         void Shot(string name, RaceInfo run)
         {
             ScreenCapture.CaptureScreenshot(Path.Combine(outputFolder, $"{name}.png"));
+            LogFrameTimes(name);
             var boat = game.ViewedBoat;
             Debug.Log($"[RushAhead] {name}: t={elapsed:0.0}s mode={game.Mode} pos={boat.RenderPosition} speed={boat.Velocity.magnitude:0.00} " +
                       $"course={run.Course?.displayName} clock={run.Seconds:0.0} gates={run.GatesPassed} finished={run.Finished} stars={run.Stars} " +
                       $"capsizes={run.Capsizes} order={game.CurrentOrder.Order} " +
                       (run.TeamRace ? $"raft={GameController.TeamName(run.MyRaft)} rival-gates={run.RivalGatesPassed} rival-finished={run.RivalFinished} winner={run.Winner} " : "") +
                       $"{game.NetStatus} crew=[{CrewSummary()}]");
+        }
+
+        /// <summary>How long frames took since the last shot: the average and the slowest twentieth (where stutters show).</summary>
+        void LogFrameTimes(string name)
+        {
+            if (frameTimes.Count < 10) return;
+            frameTimes.Sort();
+            var average = 0f;
+            foreach (var t in frameTimes) average += t;
+            average /= frameTimes.Count;
+            var slow = frameTimes[Mathf.Min(frameTimes.Count - 1, (int)(frameTimes.Count * 0.95f))];
+            Debug.Log($"[RushAhead] frame times to {name}: average {average * 1000f:0.0} ms, slowest 5% {slow * 1000f:0.0} ms over {frameTimes.Count} frames " +
+                      $"at {QualitySettings.names[QualitySettings.GetQualityLevel()]} quality, {Screen.width}x{Screen.height}");
+            frameTimes.Clear();
         }
 
         /// <summary>Looks straight down on the whole course for one frame, without the HUD or haze, and saves that frame.</summary>

@@ -43,7 +43,8 @@ namespace RushAhead.Render
             view.palette = palette;
             view.figure = Shapes3D.Group(root, "Figure");
             view.TagAnchor = Shapes3D.Group(view.figure, "Tag anchor", new Vector3(0f, 1.5f, 0f));
-            view.BuildBody(shape, palette.Tinted(palette.animal, fur), palette.Tinted(palette.animal, Color.Lerp(fur, Color.white, 0.45f)));
+            if (palette.HasSculpted((int)shape)) view.BuildSculpted(shape, fur);
+            else view.BuildBody(shape, palette.Tinted(palette.animal, fur), palette.Tinted(palette.animal, Color.Lerp(fur, Color.white, 0.45f)));
             // A collar in the player's colour ties each animal to its slice painted on the water.
             Shapes3D.Primitive(PrimitiveType.Cylinder, view.figure, new Vector3(0f, 0.76f, 0.02f), new Vector3(0.5f, 0.045f, 0.46f),
                 palette.Tinted(palette.animal, playerColor), name: "Collar");
@@ -57,6 +58,20 @@ namespace RushAhead.Render
             view.seed = Random.value * 100f;
             view.nextBlink = Random.Range(1f, 4f);
             return view;
+        }
+
+        /// <summary>The sculpted animal (one smooth furry mesh, see <see cref="AnimalSculptures"/>) with glossy eyes set in it.</summary>
+        void BuildSculpted(AnimalShape shape, Color fur)
+        {
+            var body = Shapes3D.MeshObject("Body", palette.animalMeshes[(int)shape], figure, Vector3.zero, palette.Fur(fur, Color.Lerp(fur, Color.white, 0.5f), Pink));
+            body.GetComponent<MeshRenderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On;
+            var head = Shapes3D.Group(figure, "Head", AnimalSculptures.Head);
+            var eye = AnimalSculptures.EyeOffset;
+            foreach (var side in new[] { -1f, 1f })
+            {
+                Shapes3D.Primitive(PrimitiveType.Sphere, head, new Vector3(eye.x * side, eye.y, eye.z), Vector3.one * 0.12f, palette.eyeWhite, name: "Eye");
+                Shapes3D.Primitive(PrimitiveType.Sphere, head, new Vector3(eye.x * side, eye.y, eye.z + 0.052f), Vector3.one * 0.07f, palette.eyeDark, name: "Pupil");
+            }
         }
 
         void BuildBody(AnimalShape shape, Material furMaterial, Material lightMaterial)

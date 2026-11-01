@@ -128,8 +128,9 @@ namespace RushAhead.Tests
         [Test]
         public void Race_RoundTrips_WithTheRoomPhaseAndAi_AndRejectsUnknownValues()
         {
-            var bytes = Encode(w => Protocol.Write(w, new RaceMessage { Course = 1, StartTick = 987654, Phase = RoomPhase.Results, AiSkill = 2 }));
+            var bytes = Encode(w => Protocol.Write(w, new RaceMessage { Course = 1, StartTick = 987654, Phase = RoomPhase.Results, AiSkill = 2, LayoutSeed = 0xCAFEF00D }));
             var read = Protocol.ReadRace(new ByteReader(new ArraySegment<byte>(bytes)));
+            Assert.That(read.LayoutSeed, Is.EqualTo(0xCAFEF00Du), "the round's layout");
             Assert.That(read.Course, Is.EqualTo(1));
             Assert.That(read.StartTick, Is.EqualTo(987654u));
             Assert.That(read.Phase, Is.EqualTo(RoomPhase.Results));
@@ -225,11 +226,11 @@ namespace RushAhead.Tests
         // Committed wire bytes: if these change, the protocol changed. Bump Protocol.Version and re-record.
         const string InputGolden = "2002feff0080bf0107";
         const string SnapshotGolden = "10d20400000180e9ffff40030000ee32800240ff00ffec0185ff0002033412000005000400a000ff00000000e040cc010301002080990006020060bf660009030200f1ffff4dfdffff5f14cdf2ffff33feffffb8cb";
-        const string RosterGolden = "020701030300000007536b69707065720504090106c396747465720802020300";
-        const string ProfileGolden = "2107050704065261646c6579efcdab8967452301";
-        const string AdvertGolden = "5255534807efbeadde611e02040107536b6970706572";
+        const string RosterGolden = "020801030300000007536b69707065720504090106c396747465720802020300";
+        const string ProfileGolden = "2108050704065261646c6579efcdab8967452301";
+        const string AdvertGolden = "5255534808efbeadde611e02040107536b6970706572";
         const string OrderGolden = "040300800a0000c0fdffff";
-        const string RaceGolden = "0302d20400000101";
+        const string RaceGolden = "0302d2040000010178563412";
 
         [Test]
         public void WireFormat_MatchesTheCommittedBytes()
@@ -240,7 +241,7 @@ namespace RushAhead.Tests
             var profile = Hex(Encode(w => Protocol.WriteProfile(w, SampleProfile, SampleDevice)));
             var order = Hex(Encode(w => Protocol.Write(w, new OrderMessage { Order = CrewOrder.PushHere, Point = new Vector2(10.5f, -2.25f) })));
             var advert = Hex(Encode(w => Protocol.Write(w, SampleAdvert)));
-            var race = Hex(Encode(w => Protocol.Write(w, new RaceMessage { Course = 2, StartTick = 1234, Phase = RoomPhase.Racing, AiSkill = 1 })));
+            var race = Hex(Encode(w => Protocol.Write(w, new RaceMessage { Course = 2, StartTick = 1234, Phase = RoomPhase.Racing, AiSkill = 1, LayoutSeed = 0x12345678 })));
             var recording = $"InputGolden = \"{input}\";\nSnapshotGolden = \"{snapshot}\";\nRosterGolden = \"{roster}\";\n" +
                             $"ProfileGolden = \"{profile}\";\nAdvertGolden = \"{advert}\";\nRaceGolden = \"{race}\";\nOrderGolden = \"{order}\";";
             Assert.That(input == InputGolden && snapshot == SnapshotGolden && roster == RosterGolden && profile == ProfileGolden && advert == AdvertGolden && race == RaceGolden && order == OrderGolden,

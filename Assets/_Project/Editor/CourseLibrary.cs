@@ -62,13 +62,15 @@ namespace RushAhead.EditorTools
         }
 
         /// <summary>
-        /// The first course, about 220 m: a wide start pool, a left bend into a rock slalom, a right bend into a
-        /// helpful current, a pool full of barrels, a narrow gorge where the water pushes back, then the finish.
+        /// The first course, about 350 m and the gentlest: a wide start pool, a left bend into a rock slalom, a right
+        /// bend into a helpful current, a pool full of barrels, a narrow gorge where the water pushes back, then a long
+        /// run to the finish. The fewest obstacles, a taste of most kinds.
         /// </summary>
         static void OtterCreek(CourseDef c)
         {
             c.displayName = "Otter Creek";
-            c.blurb = "Weave the rocks, ride the current, shove through the barrels and fight the gorge.";
+            c.blurb = "Weave the rocks, ride the current and shove through the barrels. New obstacles every round.";
+            c.flow = 2.6f;
             c.river = new[]
             {
                 new RiverPoint(0f, 0f, 16f),
@@ -86,57 +88,51 @@ namespace RushAhead.EditorTools
                 new RiverPoint(142.5f, 24f, 14f),
                 new RiverPoint(159f, 22.5f, 16f),
                 new RiverPoint(172.5f, 22.5f, 16f),
+                new RiverPoint(188f, 20f, 15f),
+                new RiverPoint(204f, 14f, 14f),
+                new RiverPoint(220f, 10f, 14f, 0.3f),
+                new RiverPoint(236f, 10f, 14f),
+                new RiverPoint(252f, 14f, 14f, -0.3f),
+                new RiverPoint(268f, 20f, 14f),
+                new RiverPoint(284f, 22f, 15f),
+                new RiverPoint(300f, 22f, 16f),
+                new RiverPoint(316f, 22f, 16f),
             };
 
-            // Lay everything else out by distance down the river and distance across it, so it lands where it means to.
-            var river = new River(c.river);
-            Vector2 Spot(float distance, float across)
-            {
-                var at = river.At(distance);
-                return at.Centre + at.Left * across;
-            }
-
-            float DistanceNear(int point) => river.Project(c.river[point].position).Distance;
-
+            var s = new Survey(c);
             c.startDistance = 8f;
-            var finish = river.Length - 16f;
-            c.gates = new[] { DistanceNear(3) - 6f, DistanceNear(6) + 4f, DistanceNear(9) + 12f, finish };
-
+            c.gates = new[] { s.Near(3) - 6f, s.Near(6) + 4f, s.Near(9) + 12f, s.Near(13) + 4f, s.Near(18), s.Finish };
             c.rocks = new[]
             {
-                Rock(Spot(DistanceNear(3), 3.8f), 1.4f),
-                Rock(Spot(DistanceNear(4), -3.8f), 1.5f),
-                Rock(Spot(DistanceNear(5), 3.8f), 1.3f),
-                Rock(Spot(DistanceNear(11) + 6f, 4.6f), 1.1f), // a boulder on the bend after the gorge
+                s.Rock(s.Near(3), 3.8f, 1.4f), s.Rock(s.Near(4), -3.8f, 1.5f), s.Rock(s.Near(5), 3.8f, 1.3f),
+                s.Rock(s.Near(11) + 6f, 4.6f, 1.1f), // a boulder on the bend after the gorge
             };
 
-            var pool = DistanceNear(9);
+            var pool = s.Near(9);
             c.barrels = new[]
             {
-                Spot(pool - 8f, -2f), Spot(pool - 8f, 1.5f), Spot(pool - 3f, 0f), Spot(pool - 3f, -4f), Spot(pool - 3f, 4f),
-                Spot(pool + 2f, 2f), Spot(pool + 2f, -2f), Spot(pool + 6f, 0f),
+                s.Spot(pool - 8f, -2f), s.Spot(pool - 8f, 1.5f), s.Spot(pool - 3f, 0f), s.Spot(pool - 3f, -4f), s.Spot(pool - 3f, 4f),
+                s.Spot(pool + 2f, 2f), s.Spot(pool + 2f, -2f), s.Spot(pool + 6f, 0f),
             };
 
             c.currents = new[]
             {
-                new CurrentZone(DistanceNear(6) + 2f, DistanceNear(8) + 6f, 0.9f), // ride it
-                new CurrentZone(DistanceNear(10) - 6f, DistanceNear(11) + 2f, -0.5f), // the gorge pushes back
+                new CurrentZone(s.Near(6) + 2f, s.Near(8) + 6f, 0.9f), // ride it
+                new CurrentZone(s.Near(10) - 6f, s.Near(11) + 2f, -0.5f), // the gorge pushes back
             };
 
-            // The obstacles, gently: a paddle wheel on the left of the first bend (keep right), a log swinging under a
-            // bridge on the current (brace as it comes), and a crocodile on the last straight.
-            c.flow = 1.2f;
-            var s = new Survey(c);
-            c.wheels = new[] { s.Wheel(DistanceNear(2), 4.2f, 2.8f, 3, 50f) };
-            c.swingers = new[] { new SwingSpot(DistanceNear(7) + 4f, 5f, 0f, 3.5f) };
-            c.crocodiles = new[] { new CrocSpot(DistanceNear(12) + 2f, -1f, 0.35f, 7f, 2f) };
-
-            // Measured by the AI crews with the river flowing and the obstacles in: Ace 58.2 s, Keen 70.3 s, Clumsy 99.6 s
-            // (two lives lost to the swinging log); steady 60.5 s, flat out 59.6 s. Three stars just above Ace, two just under
-            // Keen, par about Keen + 16%.
-            c.parSeconds = 82f;
-            c.twoStarSeconds = 68f;
-            c.threeStarSeconds = 59f;
+            // Obstacles: a fresh layout every round, dealt from these.
+            c.menu = new[]
+            {
+                new ObstacleChance(ObstacleKind.Wheel), new ObstacleChance(ObstacleKind.Crocodile),
+                new ObstacleChance(ObstacleKind.SwingingLog), new ObstacleChance(ObstacleKind.Geyser),
+                new ObstacleChance(ObstacleKind.Bumper), new ObstacleChance(ObstacleKind.Rockslide),
+                new ObstacleChance(ObstacleKind.Hippo), new ObstacleChance(ObstacleKind.Weir),
+                new ObstacleChance(ObstacleKind.FallingTree), new ObstacleChance(ObstacleKind.Turtle),
+                new ObstacleChance(ObstacleKind.Pelican),
+            };
+            c.minObstacles = 6;
+            c.maxObstacles = 9;
         }
 
         static RockSpot Rock(Vector2 at, float radius) => new(at.x, at.y, radius);
@@ -176,25 +172,16 @@ namespace RushAhead.EditorTools
 
             public WhirlpoolSpot Whirlpool(float distance, float across, float radius, float spin, float pull) =>
                 new(Spot(distance, across), radius, spin, pull);
-
-            /// <summary>
-            /// A paddle wheel, turning the way that makes the arms meeting a raft coming downstream sweep it toward the
-            /// middle of the river rather than over the edge (anticlockwise on the left, clockwise on the right).
-            /// </summary>
-            public WheelSpot Wheel(float distance, float across, float radius, int arms, float degreesPerSecond) =>
-                new(Spot(distance, across), radius, arms, Mathf.Abs(degreesPerSecond) * (across >= 0f ? 1f : -1f));
-
-            public GeyserSpot Geyser(float distance, float across, float radius, float period, float offset) =>
-                new(Spot(distance, across), radius, period, offset);
         }
 
-        /// <summary>Wide, calm water with three islands to pick a way round, and a drift of barrels near the end.</summary>
+        /// <summary>Wide water with three islands to pick a way round: room for the obstacles that need it (cannons, the ferry).</summary>
         static void MirrorLake(CourseDef c)
         {
             c.displayName = "Mirror Lake";
-            c.blurb = "Wide, calm water. Pick your way round the islands, and mind the drifting barrels.";
+            c.blurb = "Wide water round three islands, never calm for long. New obstacles every round.";
             c.scene = CourseScene.Lake;
             c.starsToUnlock = 1;
+            c.flow = 2.2f;
             c.river = new[]
             {
                 new RiverPoint(0f, 0f, 18f),
@@ -210,34 +197,46 @@ namespace RushAhead.EditorTools
                 new RiverPoint(178f, 14f, 20f),
                 new RiverPoint(194f, 14f, 18f),
                 new RiverPoint(208f, 14f, 18f),
+                new RiverPoint(224f, 12f, 20f),
+                new RiverPoint(240f, 6f, 22f),
+                new RiverPoint(256f, 2f, 22f, 0.4f),
+                new RiverPoint(272f, 2f, 22f),
+                new RiverPoint(288f, 6f, 20f, -0.4f),
+                new RiverPoint(304f, 12f, 18f),
+                new RiverPoint(320f, 14f, 18f),
+                new RiverPoint(334f, 14f, 18f),
             };
 
             var s = new Survey(c);
             c.startDistance = 8f;
-            c.gates = new[] { s.Near(2) + 2f, s.Near(5) + 12f, s.Near(8), s.Finish };
+            c.gates = new[] { s.Near(2) + 2f, s.Near(5) + 12f, s.Near(8), s.Near(11) + 4f, s.Near(15), s.Finish };
             c.rocks = new[] { s.Rock(s.Near(3), -4f, 3.5f), s.Rock(s.Near(5), 4.5f, 4f), s.Rock(s.Near(7), -4f, 3.2f) };
             var drift = s.Near(9);
             c.barrels = new[] { s.Spot(drift + 4f, -4f), s.Spot(drift + 4f, 3f), s.Spot(drift + 9f, 0f), s.Spot(drift + 9f, -6f), s.Spot(drift + 14f, 4f) };
-            c.flow = 0.8f;
-            c.geysers = new[]
+
+            // Obstacles: a fresh layout every round, dealt from these.
+            c.menu = new[]
             {
-                s.Geyser(s.Near(4), 5f, 2f, 5f, 0f), s.Geyser(s.Near(4) + 6f, -6f, 2f, 5f, 2.5f), s.Geyser(s.Near(6) + 6f, 0f, 2f, 4.5f, 1f),
+                new ObstacleChance(ObstacleKind.Geyser, 1.5f), new ObstacleChance(ObstacleKind.Crocodile, 1.2f),
+                new ObstacleChance(ObstacleKind.Hippo, 1.2f), new ObstacleChance(ObstacleKind.Ferry),
+                new ObstacleChance(ObstacleKind.Cannon), new ObstacleChance(ObstacleKind.Bumper),
+                new ObstacleChance(ObstacleKind.Bear), new ObstacleChance(ObstacleKind.SwingingLog, 0.7f),
+                new ObstacleChance(ObstacleKind.Turtle), new ObstacleChance(ObstacleKind.PiranhaShoal),
+                new ObstacleChance(ObstacleKind.Pelican), new ObstacleChance(ObstacleKind.NetBoat),
+                new ObstacleChance(ObstacleKind.Waterspout),
             };
-            c.crocodiles = new[] { new CrocSpot(s.Near(6) + 14f, 1f, 0.3f, 7f, 0f), new CrocSpot(s.Near(10) + 2f, -1f, 0.4f, 6.5f, 3f) };
-            // Measured by the AI crews: Ace 66.4 s, Keen 71.7 s, Clumsy 114.6 s; steady 68.4 s, flat out 62.8 s. Set as on Otter
-            // Creek, keeping two stars a few seconds clear of three where Keen runs nearly as fast as Ace.
-            c.parSeconds = 83f;
-            c.twoStarSeconds = 71f;
-            c.threeStarSeconds = 67f;
+            c.minObstacles = 9;
+            c.maxObstacles = 12;
         }
 
-        /// <summary>Switchbacks through beaver country, logs drifting across the bends, and a log jam in the big pool.</summary>
+        /// <summary>Switchbacks through beaver country, drifting logs and a log jam in the big pool.</summary>
         static void BeaverBend(CourseDef c)
         {
             c.displayName = "Beaver Bend";
-            c.blurb = "Switchbacks through beaver country. Shove the drifting logs aside, and bash through the jam.";
+            c.blurb = "Switchbacks through beaver country, logs adrift and a jam to bash through. New obstacles every round.";
             c.scene = CourseScene.Creek;
-            c.starsToUnlock = 3;
+            c.starsToUnlock = 2;
+            c.flow = 3f;
             c.river = new[]
             {
                 new RiverPoint(0f, 0f, 14f),
@@ -257,11 +256,19 @@ namespace RushAhead.EditorTools
                 new RiverPoint(166f, 74f, 14f),
                 new RiverPoint(182f, 72f, 14f),
                 new RiverPoint(196f, 72f, 14f),
+                new RiverPoint(212f, 70f, 14f),
+                new RiverPoint(228f, 64f, 13f),
+                new RiverPoint(242f, 56f, 13f, 0.3f),
+                new RiverPoint(256f, 52f, 13f),
+                new RiverPoint(270f, 54f, 14f, -0.3f),
+                new RiverPoint(286f, 60f, 14f),
+                new RiverPoint(302f, 62f, 14f),
+                new RiverPoint(316f, 62f, 14f),
             };
 
             var s = new Survey(c);
             c.startDistance = 8f;
-            c.gates = new[] { s.Near(3) - 6f, s.Near(7) + 4f, s.Near(10) + 12f, s.Near(13) + 2f, s.Finish };
+            c.gates = new[] { s.Near(3) - 6f, s.Near(7) + 4f, s.Near(10) + 12f, s.Near(13) + 2f, s.Near(17) + 4f, s.Near(21), s.Finish };
             c.rocks = new[] { s.Rock(s.Near(6), -4.2f, 1.2f), s.Rock(s.Near(12), 3.8f, 1.1f) };
             var jam = s.Near(10);
             c.logs = new[]
@@ -271,24 +278,31 @@ namespace RushAhead.EditorTools
                 s.Log(jam + 7f, -5f, 50f, 4f),
             };
             c.currents = new[] { new CurrentZone(s.Near(4), s.Near(6), 0.7f), new CurrentZone(s.Near(11), s.Near(13), 0.6f) };
-            c.flow = 1.2f;
-            c.swingers = new[] { new SwingSpot(s.Near(5) + 2f, 5f, 1f, 3.5f), new SwingSpot(s.Near(14) + 4f, 4.5f, 0f, 3.5f) };
-            c.wheels = new[] { s.Wheel(s.Near(8) + 6f, -3f, 2.6f, 3, 60f) };
-            c.crocodiles = new[] { new CrocSpot(s.Near(12), -1f, 0.35f, 6f, 1f) };
-            // Measured by the AI crews: Ace 69.8 s, Keen 86.2 s (a life lost to the second log), Clumsy 125.7 s; steady 71.6 s,
-            // flat out 66.6 s. Set as on Otter Creek.
-            c.parSeconds = 100f;
-            c.twoStarSeconds = 84f;
-            c.threeStarSeconds = 71f;
+
+            // Obstacles: a fresh layout every round, dealt from these.
+            c.menu = new[]
+            {
+                new ObstacleChance(ObstacleKind.Rockslide), new ObstacleChance(ObstacleKind.SwingingLog, 1.3f),
+                new ObstacleChance(ObstacleKind.Wheel), new ObstacleChance(ObstacleKind.Sluice),
+                new ObstacleChance(ObstacleKind.Sweeper), new ObstacleChance(ObstacleKind.Crocodile),
+                new ObstacleChance(ObstacleKind.Bear), new ObstacleChance(ObstacleKind.Hippo),
+                new ObstacleChance(ObstacleKind.Bumper), new ObstacleChance(ObstacleKind.Rapids, 0.6f),
+                new ObstacleChance(ObstacleKind.Weir, 0.6f),
+                new ObstacleChance(ObstacleKind.FallingTree), new ObstacleChance(ObstacleKind.BeaverDam, 1.3f),
+                new ObstacleChance(ObstacleKind.Mudslide), new ObstacleChance(ObstacleKind.Turtle),
+            };
+            c.minObstacles = 9;
+            c.maxObstacles = 13;
         }
 
-        /// <summary>Narrow channels through the reeds, lily pads along the edges, and a whirlpool in the big pool.</summary>
+        /// <summary>Narrow channels through the reeds, where there's no steering round a hippo: brace or dodge.</summary>
         static void ReedMarsh(CourseDef c)
         {
             c.displayName = "Reed Marsh";
-            c.blurb = "Narrow channels through the reeds, and a whirlpool waiting in the big pool. Keep to the edge.";
+            c.blurb = "Narrow channels with nowhere to hide, and a whirlpool in the big pool. New obstacles every round.";
             c.scene = CourseScene.Lake;
-            c.starsToUnlock = 5;
+            c.starsToUnlock = 4;
+            c.flow = 2.6f;
             c.river = new[]
             {
                 new RiverPoint(0f, 0f, 14f),
@@ -306,33 +320,47 @@ namespace RushAhead.EditorTools
                 new RiverPoint(166f, 18f, 12f),
                 new RiverPoint(180f, 21f, 14f),
                 new RiverPoint(195f, 21f, 14f),
+                new RiverPoint(210f, 19f, 12f),
+                new RiverPoint(225f, 13f, 10f),
+                new RiverPoint(240f, 9f, 10f),
+                new RiverPoint(255f, 11f, 11f),
+                new RiverPoint(270f, 17f, 12f),
+                new RiverPoint(285f, 21f, 13f),
+                new RiverPoint(300f, 21f, 14f),
+                new RiverPoint(314f, 21f, 14f),
             };
 
             var s = new Survey(c);
             c.startDistance = 8f;
-            c.gates = new[] { s.Near(2) + 2f, s.Near(6), s.Near(8) + 6f, s.Near(11), s.Finish };
+            c.gates = new[] { s.Near(2) + 2f, s.Near(6), s.Near(8) + 6f, s.Near(11), s.Near(15) + 2f, s.Near(19), s.Finish };
             c.rocks = new[] { s.Rock(s.Near(12) + 2f, -4f, 1f) };
             var pool = s.Near(7);
             c.barrels = new[] { s.Spot(pool - 6f, 6f), s.Spot(pool + 5f, 7f), s.Spot(pool + 2f, -8f) };
             c.currents = new[] { new CurrentZone(s.Near(2), s.Near(5), 0.5f), new CurrentZone(s.Near(9), s.Near(11), -0.4f) };
             c.whirlpools = new[] { s.Whirlpool(pool, -3f, 6f, 1.3f, 0.6f) };
-            c.flow = 0.8f;
-            c.crocodiles = new[] { new CrocSpot(s.Near(5) + 3f, 1f, 0.25f, 6.5f, 0f), new CrocSpot(s.Near(10) + 2f, -1f, 0.35f, 6f, 2f) };
-            c.geysers = new[] { s.Geyser(pool + 4f, 7f, 1.8f, 5f, 0f), s.Geyser(s.Near(12) + 4f, 0f, 1.6f, 4.5f, 1.5f) };
-            // Measured by the AI crews: Ace 64.5 s, Keen 105.8 s (knocked off the edge once by the first crocodile), Clumsy
-            // 114.5 s; steady 70.2 s, flat out 62 s. Set as on Otter Creek.
-            c.parSeconds = 123f;
-            c.twoStarSeconds = 103f;
-            c.threeStarSeconds = 65f;
+
+            // Obstacles: a fresh layout every round, dealt from these.
+            c.menu = new[]
+            {
+                new ObstacleChance(ObstacleKind.Hippo, 1.3f), new ObstacleChance(ObstacleKind.Crocodile, 1.3f),
+                new ObstacleChance(ObstacleKind.Geyser), new ObstacleChance(ObstacleKind.SwingingLog),
+                new ObstacleChance(ObstacleKind.Weir, 0.7f), new ObstacleChance(ObstacleKind.Bear),
+                new ObstacleChance(ObstacleKind.Rapids, 0.5f),
+                new ObstacleChance(ObstacleKind.ElectricEels), new ObstacleChance(ObstacleKind.Pelican),
+                new ObstacleChance(ObstacleKind.FallingTree), new ObstacleChance(ObstacleKind.BeaverDam),
+            };
+            c.minObstacles = 9;
+            c.maxObstacles = 13;
         }
 
-        /// <summary>Three whirlpools in wide pools with white water between them, a rock slalom and a climb at the end.</summary>
+        /// <summary>Fast water past three whirlpools and a rock slalom, then a long run to the finish.</summary>
         static void WhirlpoolReach(CourseDef c)
         {
             c.displayName = "Whirlpool Reach";
-            c.blurb = "Three whirlpools that grab and spin, white water between them, and a climb at the end.";
+            c.blurb = "Three whirlpools in fast water, then a long run of white water. New obstacles every round.";
             c.scene = CourseScene.Rapids;
-            c.starsToUnlock = 8;
+            c.starsToUnlock = 6;
+            c.flow = 3.6f;
             c.river = new[]
             {
                 new RiverPoint(0f, 0f, 16f),
@@ -351,11 +379,20 @@ namespace RushAhead.EditorTools
                 new RiverPoint(204f, 53f, 13f),
                 new RiverPoint(210f, 67f, 14f),
                 new RiverPoint(214f, 80f, 14f),
+                new RiverPoint(216f, 96f, 14f),
+                new RiverPoint(222f, 111f, 15f),
+                new RiverPoint(232f, 124f, 16f, 0.35f),
+                new RiverPoint(244f, 135f, 16f),
+                new RiverPoint(256f, 146f, 16f, -0.35f),
+                new RiverPoint(266f, 160f, 15f),
+                new RiverPoint(272f, 175f, 15f),
+                new RiverPoint(274f, 190f, 16f),
+                new RiverPoint(274f, 204f, 16f),
             };
 
             var s = new Survey(c);
             c.startDistance = 8f;
-            c.gates = new[] { s.Near(2), s.Near(5) + 2f, s.Near(7) + 4f, s.Near(9) + 2f, s.Finish };
+            c.gates = new[] { s.Near(2), s.Near(5) + 2f, s.Near(7) + 4f, s.Near(9) + 2f, s.Near(14), s.Near(18), s.Finish };
             c.rocks = new[] { s.Rock(s.Near(10), 3.2f, 1.2f), s.Rock(s.Near(11), -3f, 1.1f), s.Rock(s.Near(12), 3f, 1.1f) };
             c.logs = new[] { s.Log(s.Near(6) + 8f, 5f, 30f, 3.5f), s.Log(s.Near(8) - 6f, -4f, 70f, 3f) };
             c.currents = new[]
@@ -368,24 +405,31 @@ namespace RushAhead.EditorTools
                 s.Whirlpool(s.Near(3), 3.5f, 5.5f, 1.4f, 0.7f), s.Whirlpool(s.Near(6), -3.5f, 6f, -1.6f, 0.8f),
                 s.Whirlpool(s.Near(8), 3.5f, 5.5f, 1.8f, 0.9f),
             };
-            c.flow = 1.8f;
-            c.wheels = new[] { s.Wheel(s.Near(1) + 8f, 4f, 3f, 3, 70f), s.Wheel(s.Near(9) - 5f, -4f, 2.8f, 3, 60f) };
-            c.geysers = new[] { s.Geyser(s.Near(4), 0f, 2f, 5f, 0f), s.Geyser(s.Near(11), 3f, 1.5f, 5f, 2f) };
-            c.swingers = new[] { new SwingSpot(s.Near(13) + 5f, 4.5f, 0f, 3.5f) };
-            // Measured by the AI crews: Ace 71 s, Keen 74.9 s, Clumsy 89.9 s; steady 70.5 s, flat out 73.4 s. Set as on Otter
-            // Creek, keeping two stars a few seconds clear of three where Keen runs nearly as fast as Ace.
-            c.parSeconds = 87f;
-            c.twoStarSeconds = 76f;
-            c.threeStarSeconds = 72f;
+
+            // Obstacles: a fresh layout every round, dealt from these.
+            c.menu = new[]
+            {
+                new ObstacleChance(ObstacleKind.Wheel), new ObstacleChance(ObstacleKind.Cannon),
+                new ObstacleChance(ObstacleKind.Geyser), new ObstacleChance(ObstacleKind.Bear),
+                new ObstacleChance(ObstacleKind.SwingingLog), new ObstacleChance(ObstacleKind.Rapids, 0.7f),
+                new ObstacleChance(ObstacleKind.Rockslide), new ObstacleChance(ObstacleKind.Sluice),
+                new ObstacleChance(ObstacleKind.Weir, 0.6f), new ObstacleChance(ObstacleKind.Sweeper),
+                new ObstacleChance(ObstacleKind.Bumper),
+                new ObstacleChance(ObstacleKind.Waterspout), new ObstacleChance(ObstacleKind.IceFloes),
+                new ObstacleChance(ObstacleKind.Mudslide), new ObstacleChance(ObstacleKind.ElectricEels),
+            };
+            c.minObstacles = 11;
+            c.maxObstacles = 15;
         }
 
-        /// <summary>The longest: a rock slalom in fast water, a whirlpool, a gorge that pushes back, a pool of logs, another whirlpool.</summary>
+        /// <summary>The longest and hardest: every kind of obstacle, the most of them, in the fastest water.</summary>
         static void WhitewaterRun(CourseDef c)
         {
             c.displayName = "Whitewater Run";
-            c.blurb = "The big one: a rock slalom, two whirlpools, a gorge that pushes back and a pool full of logs.";
+            c.blurb = "The big one: the fastest water, and every kind of obstacle there is. New obstacles every round.";
             c.scene = CourseScene.Rapids;
-            c.starsToUnlock = 11;
+            c.starsToUnlock = 8;
+            c.flow = 4.2f;
             c.river = new[]
             {
                 new RiverPoint(0f, 0f, 16f),
@@ -409,11 +453,20 @@ namespace RushAhead.EditorTools
                 new RiverPoint(258f, 56f, 15f),
                 new RiverPoint(274f, 54f, 16f),
                 new RiverPoint(290f, 54f, 16f),
+                new RiverPoint(306f, 52f, 15f),
+                new RiverPoint(322f, 46f, 14f),
+                new RiverPoint(337f, 38f, 14f, 0.35f),
+                new RiverPoint(352f, 34f, 15f),
+                new RiverPoint(368f, 36f, 15f, -0.35f),
+                new RiverPoint(384f, 42f, 15f),
+                new RiverPoint(400f, 46f, 16f),
+                new RiverPoint(416f, 46f, 16f),
+                new RiverPoint(430f, 46f, 16f),
             };
 
             var s = new Survey(c);
             c.startDistance = 8f;
-            c.gates = new[] { s.Near(3) - 6f, s.Near(6) + 2f, s.Near(9) + 4f, s.Near(12) + 8f, s.Near(16), s.Finish };
+            c.gates = new[] { s.Near(3) - 6f, s.Near(6) + 2f, s.Near(9) + 4f, s.Near(12) + 8f, s.Near(16), s.Near(20), s.Near(24), s.Finish };
             c.rocks = new[]
             {
                 s.Rock(s.Near(3), -3f, 1.1f), s.Rock(s.Near(4), 3f, 1.1f), s.Rock(s.Near(5), -3.2f, 1.2f), s.Rock(s.Near(15), -3f, 1f),
@@ -431,15 +484,25 @@ namespace RushAhead.EditorTools
                 new CurrentZone(s.Near(9) - 2f, s.Near(10) + 4f, -0.7f), new CurrentZone(s.Near(13), s.Near(16), 1f),
             };
             c.whirlpools = new[] { s.Whirlpool(s.Near(8), 4f, 6.5f, -1.8f, 0.9f), s.Whirlpool(s.Near(17), -4f, 6f, 1.6f, 0.8f) };
-            c.flow = 1.8f;
-            c.wheels = new[] { s.Wheel(s.Near(1) + 6f, -3.5f, 2.8f, 3, 60f), s.Wheel(s.Near(14), 3f, 2.6f, 3, 70f) };
-            c.swingers = new[] { new SwingSpot(s.Near(7), 5f, 0f, 3.5f), new SwingSpot(s.Near(18) + 4f, 4.5f, 1.5f, 3.5f) };
-            c.geysers = new[] { s.Geyser(s.Near(11) + 2f, 0f, 1.8f, 5f, 0f), s.Geyser(s.Near(17) + 8f, 3f, 1.6f, 4.5f, 2f) };
-            // Measured by the AI crews: Ace 85.4 s, Keen 92.9 s, Clumsy 116.6 s; steady 83.6 s, flat out 91.6 s. Set as on
-            // Otter Creek, keeping two stars a few seconds clear of three.
-            c.parSeconds = 108f;
-            c.twoStarSeconds = 91f;
-            c.threeStarSeconds = 86f;
+
+            // Obstacles: a fresh layout every round, dealt from these.
+            c.menu = new[]
+            {
+                new ObstacleChance(ObstacleKind.Wheel), new ObstacleChance(ObstacleKind.Crocodile),
+                new ObstacleChance(ObstacleKind.SwingingLog), new ObstacleChance(ObstacleKind.Geyser),
+                new ObstacleChance(ObstacleKind.Rockslide), new ObstacleChance(ObstacleKind.Hippo),
+                new ObstacleChance(ObstacleKind.Sluice), new ObstacleChance(ObstacleKind.Sweeper),
+                new ObstacleChance(ObstacleKind.Cannon), new ObstacleChance(ObstacleKind.Rapids, 0.7f),
+                new ObstacleChance(ObstacleKind.Weir, 0.7f), new ObstacleChance(ObstacleKind.Bumper),
+                new ObstacleChance(ObstacleKind.Ferry), new ObstacleChance(ObstacleKind.Bear),
+                new ObstacleChance(ObstacleKind.FallingTree), new ObstacleChance(ObstacleKind.Turtle),
+                new ObstacleChance(ObstacleKind.PiranhaShoal), new ObstacleChance(ObstacleKind.Waterspout),
+                new ObstacleChance(ObstacleKind.ElectricEels), new ObstacleChance(ObstacleKind.Mudslide),
+                new ObstacleChance(ObstacleKind.IceFloes), new ObstacleChance(ObstacleKind.BeaverDam),
+                new ObstacleChance(ObstacleKind.Pelican), new ObstacleChance(ObstacleKind.NetBoat),
+            };
+            c.minObstacles = 15;
+            c.maxObstacles = 21;
         }
     }
 }

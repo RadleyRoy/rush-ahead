@@ -383,7 +383,11 @@ namespace RushAhead.UI
         void OnClientRace()
         {
             var message = client.Race;
-            if (message.Course != venue) LoadVenue(message.Course);
+            if (message.Course != venue || (int)message.LayoutSeed != layoutSeed)
+            {
+                layoutSeed = (int)message.LayoutSeed; // the host's round: the same obstacles, dealt from the same seed
+                LoadVenue(message.Course);
+            }
             clientRaceStart = (int)message.StartTick;
         }
     }

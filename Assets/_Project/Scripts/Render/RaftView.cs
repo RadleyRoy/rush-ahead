@@ -44,6 +44,7 @@ namespace RushAhead.Render
         Vector3 tumbleAxis;
         float quietUntil;
         float wakeDue;
+        float sprayDue;
 
         const float BumpChange = 1.3f; // a change of speed (m/s) over BumpWindow that can only be a knock
         const float BumpWindow = 0.1f;
@@ -118,6 +119,8 @@ namespace RushAhead.Render
             Shapes3D.MeshObject("Band", Shapes3D.Torus(radius - tube, tube), hull, new Vector3(0f, 0.06f, 0f), palette.raftBand);
             Shapes3D.MeshObject("Tube", Shapes3D.Torus(radius - tube - 0.02f, tube * 0.95f), hull, new Vector3(0f, 0.36f, 0f), tubeMaterial);
             Shapes3D.MeshObject("Floor", Shapes3D.Disc(radius - tube), hull, new Vector3(0f, FloorHeight, 0f), palette.raftFloor);
+            if (palette.rope != null) // a rope round the outside of the tube, to grab when it all goes wrong
+                Shapes3D.MeshObject("Rope", Shapes3D.Torus(radius - tube - 0.02f + tube * 0.95f + 0.012f, 0.028f, 64, 6), hull, new Vector3(0f, 0.36f, 0f), palette.rope);
 
             // Grab handles around the tube, like the real thing.
             for (var i = 0; i < 8; i++)
@@ -176,7 +179,7 @@ namespace RushAhead.Render
                 // ourselves; otherwise the slices come out as washed-out pastels.
                 var color = PlayerColor(seat).linear;
                 var mesh = Shapes3D.Sector(radius + 0.08f, radius + 1.8f, centre - half + gap, centre + half - gap,
-                    new Color(color.r, color.g, color.b, 0.6f), new Color(color.r, color.g, color.b, 0.15f));
+                    new Color(color.r, color.g, color.b, 0.36f), new Color(color.r, color.g, color.b, 0.06f));
                 // The air material has no opacity cap (foam's is 55%), and the sort order keeps the colour above the
                 // white foam ring, which sits at the same distance from the camera.
                 var slice = Shapes3D.MeshObject($"Slice {seat}", mesh, transform, new Vector3(0f, 0.03f, 0f), palette.air);
@@ -271,9 +274,18 @@ namespace RushAhead.Render
 
             wasFallen = fallen;
 
-            // The wake: foam left behind the stern, more of it the faster the raft goes.
+            // The wake: foam left behind the stern, more of it the faster the raft goes; spray off the front when it's flying.
             var speed = velocity.magnitude;
             if (capsized || fallen || speed < 0.4f) return;
+            sprayDue += dt * Mathf.Max(0f, speed - 4f) * 2.5f;
+            if (sprayDue >= 1f)
+            {
+                sprayDue = 0f;
+                var ahead = velocity / speed;
+                var side = new Vector2(-ahead.y, ahead.x) * UnityEngine.Random.Range(-0.8f, 0.8f);
+                Splashes.Splash(SimSpace.ToWorld(boat.RenderPosition + ahead * config.hullRadius + side, 0.15f), 0.12f + 0.02f * speed, palette);
+            }
+
             wakeDue += dt * Mathf.Min(24f, speed * 8f);
             while (wakeDue >= 1f)
             {

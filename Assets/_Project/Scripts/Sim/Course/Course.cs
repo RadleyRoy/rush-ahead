@@ -53,7 +53,9 @@ namespace RushAhead.Sim
         readonly List<GameObject> barrels = new();
         readonly List<Rigidbody2D> barrelBodies = new();
 
-        public Course(CourseDef def)
+        /// <param name="seed">Deals this round's obstacles from the course's menu (see <see cref="LayoutGenerator"/>); a course
+        /// without a menu always has its fixed layout.</param>
+        public Course(CourseDef def, int seed = 0)
         {
             Def = def;
             River = new River(def.river);
@@ -62,9 +64,13 @@ namespace RushAhead.Sim
             var start = River.At(def.startDistance);
             SpawnPosition = start.Centre;
             SpawnAngleRad = Mathf.Atan2(start.Tangent.y, start.Tangent.x);
+            Layout = def.HasMenu ? LayoutGenerator.Generate(def, River, seed) : CourseLayout.Fixed(def);
         }
 
         public CourseDef Def { get; }
+
+        /// <summary>Where this round's obstacles are.</summary>
+        public CourseLayout Layout { get; }
         public River River { get; }
 
         /// <summary>Checkpoints in order; the last is the finish line.</summary>
@@ -89,12 +95,14 @@ namespace RushAhead.Sim
         /// <summary>Whether the loose body at this index is a log (the logs follow the barrels).</summary>
         public bool IsLog(int index) => index >= Def.barrels.Length;
 
-        public static Course Build(CourseDef def)
+        public static Course Build(CourseDef def, int seed = 0)
         {
-            var course = new Course(def);
+            var course = new Course(def, seed);
             course.BuildPhysics();
             return course;
         }
+
+        const float WeirPull = 3f; // extra metres per second right at the weir
 
         /// <summary>How far past the water's edge a raft's middle can go before it's over (its tube hangs out first).</summary>
         public const float EdgeMargin = 0.6f;
@@ -126,6 +134,13 @@ namespace RushAhead.Sim
                 barrels.Add(body);
                 barrelBodies.Add(body.GetComponent<Rigidbody2D>());
             }
+
+            // Loose barrels and logs slip under gates, dams, fallen trees and ice rather than jamming against them, where a
+            // raft coming down behind would be wedged for good.
+            foreach (var barrier in Hazards.Barriers)
+                foreach (var body in barrelBodies)
+                    foreach (var collider in body.GetComponents<Collider2D>())
+                        Physics2D.IgnoreCollision(barrier, collider);
         }
 
         /// <summary>
@@ -188,7 +203,7 @@ namespace RushAhead.Sim
         public Vector2 WaterVelocityAt(Vector2 point)
         {
             var velocity = Whirlpools(point);
-            if (Def.currents.Length == 0 && Def.flow <= 0f) return velocity;
+            if (Def.currents.Length == 0 && Def.flow <= 0f && Layout.rapids.Length == 0 && Layout.weirs.Length == 0) return velocity;
 
             var at = River.Project(point);
             var across = at.HalfWidth > 0f ? at.Lateral / at.HalfWidth : 0f;
@@ -199,6 +214,20 @@ namespace RushAhead.Sim
                 var ramp = Mathf.Min((at.Distance - zone.from) / CurrentRampMetres, (zone.to - at.Distance) / CurrentRampMetres);
                 if (ramp <= 0f) continue;
                 velocity += at.Tangent * (zone.speed * Mathf.Min(1f, ramp) * profile);
+            }
+
+            // White water surges; the water pulls harder as it nears a weir and pours over it.
+            if (Mathf.Abs(across) > 1f) return velocity;
+            foreach (var rapid in Layout.rapids)
+            {
+                var ramp = Mathf.Min((at.Distance - rapid.from) / CurrentRampMetres, (rapid.to - at.Distance) / CurrentRampMetres);
+                if (ramp > 0f) velocity += at.Tangent * (rapid.surge * Mathf.Min(1f, ramp) * profile);
+            }
+
+            foreach (var weir in Layout.weirs)
+            {
+                var before = weir.distance - at.Distance;
+                if (before > -2f && before < Weir.RunUp) velocity += at.Tangent * (WeirPull * (1f - Mathf.Abs(before) / Weir.RunUp) * profile);
             }
 
             return velocity;

@@ -63,6 +63,7 @@ namespace RushAhead.UI
             if (quality >= 0 && quality < QualitySettings.names.Length && QualitySettings.GetQualityLevel() != quality)
                 QualitySettings.SetQualityLevel(quality, true);
             router.AimTheRaft = aimTheRaft;
+            Render.Looks.PostProcessing(Camera.main, QualitySettings.GetQualityLevel() > 0);
             router.Touch.LeftHanded = leftHanded;
             Render.Haptics.Enabled = vibration;
             var audio = Render.GameAudio.Instance;

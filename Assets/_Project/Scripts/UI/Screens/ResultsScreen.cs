@@ -143,8 +143,7 @@ namespace RushAhead.UI
             }
 
             Ui.Set(splits, Splits(run));
-            var course = run.Course;
-            Ui.Set(details, $"{run.Lives} of {Race.MaxLives} lives left, {run.Capsizes} capsize{(run.Capsizes == 1 ? "" : "s")}.   Stars at {Ui.Time(course.threeStarSeconds)}, {Ui.Time(course.twoStarSeconds)} and {Ui.Time(course.parSeconds)}.");
+            Ui.Set(details, $"{run.Lives} of {Race.MaxLives} lives left, {run.Capsizes} capsize{(run.Capsizes == 1 ? "" : "s")}.   A star for every life you finish with.");
         }
 
         static string Splits(RaceInfo run)

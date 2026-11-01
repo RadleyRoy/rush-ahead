@@ -66,10 +66,11 @@ namespace RushAhead.AI
         /// </summary>
         public Func<float, float, float, float> SteerAcross { get; set; }
 
-        const float EdgeSense = 2.5f; // metres from the edge where the crew starts steering back in
+        const float LookEvery = 0.25f; // seconds between second looks at a hazard not yet noticed
+        const float EdgeSense = 3.2f; // metres from the edge where the crew starts steering back in
 
-        bool hazardSeen;
         bool hazardNoticed;
+        float sinceLook;
 
         /// <summary>In a Team Race, which side of the racing line this crew keeps to (0 left, 1 right), so two rafts race
         /// side by side rather than queueing nose to tail. One lane (Co-op) follows the line itself.</summary>
@@ -136,12 +137,16 @@ namespace RushAhead.AI
             var minShare = Mathf.Lerp(0.05f, 0.35f, profile.airDiscipline);
             var turnRate = TurnRateWanted(desired, velocity, airAngle);
 
-            // A log about to swing through, or a geyser about to spout: duck. Each crew notices in time only so often;
-            // the steady autopilot always does.
+            // A log about to swing through, or a geyser about to spout: duck. A crew that hasn't noticed yet takes another
+            // look every quarter second, so the less alert ones brace late rather than never; the steady autopilot always does.
             var hazard = BraceAhead != null && BraceAhead(boat.Body.Position, profile.reactionSeconds + 0.6f);
-            if (hazard && !hazardSeen)
+            sinceLook += dt;
+            if (!hazard) hazardNoticed = false;
+            else if (!hazardNoticed && sinceLook >= LookEvery)
+            {
+                sinceLook = 0f;
                 hazardNoticed = profile.reactionSeconds <= 0f || random.NextDouble() < Mathf.Lerp(0.45f, 1f, profile.braceInstinct);
-            hazardSeen = hazard;
+            }
 
             foreach (var seat in seats)
             {
@@ -270,7 +275,7 @@ namespace RushAhead.AI
                         // Near the edge there's nothing to stop a fall: steer back in, harder the closer it gets.
                         var room = at.HalfWidth - Mathf.Abs(at.Lateral);
                         if (desired.HasValue && room < EdgeSense)
-                            desired += -Mathf.Sign(at.Lateral) * new Vector2(-at.Tangent.y, at.Tangent.x) * ((EdgeSense - room) * 1.2f);
+                            desired += -Mathf.Sign(at.Lateral) * new Vector2(-at.Tangent.y, at.Tangent.x) * ((EdgeSense - room) * 1.8f);
                         return desired;
                     }
 

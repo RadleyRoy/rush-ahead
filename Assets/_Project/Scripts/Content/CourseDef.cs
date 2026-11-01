@@ -163,6 +163,270 @@ namespace RushAhead.Content
         }
     }
 
+    /// <summary>A rocky outcrop on one side: boulders roll off it, across the river and over the far edge.</summary>
+    [Serializable]
+    public struct RockslideSpot
+    {
+        [Tooltip("Metres down the river.")] public float distance;
+        [Tooltip("Which side the outcrop is on: +1 the left, -1 the right.")] public float side;
+        [Tooltip("Seconds between boulders.")] [Min(2f)] public float period;
+        public float offset;
+        [Tooltip("The boulder's radius, in metres.")] [Min(0.5f)] public float radius;
+
+        public RockslideSpot(float distance, float side, float period, float offset, float radius)
+        {
+            this.distance = distance;
+            this.side = side;
+            this.period = period;
+            this.offset = offset;
+            this.radius = radius;
+        }
+    }
+
+    /// <summary>A hippo under the water: bubbles, then it surges up and flips anything on top, then sinks again.</summary>
+    [Serializable]
+    public struct HippoSpot
+    {
+        public float distance;
+        [Tooltip("Metres from the middle of the river; positive is the left.")] public float across;
+        [Min(2f)] public float period;
+        public float offset;
+
+        public HippoSpot(float distance, float across, float period, float offset)
+        {
+            this.distance = distance;
+            this.across = across;
+            this.period = period;
+            this.offset = offset;
+        }
+    }
+
+    /// <summary>A timber wall across the river with one gap that slides from side to side.</summary>
+    [Serializable]
+    public struct SluiceSpot
+    {
+        public float distance;
+        [Tooltip("How wide the gap is, in metres (a raft is 3.2 m across).")] [Min(3.6f)] public float gap;
+        [Tooltip("Seconds for the gap to slide across and back.")] [Min(2f)] public float period;
+        public float offset;
+
+        public SluiceSpot(float distance, float gap, float period, float offset)
+        {
+            this.distance = distance;
+            this.gap = gap;
+            this.period = period;
+            this.offset = offset;
+        }
+    }
+
+    /// <summary>A long log on a post in the river, spinning flat across it: time your way past.</summary>
+    [Serializable]
+    public struct SweeperSpot
+    {
+        public float distance;
+        public float across;
+        [Tooltip("End to end, in metres.")] [Min(2f)] public float length;
+        [Tooltip("Positive is anticlockwise seen from above.")] public float degreesPerSecond;
+
+        public SweeperSpot(float distance, float across, float length, float degreesPerSecond)
+        {
+            this.distance = distance;
+            this.across = across;
+            this.length = length;
+            this.degreesPerSecond = degreesPerSecond;
+        }
+    }
+
+    /// <summary>A water cannon on the lip, sweeping its jet across the river and shoving whoever it catches.</summary>
+    [Serializable]
+    public struct CannonSpot
+    {
+        public float distance;
+        [Tooltip("Which side it stands on: +1 the left, -1 the right.")] public float side;
+        [Tooltip("Seconds for a sweep up and back.")] [Min(1f)] public float period;
+        public float offset;
+        [Tooltip("How far up and down the river the jet swings, in degrees either way.")] [Range(0f, 60f)] public float sweepDeg;
+
+        public CannonSpot(float distance, float side, float period, float offset, float sweepDeg)
+        {
+            this.distance = distance;
+            this.side = side;
+            this.period = period;
+            this.offset = offset;
+            this.sweepDeg = sweepDeg;
+        }
+    }
+
+    /// <summary>A stretch of white water: the current surges and the raft gets thrown about.</summary>
+    [Serializable]
+    public struct RapidsSpot
+    {
+        public float from;
+        public float to;
+        [Tooltip("Extra speed the water picks up, in metres per second.")] public float surge;
+
+        public RapidsSpot(float from, float to, float surge)
+        {
+            this.from = from;
+            this.to = to;
+            this.surge = surge;
+        }
+    }
+
+    /// <summary>A low stone weir across the river: the water speeds up over it and the raft lands hard below.</summary>
+    [Serializable]
+    public struct WeirSpot
+    {
+        public float distance;
+
+        public WeirSpot(float distance) => this.distance = distance;
+    }
+
+    /// <summary>A springy buoy that bounces rafts away hard.</summary>
+    [Serializable]
+    public struct BumperSpot
+    {
+        public Vector2 position;
+        [Min(0.4f)] public float radius;
+
+        public BumperSpot(Vector2 position, float radius)
+        {
+            this.position = position;
+            this.radius = radius;
+        }
+    }
+
+    /// <summary>A cable ferry crossing back and forth across the river: heavy, solid and in the way.</summary>
+    [Serializable]
+    public struct FerrySpot
+    {
+        public float distance;
+        [Tooltip("Seconds to cross and come back.")] [Min(3f)] public float period;
+        public float offset;
+
+        public FerrySpot(float distance, float period, float offset)
+        {
+            this.distance = distance;
+            this.period = period;
+            this.offset = offset;
+        }
+    }
+
+    /// <summary>A bear on the lip that rears up and swipes at rafts passing its side, flinging them across.</summary>
+    [Serializable]
+    public struct BearSpot
+    {
+        public float distance;
+        [Tooltip("Which side it stands on: +1 the left, -1 the right.")] public float side;
+        [Min(2f)] public float period;
+        public float offset;
+
+        public BearSpot(float distance, float side, float period, float offset)
+        {
+            this.distance = distance;
+            this.side = side;
+            this.period = period;
+            this.offset = offset;
+        }
+    }
+
+    /// <summary>
+    /// A creature or thing that goes back and forth across the river on a timetable: a snapping turtle, a piranha
+    /// shoal, a waterspout, a net boat. What it does depends on the kind; this is just where and when.
+    /// </summary>
+    [Serializable]
+    public struct CrossingSpot
+    {
+        public float distance;
+        [Tooltip("Seconds to cross and come back.")] [Min(2f)] public float period;
+        public float offset;
+
+        public CrossingSpot(float distance, float period, float offset)
+        {
+            this.distance = distance;
+            this.period = period;
+            this.offset = offset;
+        }
+    }
+
+    /// <summary>Something on one side that acts on a timetable: a mudslide pouring in, a pelican diving.</summary>
+    [Serializable]
+    public struct SideSpot
+    {
+        public float distance;
+        [Tooltip("+1 the left, -1 the right.")] public float side;
+        [Min(2f)] public float period;
+        public float offset;
+
+        public SideSpot(float distance, float side, float period, float offset)
+        {
+            this.distance = distance;
+            this.side = side;
+            this.period = period;
+            this.offset = offset;
+        }
+    }
+
+    /// <summary>Something right across the river that acts on a timetable: electric eels, a beaver dam, ice floes.</summary>
+    [Serializable]
+    public struct AcrossSpot
+    {
+        public float distance;
+        [Min(2f)] public float period;
+        public float offset;
+
+        public AcrossSpot(float distance, float period, float offset)
+        {
+            this.distance = distance;
+            this.period = period;
+            this.offset = offset;
+        }
+    }
+
+
+    /// <summary>The kinds of obstacle a course can be dealt each round (see <see cref="CourseDef.menu"/>).</summary>
+    public enum ObstacleKind
+    {
+        Wheel,
+        Crocodile,
+        SwingingLog,
+        Geyser,
+        Rockslide,
+        Hippo,
+        Sluice,
+        Sweeper,
+        Cannon,
+        Rapids,
+        Weir,
+        Bumper,
+        Ferry,
+        Bear,
+        FallingTree,
+        Turtle,
+        PiranhaShoal,
+        Waterspout,
+        ElectricEels,
+        Mudslide,
+        IceFloes,
+        BeaverDam,
+        Pelican,
+        NetBoat,
+    }
+
+    /// <summary>One kind on a course's menu, and how often it comes up compared with the others.</summary>
+    [Serializable]
+    public struct ObstacleChance
+    {
+        public ObstacleKind kind;
+        [Min(0f)] public float weight;
+
+        public ObstacleChance(ObstacleKind kind, float weight = 1f)
+        {
+            this.kind = kind;
+            this.weight = weight;
+        }
+    }
+
     /// <summary>Where a course is: it sets the look of the banks, not the rules.</summary>
     public enum CourseScene
     {
@@ -210,21 +474,48 @@ namespace RushAhead.Content
         public CurrentZone[] currents = Array.Empty<CurrentZone>();
         public WhirlpoolSpot[] whirlpools = Array.Empty<WhirlpoolSpot>();
 
-        [Header("Obstacles")]
+        [Header("Obstacles dealt each round")]
+        [Tooltip("The kinds of obstacle this course deals a fresh random layout from every round, and how often each comes up. " +
+                 "Empty: the fixed lists below are the layout, every time.")]
+        public ObstacleChance[] menu = Array.Empty<ObstacleChance>();
+        [Min(0)] public int minObstacles = 6;
+        [Min(0)] public int maxObstacles = 9;
+
+        [Header("Obstacles (a fixed layout, when the menu is empty)")]
         public WheelSpot[] wheels = Array.Empty<WheelSpot>();
         public CrocSpot[] crocodiles = Array.Empty<CrocSpot>();
         public SwingSpot[] swingers = Array.Empty<SwingSpot>();
         public GeyserSpot[] geysers = Array.Empty<GeyserSpot>();
+        public RockslideSpot[] rockslides = Array.Empty<RockslideSpot>();
+        public HippoSpot[] hippos = Array.Empty<HippoSpot>();
+        public SluiceSpot[] sluices = Array.Empty<SluiceSpot>();
+        public SweeperSpot[] sweepers = Array.Empty<SweeperSpot>();
+        public CannonSpot[] cannons = Array.Empty<CannonSpot>();
+        public RapidsSpot[] rapids = Array.Empty<RapidsSpot>();
+        public WeirSpot[] weirs = Array.Empty<WeirSpot>();
+        public BumperSpot[] bumpers = Array.Empty<BumperSpot>();
+        public FerrySpot[] ferries = Array.Empty<FerrySpot>();
+        public BearSpot[] bears = Array.Empty<BearSpot>();
+        public SideSpot[] trees = Array.Empty<SideSpot>();
+        public CrossingSpot[] turtles = Array.Empty<CrossingSpot>();
+        public CrossingSpot[] shoals = Array.Empty<CrossingSpot>();
+        public CrossingSpot[] waterspouts = Array.Empty<CrossingSpot>();
+        public AcrossSpot[] eels = Array.Empty<AcrossSpot>();
+        public SideSpot[] mudslides = Array.Empty<SideSpot>();
+        public AcrossSpot[] floes = Array.Empty<AcrossSpot>();
+        public AcrossSpot[] dams = Array.Empty<AcrossSpot>();
+        public SideSpot[] pelicans = Array.Empty<SideSpot>();
+        public CrossingSpot[] netBoats = Array.Empty<CrossingSpot>();
 
-        [Header("Scoring (seconds)")]
-        [Tooltip("Finish within par for one star.")]
-        [Min(1f)] public float parSeconds = 120f;
-        [Min(1f)] public float twoStarSeconds = 100f;
-        [Min(1f)] public float threeStarSeconds = 80f;
-
-        /// <summary>0 to 3 stars for a finishing time.</summary>
-        public int Stars(float seconds) => seconds <= threeStarSeconds ? 3 : seconds <= twoStarSeconds ? 2 : seconds <= parSeconds ? 1 : 0;
+        /// <summary>Whether every round deals a fresh random layout (otherwise the fixed lists are the layout).</summary>
+        public bool HasMenu => menu != null && menu.Length > 0;
 
         public float FinishDistance => gates.Length > 0 ? gates[^1] : 0f;
+
+        /// <summary>A rough time for a decent crew (3 m/s on average): the AI tests give each skill a multiple of it.</summary>
+        public float ExpectedSeconds => FinishDistance / 3f;
+
+        /// <summary>Stars for a run: one for each life left at the finish (any layout is fair that way); none without finishing.</summary>
+        public static int Stars(bool finished, int livesLeft) => finished ? Mathf.Clamp(livesLeft, 0, 3) : 0;
     }
 }

@@ -7,6 +7,7 @@ using RushAhead.UI;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.Rendering.Universal;
 using UnityEngine.SceneManagement;
 using Object = UnityEngine.Object;
 
@@ -208,7 +209,8 @@ namespace RushAhead.EditorTools
             camera.orthographic = false;
             camera.fieldOfView = 55f;
             camera.clearFlags = CameraClearFlags.Skybox;
-            RenderSetup.LightScene(sky);
+            RenderSetup.LightScene(sky, palette);
+            camera.GetUniversalAdditionalCameraData().renderPostProcessing = palette.post != null;
 
             EditorSceneManager.MarkSceneDirty(scene);
             EditorSceneManager.SaveScene(scene);

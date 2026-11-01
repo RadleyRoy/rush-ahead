@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using RushAhead.Content;
 using RushAhead.Sim;
 using UnityEngine;
 
@@ -64,7 +65,8 @@ namespace RushAhead.Render
             view.BuildEdge(scenery, left: true, random);
             view.BuildEdge(scenery, left: false, random);
             view.BuildEnds(scenery, random);
-            view.BuildFloor(scenery, random);
+            if (palette.HasLand) view.BuildLand(scenery, random);
+            else view.BuildFloor(scenery, random);
             foreach (var rock in course.Def.rocks) CourseDressing.Rock(scenery, rock.position, rock.radius, palette, random);
             if (view.style.LilyPads) view.BuildLilyPads(scenery, random);
             StaticBatchingUtility.Combine(scenery.gameObject); // hundreds of primitives that never move: draw them in a few batches
@@ -120,6 +122,8 @@ namespace RushAhead.Render
         /// <summary>The water: a ribbon over the channel only, running a little under the stone lip on each side.</summary>
         void BuildWater(Transform parent)
         {
+            // UVs run across (u, metres from the middle) and down (v, metres down the river), so the ripples can rush
+            // downstream at the river's own speed.
             var samples = course.River.Samples;
             var water = new MeshBuilder();
             for (var i = 0; i < samples.Count - 1; i++)
@@ -129,7 +133,9 @@ namespace RushAhead.Render
                 var wa = a.HalfWidth + WaterUnderLip;
                 var wb = b.HalfWidth + WaterUnderLip;
                 water.Quad(SimSpace.ToWorld(a.Centre + a.Left * wa), SimSpace.ToWorld(b.Centre + b.Left * wb),
-                    SimSpace.ToWorld(b.Centre - b.Left * wb), SimSpace.ToWorld(a.Centre - a.Left * wa), Vector3.up);
+                    SimSpace.ToWorld(b.Centre - b.Left * wb), SimSpace.ToWorld(a.Centre - a.Left * wa), Vector3.up,
+                    new Vector2(wa, a.Distance), new Vector2(wb, b.Distance), new Vector2(-wb, b.Distance), new Vector2(-wa, a.Distance));
+                water.Widths(a.HalfWidth, b.HalfWidth, b.HalfWidth, a.HalfWidth);
             }
 
             // Out over the lip of the last fall, so the water visibly pours off the end.
@@ -137,8 +143,14 @@ namespace RushAhead.Render
             var over = last.Centre + last.Tangent * FallLip;
             var width = last.HalfWidth + WaterUnderLip;
             water.Quad(SimSpace.ToWorld(last.Centre + last.Left * width), SimSpace.ToWorld(over + last.Left * width),
-                SimSpace.ToWorld(over - last.Left * width), SimSpace.ToWorld(last.Centre - last.Left * width), Vector3.up);
-            Shapes3D.MeshObject("Water", water.Build("Water"), parent, Vector3.zero, palette.water);
+                SimSpace.ToWorld(over - last.Left * width), SimSpace.ToWorld(last.Centre - last.Left * width), Vector3.up,
+                new Vector2(width, last.Distance), new Vector2(width, last.Distance + FallLip), new Vector2(-width, last.Distance + FallLip),
+                new Vector2(-width, last.Distance));
+            water.Widths(last.HalfWidth, last.HalfWidth, last.HalfWidth, last.HalfWidth);
+            var flowing = new Material(palette.water) { name = "River water" };
+            flowing.SetFloat("_RiverSpace", 1f);
+            flowing.SetFloat("_FlowSpeed", course.Def.flow);
+            Shapes3D.MeshObject("Water", water.Build("Water"), parent, Vector3.zero, flowing);
         }
 
         /// <summary>
@@ -194,9 +206,24 @@ namespace RushAhead.Render
 
             var side = left ? "Left" : "Right";
             Shapes3D.MeshObject($"{side} foam line", foam.Build($"{side} foam line"), parent, Vector3.zero, palette.foam);
-            Shapes3D.MeshObject($"{side} lip", stone.Build($"{side} lip"), parent, Vector3.zero, style.Cliff);
+            Shapes3D.MeshObject($"{side} lip", stone.Build($"{side} lip"), parent, Vector3.zero, style.Lip);
             Shapes3D.MeshObject($"{side} cliff", face.Build($"{side} cliff"), parent, Vector3.zero, style.Cliff);
             Shapes3D.MeshObject($"{side} cliff below", deep.Build($"{side} cliff below"), parent, Vector3.zero, style.CliffDeep);
+
+            // Ferns along the outer edge of the lip, here and there.
+            if (palette.fernMesh != null)
+                for (var i = (int)(4 + random.NextDouble() * 8); i < count - 4; i += (int)(10 + random.NextDouble() * 14))
+                    Shapes3D.Model("Fern", palette.fernMesh, palette.fernMaterial, parent, SimSpace.ToWorld(edge[i] + outward[i] * (rim[i] * 0.85f), RimTop),
+                        0.9f + (float)random.NextDouble() * 0.7f, (float)random.NextDouble() * 360f);
+
+            // Shrubs on the lip here and there.
+            if (palette.shrubMeshes.Length > 0)
+                for (var i = (int)(6 + random.NextDouble() * 10); i < count - 6; i += (int)(10 + random.NextDouble() * 16))
+                {
+                    var pick = random.Next(palette.shrubMeshes.Length);
+                    Cull(Shapes3D.Model("Lip shrub", palette.shrubMeshes[pick], palette.shrubMaterials[pick], parent,
+                        SimSpace.ToWorld(edge[i] + outward[i] * (rim[i] + 0.25f), RimTop - 0.05f), 0.9f + 0.8f * (float)random.NextDouble(), (float)random.NextDouble() * 360f, 0.1f), 0.01f);
+                }
 
             // Waterfalls spilling over the lip every so often, clear of the very ends.
             for (var i = (int)(8 + random.NextDouble() * 10); i < count - 8; i += (int)(14 + random.NextDouble() * 18))
@@ -274,6 +301,89 @@ namespace RushAhead.Render
                     style.Plant(parent, spot, -drop, palette, random);
                 }
             }
+        }
+
+        /// <summary>
+        /// The land below (see <see cref="GorgeTerrain"/>), planted: woods thick near the foot of the cliffs and thinning
+        /// up the hills (mostly conifers in the rapids' gorge, broadleaf trees elsewhere), shrubs and mossy boulders on the
+        /// scree, and a little mist lying along the valley floor.
+        /// </summary>
+        void BuildLand(Transform parent, System.Random random)
+        {
+            var land = GorgeTerrain.Build(course, style, palette, parent, RimWidth + MaxLean);
+            var detail = Looks.Detail;
+            var size = land.Terrain.terrainData.size;
+            var corner = land.Terrain.transform.position;
+            Vector2 Somewhere(float x, float z, float step) =>
+                new(corner.x + x + (float)random.NextDouble() * step, corner.z + z + (float)random.NextDouble() * step);
+
+            var conifers = course.Def.scene switch { CourseScene.Rapids => 0.85, CourseScene.Lake => 0.2, _ => 0.3 };
+            var woods = Shapes3D.Group(parent, "Woods");
+            const float treeStep = 8.5f;
+            for (var z = 0f; z < size.z - treeStep; z += treeStep)
+            for (var x = 0f; x < size.x - treeStep; x += treeStep)
+            {
+                var spot = Somewhere(x, z, treeStep);
+                var out_ = land.FromCliff(spot);
+                var chance = out_ < 3f ? 0f : out_ < 45f ? 0.7f : out_ < 110f ? 0.3f : 0.1f;
+                if (random.NextDouble() >= chance * detail || land.Steepness(spot) > 33f) continue;
+                var ground = land.Height(spot) - 0.15f;
+                if (!Flora.Available(palette))
+                {
+                    style.Plant(woods, spot, ground, palette, random);
+                    continue;
+                }
+
+                var conifer = random.NextDouble() < conifers;
+                var height = conifer ? 9f + 7f * (float)random.NextDouble() : 7f + 5f * (float)random.NextDouble();
+                Flora.Tree(conifer ? Flora.Kind.Conifer : Flora.Kind.Broadleaf, woods, SimSpace.ToWorld(spot, ground), height,
+                    (float)random.NextDouble() * 360f, random.Next(Flora.Variants), palette);
+            }
+
+            var scree = Shapes3D.Group(parent, "Scree");
+            const float rockStep = 6f;
+            for (var z = 0f; z < size.z - rockStep; z += rockStep)
+            for (var x = 0f; x < size.x - rockStep; x += rockStep)
+            {
+                var spot = Somewhere(x, z, rockStep);
+                var out_ = land.FromCliff(spot);
+                if (out_ < 0.5f || out_ > 40f) continue;
+                var roll = random.NextDouble();
+                var ground = SimSpace.ToWorld(spot, land.Height(spot));
+                if (out_ < 14f && roll < 0.25 * detail && palette.boulderMeshes.Length > 0)
+                {
+                    var pick = random.Next(palette.boulderMeshes.Length);
+                    Cull(Shapes3D.Model("Boulder", palette.boulderMeshes[pick], palette.boulderMaterials[pick], scree, ground,
+                        1.2f + 3.4f * (float)(random.NextDouble() * random.NextDouble()), (float)random.NextDouble() * 360f, 0.25f), 0.012f);
+                }
+                else if (roll < 0.12 * detail && palette.shrubMeshes.Length > 0)
+                {
+                    var pick = random.Next(palette.shrubMeshes.Length);
+                    Cull(Shapes3D.Model("Shrub", palette.shrubMeshes[pick], palette.shrubMaterials[pick], scree, ground,
+                        1f + 1.6f * (float)random.NextDouble(), (float)random.NextDouble() * 360f, 0.05f), 0.015f);
+                }
+            }
+
+            // Mist lying along the valley floor here and there.
+            var mist = new Material(palette.foam) { name = "Mist", color = new Color(0.93f, 0.95f, 1f, 0.07f) };
+            var river = course.River;
+            for (var i = 0; i < 10; i++)
+            {
+                var at = river.At((i + 0.5f) / 10f * river.Length);
+                var side = random.NextDouble() < 0.5 ? -1f : 1f;
+                var spot = at.Centre + at.Left * (side * (at.HalfWidth + RimWidth + MaxLean + 30f + 30f * (float)random.NextDouble()));
+                var cloud = Shapes3D.MeshObject("Mist", Shapes3D.Disc(20f + 14f * (float)random.NextDouble(), 24), parent,
+                    SimSpace.ToWorld(spot, land.Height(spot) + 2.5f + 4f * (float)random.NextDouble()), mist);
+                cloud.GetComponent<MeshRenderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            }
+        }
+
+        /// <summary>Drops a small thing from the drawing once it's a speck on the screen.</summary>
+        static void Cull(GameObject thing, float screenHeight)
+        {
+            var renderers = thing.GetComponentsInChildren<Renderer>();
+            if (renderers.Length == 0) return;
+            thing.AddComponent<LODGroup>().SetLODs(new[] { new LOD(screenHeight, renderers) });
         }
 
         /// <summary>
@@ -394,14 +504,14 @@ namespace RushAhead.Render
             }
         }
 
-        /// <summary>Bamboo posts on the lip each side, a crossbar over the river and a banner hanging from it. Returns the banner's pieces.</summary>
+        /// <summary>Timber posts on the lip each side, a crossbar over the river and a banner hanging from it. Returns the banner's pieces.</summary>
         Renderer[] Arch(Transform parent, Gate gate, string name, Material banner, bool chequered = false)
         {
             var arch = Shapes3D.Group(parent, name);
             var left = gate.LeftEnd - gate.Across * (RimWidth * 0.5f);
             var right = gate.RightEnd + gate.Across * (RimWidth * 0.5f);
             foreach (var post in new[] { left, right })
-                Shapes3D.Primitive(PrimitiveType.Cylinder, arch, SimSpace.ToWorld(post, GateHeight * 0.5f), new Vector3(0.4f, GateHeight * 0.5f, 0.4f), palette.bamboo, name: "Post");
+                Shapes3D.Primitive(PrimitiveType.Cylinder, arch, SimSpace.ToWorld(post, GateHeight * 0.5f), new Vector3(0.4f, GateHeight * 0.5f, 0.4f), palette.wood, name: "Post");
 
             var middle = (left + right) * 0.5f;
             var span = (right - left).magnitude;
@@ -474,7 +584,27 @@ namespace RushAhead.Render
         sealed class MeshBuilder
         {
             readonly List<Vector3> vertices = new();
+            readonly List<Vector2> uvs = new();
+            readonly List<Vector2> widths = new();
             readonly List<int> triangles = new();
+
+            /// <summary>The river's half width at the last quad's corners, in the second UV channel (the water shader's depth).</summary>
+            public void Widths(float a, float b, float c, float d)
+            {
+                widths[^4] = new Vector2(a, 0f);
+                widths[^3] = new Vector2(b, 0f);
+                widths[^2] = new Vector2(c, 0f);
+                widths[^1] = new Vector2(d, 0f);
+            }
+
+            public void Quad(Vector3 a, Vector3 b, Vector3 c, Vector3 d, Vector3 facing, Vector2 ua, Vector2 ub, Vector2 uc, Vector2 ud)
+            {
+                Quad(a, b, c, d, facing);
+                uvs[^4] = ua;
+                uvs[^3] = ub;
+                uvs[^2] = uc;
+                uvs[^1] = ud;
+            }
 
             /// <summary>Both faces, for thin things seen from either side (falling water).</summary>
             public void TwoSided(Vector3 a, Vector3 b, Vector3 c, Vector3 d, Vector3 facing)
@@ -490,6 +620,11 @@ namespace RushAhead.Render
                 vertices.Add(b);
                 vertices.Add(c);
                 vertices.Add(d);
+                for (var k = 0; k < 4; k++)
+                {
+                    uvs.Add(Vector2.zero);
+                    widths.Add(Vector2.zero);
+                }
                 var flip = Vector3.Dot(Vector3.Cross(b - a, c - a), facing) < 0f; // Unity's front faces wind clockwise
                 if (flip) triangles.AddRange(new[] { first, first + 2, first + 1, first, first + 3, first + 2 });
                 else triangles.AddRange(new[] { first, first + 1, first + 2, first, first + 2, first + 3 });
@@ -499,6 +634,8 @@ namespace RushAhead.Render
             {
                 var mesh = new Mesh { name = name, indexFormat = UnityEngine.Rendering.IndexFormat.UInt32 };
                 mesh.SetVertices(vertices);
+                mesh.SetUVs(0, uvs);
+                mesh.SetUVs(1, widths);
                 mesh.SetTriangles(triangles, 0);
                 mesh.RecalculateNormals();
                 mesh.RecalculateBounds();

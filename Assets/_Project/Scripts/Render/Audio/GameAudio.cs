@@ -14,6 +14,9 @@ namespace RushAhead.Render
         const int Voices = 16;
         const float MusicLevel = 0.32f;
         const float AmbienceLevel = 0.22f;
+
+        /// <summary>How fast the raft being watched is going, 0 to 1: the river's rush gets louder and higher with it.</summary>
+        public float Rush { get; set; }
         const float MusicFadeSeconds = 1.2f;
 
         AudioSource[] flat;
@@ -139,7 +142,8 @@ namespace RushAhead.Render
             if (menuMusic == null && menuTask is { IsCompletedSuccessfully: true }) menuMusic = Synth.Clip("Menu music", menuTask.Result, Music.Rate);
             if (raceMusic == null && raceTask is { IsCompletedSuccessfully: true }) raceMusic = Synth.Clip("Race music", raceTask.Result, Music.Rate);
 
-            ambience.volume = AmbienceLevel * EffectsVolume;
+            ambience.volume = AmbienceLevel * (1f + 1.2f * Rush) * EffectsVolume;
+            ambience.pitch = 1f + 0.3f * Rush;
 
             // musicA always plays what's wanted; a change swaps the sources and fades the old one out.
             var wanted = wantRace ? raceMusic : menuMusic;

@@ -1,7 +1,7 @@
 {
     "name": "RushAhead.Render",
     "rootNamespace": "RushAhead.Render",
-    "references": ["RushAhead.Sim", "RushAhead.Content"],
+    "references": ["RushAhead.Sim", "RushAhead.Content", "Unity.RenderPipelines.Core.Runtime", "Unity.RenderPipelines.Universal.Runtime"],
     "includePlatforms": [],
     "excludePlatforms": [],
     "allowUnsafeCode": false,

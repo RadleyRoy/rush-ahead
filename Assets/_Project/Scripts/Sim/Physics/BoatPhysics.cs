@@ -124,11 +124,20 @@ namespace RushAhead.Sim
             return pushed;
         }
 
+        /// <summary>
+        /// For barriers a raft gets pressed against or runs into (a beaver dam, a fallen tree, ice, a sluice gate): it slides
+        /// along them to the gap rather than sticking, and a bump stops it without rocking it over.
+        /// </summary>
+        public static readonly PhysicsMaterial2D Cushioned = new("Cushioned") { friction = 0f, bounciness = 0.05f };
+
+        const float CushionedKick = 0.15f;
+
         void OnCollisionEnter2D(Collision2D collision)
         {
             collision.GetContacts(contacts);
+            var kick = collision.collider.sharedMaterial == Cushioned ? CushionedKick : 1f;
             foreach (var contact in contacts)
-                pendingImpactImpulse += contact.normal * contact.normalImpulse;
+                pendingImpactImpulse += contact.normal * (contact.normalImpulse * kick);
         }
 
         /// <summary>Moment of inertia per unit mass of a uniform polygon about the origin.</summary>

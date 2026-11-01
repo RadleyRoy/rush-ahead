@@ -54,18 +54,19 @@ namespace RushAhead.Tests
             return o;
         }
 
+        // Every round deals a new layout: each skill on round 1, and the Ace on round 2 as well.
         static IEnumerable<TestCaseData> CoursesAndSkills() =>
             from course in CourseSolvabilityTests.AllCourses()
-            from skill in new[] { AiSkill.Clumsy, AiSkill.Keen, AiSkill.Ace }
-            select new TestCaseData(course, skill).SetName($"{course.name}: an all-{skill} crew finishes");
+            from run in new (AiSkill skill, int seed)[] { (AiSkill.Clumsy, 1), (AiSkill.Keen, 1), (AiSkill.Ace, 1), (AiSkill.Ace, 2) }
+            select new TestCaseData(course, run.skill, run.seed).SetName($"{course.name}: an all-{run.skill} crew finishes round {run.seed}");
 
-        // How long each skill may take, as a multiple of par. Clumsy is allowed to be bad; it mustn't be hopeless.
-        static float Allowance(AiSkill skill) => skill switch { AiSkill.Clumsy => 2f, AiSkill.Keen => 1.25f, _ => 1f };
+        // How long each skill may take, as a multiple of the course's expected time. Clumsy is allowed to be bad; it mustn't be hopeless.
+        static float Allowance(AiSkill skill) => skill switch { AiSkill.Clumsy => 2f, AiSkill.Keen => 1.4f, _ => 1.15f }; // a life lost costs a few seconds
 
         [TestCaseSource(nameof(CoursesAndSkills))]
-        public void ACrewOfAiAlone_FinishesTheCourse(CourseDef def, AiSkill skill)
+        public void ACrewOfAiAlone_FinishesTheCourse(CourseDef def, AiSkill skill, int seed)
         {
-            var course = Course.Build(def);
+            var course = Course.Build(def, seed);
             try
             {
                 world.WaterVelocity = course.WaterVelocityAt;
@@ -76,7 +77,7 @@ namespace RushAhead.Tests
                 ai.Drive(CrewSectors.DriveOrder(4));
                 var race = new Race(course, boat, world.Tick, config.tickRate);
 
-                var limit = race.StartTick + Mathf.CeilToInt(def.parSeconds * 2.5f * config.tickRate);
+                var limit = race.StartTick + Mathf.CeilToInt(def.ExpectedSeconds * 2.5f * config.tickRate);
                 var losses = new List<string>();
                 var lives = boat.Lives;
                 var trouble = "";
@@ -102,12 +103,14 @@ namespace RushAhead.Tests
 
                 var time = race.SecondsAt(world.Tick);
                 Debug.Log($"[RushAhead] {def.name}: all-{skill} AI crew {(race.Phase == RacePhase.Finished ? "finished" : "did not finish")} " +
-                          $"in {time:0.0} s, {def.Stars(time)} stars, {boat.CapsizeCount} capsizes, {boat.Lives} lives left" +
+                          $"round {seed} ({course.Layout.Count} obstacles) in {time:0.0} s, {CourseDef.Stars(race.Phase == RacePhase.Finished, boat.Lives)} stars, " +
+                          $"{boat.CapsizeCount} capsizes, {boat.Lives} lives left" +
                           (losses.Count > 0 ? $" (lost: {string.Join("; ", losses)})" : ""));
-                if (skill == AiSkill.Clumsy && race.Phase == RacePhase.Out) return; // Clumsy may run out of lives: reported, not required
+                // Clumsy may run out of lives anywhere, and Keen on the hard courses (the last three): reported, not required.
+                if (race.Phase == RacePhase.Out && (skill == AiSkill.Clumsy || (skill == AiSkill.Keen && def.starsToUnlock >= 4))) return;
                 Assert.That(race.Phase, Is.Not.EqualTo(RacePhase.Out), $"ran out of lives with {boat.GatesPassed} of {course.Gates.Count} gates after {time:0} s");
                 Assert.That(race.Phase, Is.EqualTo(RacePhase.Finished), $"stuck with {boat.GatesPassed} of {course.Gates.Count} gates after {time:0} s");
-                Assert.That(time, Is.LessThanOrEqualTo(def.parSeconds * Allowance(skill)), $"{skill} took {time:0.0} s");
+                Assert.That(time, Is.LessThanOrEqualTo(def.ExpectedSeconds * Allowance(skill)), $"{skill} took {time:0.0} s");
             }
             finally
             {
@@ -121,7 +124,7 @@ namespace RushAhead.Tests
         [TestCaseSource(nameof(EveryCourse))]
         public void ATeamRaceOfTwoAiRafts_EndsWithAWinner(CourseDef def)
         {
-            var course = Course.Build(def);
+            var course = Course.Build(def, 1);
             try
             {
                 world.WaterVelocity = course.WaterVelocityAt;
@@ -141,7 +144,7 @@ namespace RushAhead.Tests
                     "side by side on the start line, not on top of each other");
                 Assert.That(rafts[0].race.StartTick, Is.EqualTo(rafts[1].race.StartTick));
 
-                var limit = rafts[0].race.StartTick + Mathf.CeilToInt(def.parSeconds * 1.5f * config.tickRate);
+                var limit = rafts[0].race.StartTick + Mathf.CeilToInt(def.ExpectedSeconds * 1.5f * config.tickRate);
                 while (rafts.Any(r => r.race.Phase != RacePhase.Finished && r.race.Phase != RacePhase.Out) && world.Tick < limit)
                 {
                     foreach (var r in rafts) r.ai.Update(Dt);

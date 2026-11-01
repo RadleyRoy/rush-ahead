@@ -156,6 +156,9 @@ namespace RushAhead.Net
 
         /// <summary>The host's AI crewmates: 0 Clumsy, 1 Keen, 2 Ace, or <see cref="AiOff"/>.</summary>
         public byte AiSkill;
+
+        /// <summary>The seed this round's obstacles were dealt from: joiners deal the same layout from it.</summary>
+        public uint LayoutSeed;
     }
 
     public struct PropSnapshot
@@ -175,7 +178,7 @@ namespace RushAhead.Net
     public static class Protocol
     {
         /// <summary>Bump on any wire-format change. Mismatched peers refuse each other.</summary>
-        public const byte Version = 7;
+        public const byte Version = 8;
 
         const byte FlagHasAim = 1, FlagBrace = 2;
         const byte BoatCapsized = 1, BoatFallen = 2, BoatOut = 4;
@@ -272,6 +275,7 @@ namespace RushAhead.Net
             w.U32(m.StartTick);
             w.U8((byte)m.Phase);
             w.U8(m.AiSkill);
+            w.U32(m.LayoutSeed);
         }
 
         public static RaceMessage ReadRace(ByteReader r)
@@ -283,6 +287,7 @@ namespace RushAhead.Net
             m.Phase = (RoomPhase)phase;
             m.AiSkill = r.U8();
             if (m.AiSkill > 2 && m.AiSkill != RaceMessage.AiOff) throw new ProtocolException($"Unknown AI skill {m.AiSkill}.");
+            m.LayoutSeed = r.U32();
             ExpectEnd(r, "race");
             return m;
         }

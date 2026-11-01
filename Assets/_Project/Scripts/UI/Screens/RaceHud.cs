@@ -303,6 +303,7 @@ namespace RushAhead.UI
             if (subscribed) Game.Router.ButtonTapped -= Tapped;
             subscribed = false;
             Feel(null);
+            if (GameAudio.Instance != null) GameAudio.Instance.Rush = 0f;
             Game.Router.Touch.ClearButtons();
             Game.Router.Touch.CancelCapture();
         }
@@ -444,6 +445,7 @@ namespace RushAhead.UI
             if (Flow.Paused) RefreshPauseMenu();
 
             Feel(Game.RaftView);
+            if (GameAudio.Instance != null) GameAudio.Instance.Rush = boat != null ? Mathf.InverseLerp(2.5f, 9f, boat.Velocity.magnitude) : 0f;
             UpdateSounds(run);
             UpdateKeys();
             UpdateTags();

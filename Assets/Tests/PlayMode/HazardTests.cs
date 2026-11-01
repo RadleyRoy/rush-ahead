@@ -146,13 +146,13 @@ namespace RushAhead.Tests
             var waiting = hazards.Croc(0, 1.0);
             Assert.That(course.River.Project(waiting.position).Lateral, Is.GreaterThan(7f), "waiting on the left edge");
             Assert.That(waiting.lunging, Is.False);
-            var out_ = hazards.Croc(0, 4.5);
+            var out_ = hazards.Croc(0, 4.2);
             Assert.That(course.River.Project(out_.position).Lateral, Is.EqualTo(7f - 0.4f * 14f).Within(0.05f), "out in the river");
             Assert.That(out_.lunging, Is.True);
 
             var boat = Spawn(new Vector2(40f, 2f));
             var pushed = 0f;
-            while (Seconds < 4.5)
+            while (Seconds < 4.2)
             {
                 Step(boat);
                 pushed = Mathf.Min(pushed, boat.Body.Velocity.y);
@@ -160,9 +160,9 @@ namespace RushAhead.Tests
 
             Assert.That(pushed, Is.LessThan(-1f), "rammed toward the far side");
             var t = (world.Tick - 1) / (double)config.tickRate; // the pose the last step moved it to
-            var hit = Physics2D.OverlapPoint(hazards.Croc(0, t).position);
-            Assert.That(hit, Is.Not.Null);
-            Assert.That(hit.attachedRigidbody.name, Does.StartWith("Crocodile"), "its body is where the clock says");
+            var hits = Physics2D.OverlapPointAll(hazards.Croc(0, t).position);
+            Assert.That(System.Array.Exists(hits, h => h.attachedRigidbody != null && h.attachedRigidbody.name.StartsWith("Crocodile")), Is.True,
+                "its body is where the clock says");
         }
     }
 }

@@ -16,11 +16,12 @@ MonoBehaviour:
   raftTube: {fileID: 2100000, guid: da5963a22e4a04c45be1feba4b54471c, type: 2}
   raftBand: {fileID: 2100000, guid: 91b3ed2e070ca104ebeaada29b1f6b06, type: 2}
   raftFloor: {fileID: 2100000, guid: 152b294838d8a7c4e825bc8e4e31d847, type: 2}
-  rock: {fileID: 2100000, guid: c174e409944cf59408fa40183968d106, type: 2}
-  cliff: {fileID: 2100000, guid: 8247c162d40406741884f71a7013b060, type: 2}
-  grass: {fileID: 2100000, guid: 8425d47dcd052274eaaebda1cea518de, type: 2}
-  wood: {fileID: 2100000, guid: daf563f672cbff44f83e39956260781d, type: 2}
-  leaves: {fileID: 2100000, guid: 0bbf3c884c33e734d8fe69e9c131e875, type: 2}
+  rope: {fileID: 2100000, guid: 5d3097855bf192e4b9f8988263989c42, type: 2}
+  rock: {fileID: 2100000, guid: 27caa3cd6d1f9fb4cac5316e7506e0ed, type: 2}
+  cliff: {fileID: 2100000, guid: b74ff36fb7ccb0f489c3b85a55859a6e, type: 2}
+  grass: {fileID: 2100000, guid: ed417f37a222c9c49bf6b0755cb56763, type: 2}
+  wood: {fileID: 2100000, guid: 850e635cd37451a4cbfeb8fc197bf3dd, type: 2}
+  leaves: {fileID: 2100000, guid: d4d66e96440355542be7447a15cb50c5, type: 2}
   bamboo: {fileID: 2100000, guid: 2f95f4350d8e31d4ea3dc7b079fcf022, type: 2}
   sign: {fileID: 2100000, guid: 84656349bf444fb47bbb3d06890a5da3, type: 2}
   barrel: {fileID: 2100000, guid: b2cbcd69c69f50d419841fce755c59f0, type: 2}
@@ -31,3 +32,80 @@ MonoBehaviour:
   blowerTrim: {fileID: 2100000, guid: 5af1f44ef46ad2f4fb91df7fa71b6ccf, type: 2}
   air: {fileID: 2100000, guid: 676150983e93e87498f7cda047ee14f9, type: 2}
   foam: {fileID: 2100000, guid: 7472e098c083c754daaee972b4dcfc5f, type: 2}
+  planks: {fileID: 2100000, guid: 1486e6fe381fe7343bb5952d96d7f686, type: 2}
+  metal: {fileID: 2100000, guid: f40f896108371c24bbb7f80f941cb7d9, type: 2}
+  sand: {fileID: 2100000, guid: d5bbb665ab80b574786b5aaa92ca7558, type: 2}
+  rockMeshes:
+  - {fileID: 4698301958008671950, guid: 0aefe68b9aef46341ac00fb60f42367b, type: 3}
+  - {fileID: 5970182942014483449, guid: 15e5904b92a9f71468974390f58ec7f1, type: 3}
+  - {fileID: 4873202832613784711, guid: fb3e7660596ec304e825337048e113ef, type: 3}
+  rockMaterials:
+  - {fileID: 2100000, guid: 4c032d1abd3f2e6438a2ef6c486f3334, type: 2}
+  - {fileID: 2100000, guid: e80b7171c4cdf5b479da73f766e74fb7, type: 2}
+  - {fileID: 2100000, guid: c58d9476a93babe4793e98b5148331e6, type: 2}
+  buoyMesh: {fileID: -2086685988520278519, guid: ff34c3d21eb33e94cb4f08201e76d373, type: 3}
+  buoyMaterial: {fileID: 2100000, guid: 884d91ec31fa68d4199397e6e0b4024d, type: 2}
+  crateMesh: {fileID: -5153355113492709648, guid: 4e79a2e35b1f575478a883f78b289ab4, type: 3}
+  crateMaterial: {fileID: 2100000, guid: 495a974cd54315b4f877e4bd66d10414, type: 2}
+  barrelMesh: {fileID: -2617038690270552742, guid: 368cbb53645237b4b8113d5962d9041c, type: 3}
+  barrelMaterial: {fileID: 2100000, guid: 4db4c9ad45d79b34b817010d820fa7fd, type: 2}
+  fernMesh: {fileID: -1101056946369687347, guid: 412b0e2802f1af24fb8d5daf1c6a3096, type: 3}
+  fernMaterial: {fileID: 2100000, guid: 38fa5c13ae4cd5e42bd915c7ce0a9e9d, type: 2}
+  skyCubemap: {fileID: 8900000, guid: 34a45ba6438319043b84ea9959d756c5, type: 3}
+  post: {fileID: 11400000, guid: d8fa80908a838ff47bff2d211110a08d, type: 2}
+  animalMeshes:
+  - {fileID: 4300000, guid: d4391bbf01a5b6e43b392b90ef276651, type: 2}
+  - {fileID: 4300000, guid: 89d2c9809c3e3794d80b3843d891a479, type: 2}
+  - {fileID: 4300000, guid: e5b20d7b0eabed84f89a32314d6e81d2, type: 2}
+  - {fileID: 4300000, guid: 1f4f3f6d6d9180b4e9260c95886f12c9, type: 2}
+  - {fileID: 4300000, guid: 09c56d200baa57645b153306d0fc9a65, type: 2}
+  - {fileID: 4300000, guid: 477bf559fe0893b4fbd6d64e81123cc3, type: 2}
+  fur: {fileID: 2100000, guid: 0625c2ddb9d502847a76e94c370a0cf6, type: 2}
+  creatureMeshes:
+  - {fileID: 4300000, guid: 79b961d1251542e4f84b180fb55c1920, type: 2}
+  - {fileID: 4300000, guid: 86d99019d86b9cd489a2469fae34abe5, type: 2}
+  - {fileID: 4300000, guid: 0fa0c118ec2e9da4291c92c0019ac34f, type: 2}
+  - {fileID: 4300000, guid: a2bcf2e74b8a0584f80db1a0cafccf4c, type: 2}
+  - {fileID: 4300000, guid: e29b54258c378bc468554c82cc0ad8a1, type: 2}
+  - {fileID: 4300000, guid: 89b0b58998cb55847b6072546846c8f0, type: 2}
+  - {fileID: 4300000, guid: b693f4e7bb6502b48a4b92d226951951, type: 2}
+  - {fileID: 4300000, guid: e965d7c730662bf4e936187defae80b4, type: 2}
+  shrubMeshes:
+  - {fileID: 4300000, guid: 0e01b13020c9c2f49842fafe4372988d, type: 2}
+  - {fileID: 4300000, guid: 9874b2e4f26cbd241a3353714fa06d3c, type: 2}
+  - {fileID: 4300000, guid: 583b60a2cf2b301418f4dcb077394ede, type: 2}
+  - {fileID: 4300000, guid: 7a70d888cece3cc4a9e685167bc5dc1f, type: 2}
+  shrubMaterials:
+  - {fileID: 2100000, guid: 711707c9f9c383842bfdd1c5800e0a0a, type: 2}
+  - {fileID: 2100000, guid: ae142b9f68aeaac41a0d19ac4de90afd, type: 2}
+  - {fileID: 2100000, guid: f4af461327a75204393275d0e2d1352b, type: 2}
+  - {fileID: 2100000, guid: 01a2a0b66a60ae84ab1faa3e05c01774, type: 2}
+  boulderMeshes:
+  - {fileID: 4300000, guid: caa1663140df3e948a7a1d0203030c11, type: 2}
+  - {fileID: 4300000, guid: 6a3d43e4e68ad4640bfc1dbfb099df35, type: 2}
+  - {fileID: 4300000, guid: 0699f78d31d8f68499d6490fc36db187, type: 2}
+  - {fileID: 4300000, guid: 8a5a1d7e9725a3d4ca729dfbf2e41b00, type: 2}
+  - {fileID: 4300000, guid: 51717116f7ad65e41aeff59dd82feb96, type: 2}
+  - {fileID: 4300000, guid: baf2af34f6997094fbed03155846d08d, type: 2}
+  - {fileID: 4300000, guid: 97675910b3023124cb8d15237e2d47b2, type: 2}
+  boulderMaterials:
+  - {fileID: 2100000, guid: ecc886fae6b4d144f8bab5e52b605b54, type: 2}
+  - {fileID: 2100000, guid: ecc886fae6b4d144f8bab5e52b605b54, type: 2}
+  - {fileID: 2100000, guid: ecc886fae6b4d144f8bab5e52b605b54, type: 2}
+  - {fileID: 2100000, guid: 5dfa34a10dad88d45bedd208f2aaa29d, type: 2}
+  - {fileID: 2100000, guid: 5dfa34a10dad88d45bedd208f2aaa29d, type: 2}
+  - {fileID: 2100000, guid: 5dfa34a10dad88d45bedd208f2aaa29d, type: 2}
+  - {fileID: 2100000, guid: ab7f5a998d0485549b4e1dac0c4b0458, type: 2}
+  cliffMesh: {fileID: 4300000, guid: 26048f41db968b44f8b3db54f324b11a, type: 2}
+  cliffMaterial: {fileID: 2100000, guid: 85131de00a9a14e4faaa94a84c1ede48, type: 2}
+  leafCards: {fileID: 2100000, guid: 76261537b2b2bea4ab8705d1c40bf9e5, type: 2}
+  needleCards: {fileID: 2100000, guid: 515766020f774aa4eaffd7ee7291c81c, type: 2}
+  mud: {fileID: 2100000, guid: 68697dfaa27c9df47b8b4a83356d3288, type: 2}
+  terrainMaterial: {fileID: 2100000, guid: 368fe3cfef33bf14ca70d1290e9effe3, type: 2}
+  terrainLayers:
+  - {fileID: 8574412962073106934, guid: ad332b9aad5834142b4b704adc599a43, type: 2}
+  - {fileID: 8574412962073106934, guid: 35e762a800eb8df43b48d5517aaf0632, type: 2}
+  - {fileID: 8574412962073106934, guid: 13c1384f834532e4abf0abd679dfae6e, type: 2}
+  - {fileID: 8574412962073106934, guid: cee4fbde26d8c6444881438fb426db70, type: 2}
+  - {fileID: 8574412962073106934, guid: 33a3296731f15a645a58a737daab7428, type: 2}
+  - {fileID: 8574412962073106934, guid: 44c07223b765c494882414c3aa2f023d, type: 2}
