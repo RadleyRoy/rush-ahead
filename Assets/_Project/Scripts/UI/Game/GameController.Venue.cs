@@ -63,6 +63,37 @@ namespace RushAhead.UI
             layoutRaced = false;
         }
 
+        System.Func<double> exhibitClock;
+
+        /// <summary>
+        /// The gallery: a course built from <paramref name="def"/> with exactly <paramref name="layout"/>, its obstacles
+        /// posed (and stepped) on <paramref name="clock"/> rather than the race clock, every raft moored at
+        /// <paramref name="raftAt"/> facing <paramref name="headingRad"/>.
+        /// </summary>
+        public Course ShowExhibit(CourseDef def, CourseLayout layout, System.Func<double> clock, Vector2 raftAt, float headingRad)
+        {
+            UnloadVenue();
+            course = Course.Build(def, 0, layout);
+            courseView = CourseView.Build(course, palette);
+            exhibitClock = clock;
+            courseView.Obstacles.Clock = ClockSeconds;
+            if (showHitZones) ShowHitZones = true;
+            barrels.AddRange(course.Barrels);
+            barrelBodies.AddRange(course.BarrelBodies);
+            runner.World.WaterVelocity = course.WaterVelocityAt;
+            runner.World.Drifting.AddRange(barrelBodies);
+            for (var i = 0; i < rafts.Count; i++)
+            {
+                var boat = rafts[i].Boat;
+                boat.ResetTo(raftAt + new Vector2(0f, i * 4f), headingRad);
+                boat.ClearRun();
+                boat.ControlsLocked = true;
+                boat.Moored = true;
+            }
+
+            return course;
+        }
+
         /// <summary>Host or solo: deals a fresh layout of obstacles for the next round (rebuilding the course with it).</summary>
         void DealNewLayout()
         {
@@ -95,6 +126,7 @@ namespace RushAhead.UI
             barrelBodies.Clear();
             runner.World.Drifting.Clear();
             runner.World.WaterVelocity = null;
+            exhibitClock = null;
         }
 
         void BuildLagoon()

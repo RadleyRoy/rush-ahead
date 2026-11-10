@@ -24,6 +24,7 @@ MonoBehaviour:
   lateralDrag: 40
   angularDrag: 18
   waterCarry: 1
+  bendCarry: 1
   nozzleTurnDegPerSec: 420
   thrustMultiplier: 1.8
   coneCoupling: 0.5

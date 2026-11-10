@@ -4,50 +4,74 @@ using UnityEngine;
 
 namespace RushAhead.Render
 {
-    /// <summary>A tall tree on the lip that shakes, topples across the river, lies in the water, then drifts off and sinks.</summary>
+    /// <summary>
+    /// A tall pine on the lip, its roots in a mound of earth. Once a race it shakes (dropping needles), topples across the
+    /// river with its root plate tearing up, and lies there for the rest of the race with the water piling white
+    /// against it. A pine, not a round-crowned tree: its tip is thin, so the gap past it reads as open water.
+    /// </summary>
     sealed class FallingTreeView : ObstacleView
     {
         readonly FallingTree tree;
         readonly Transform pivot;
         readonly Transform foam;
+        readonly Transform roots;
         readonly Quaternion upright;
         readonly Vector3 foot;
+        float lastTilt;
 
         public FallingTreeView(FallingTree tree, ArtPalette palette, Transform parent) : base(Shapes3D.Group(parent, "Falling tree"), palette)
         {
             this.tree = tree;
             var into = -tree.Spot.side * tree.At.Left; // the way it falls: into the river
             var bark = Tint(palette.wood, new Color(0.36f, 0.25f, 0.16f));
+            var earth = Tint(palette.wood, new Color(0.3f, 0.22f, 0.15f));
             var length = tree.Length;
-            foot = SimSpace.ToWorld(tree.Foot, 0.35f);
+            foot = SimSpace.ToWorld(tree.Foot, 0.3f);
             upright = Facing(into);
             pivot = Shapes3D.Group(Root, "Pivot");
             pivot.SetPositionAndRotation(foot, upright);
-            Part(PrimitiveType.Cylinder, pivot, new Vector3(0f, length * 0.5f, 0f), new Vector3(FallingTree.TrunkWidth, length * 0.5f, FallingTree.TrunkWidth), bark, name: "Trunk");
-
-            // Boughs up the top half, smaller toward the crown (which mustn't hide the gap past it).
-            var random = new System.Random(Mathf.RoundToInt(tree.Spot.distance * 13f));
-            for (var i = 0; i < 7; i++)
+            if (Flora.Available(palette))
             {
-                var size = Mathf.Lerp(2.4f, 1.1f, i / 6f);
-                var angle = (float)random.NextDouble() * Mathf.PI * 2f;
-                var reach = 0.3f + (float)random.NextDouble() * 0.4f;
-                Part(PrimitiveType.Sphere, pivot, new Vector3(Mathf.Cos(angle) * reach, length * (0.4f + 0.09f * i), Mathf.Sin(angle) * reach),
-                    new Vector3(size, size * 0.75f, size), palette.leaves, name: "Bough");
+                Flora.Tree(Flora.Kind.Conifer, pivot, Vector3.zero, length + 0.4f, 37f * tree.Spot.distance, Mathf.RoundToInt(tree.Spot.distance), palette);
+            }
+            else
+            {
+                Part(PrimitiveType.Cylinder, pivot, new Vector3(0f, length * 0.5f, 0f), new Vector3(FallingTree.TrunkWidth, length * 0.5f, FallingTree.TrunkWidth), bark, name: "Trunk");
+                for (var i = 0; i < 7; i++)
+                {
+                    var size = Mathf.Lerp(2.4f, 0.8f, i / 6f);
+                    Part(PrimitiveType.Sphere, pivot, new Vector3(0f, length * (0.3f + 0.1f * i), 0f), new Vector3(size, size * 0.6f, size), palette.leaves, name: "Bough");
+                }
             }
 
-            Part(PrimitiveType.Sphere, Root, foot + Vector3.down * 0.15f, new Vector3(1.7f, 0.6f, 1.7f), bark, name: "Roots");
-            foam = Part(PrimitiveType.Cube, Root, SimSpace.ToWorld(tree.Foot + into * (length * 0.5f), 0.03f), new Vector3(FallingTree.TrunkWidth + 0.9f, 0.04f, length),
+            // The root plate tips up with the trunk; the mound it stood in stays on the bank, with a dark hole once it's gone.
+            roots = Shapes3D.Group(pivot, "Root plate");
+            Part(PrimitiveType.Cylinder, roots, new Vector3(0f, -0.15f, 0f), new Vector3(1.9f, 0.18f, 1.9f), earth, name: "Plate");
+            for (var i = 0; i < 6; i++)
+            {
+                var angle = i * 60f + 15f;
+                var direction = Quaternion.Euler(0f, angle, 0f) * Vector3.forward;
+                Part(PrimitiveType.Cylinder, roots, direction * 0.75f + Vector3.down * 0.25f, new Vector3(0.16f, 0.45f, 0.16f), bark,
+                    Quaternion.LookRotation(Vector3.down, direction) * Quaternion.Euler(-60f, 0f, 0f), "Root");
+            }
+
+            var outward = SimSpace.Direction(-into);
+            Part(PrimitiveType.Sphere, Root, foot + outward * 0.9f + Vector3.down * 0.5f, new Vector3(3.6f, 1.4f, 3.2f), earth, name: "Mound");
+            Part(PrimitiveType.Cylinder, Root, foot + Vector3.down * 0.02f, new Vector3(1.7f, 0.03f, 1.7f), Tint(palette.wood, new Color(0.12f, 0.09f, 0.06f)), name: "Hole");
+            foam = Part(PrimitiveType.Cube, Root, SimSpace.ToWorld(tree.Foot + into * (length * 0.5f), 0.03f), new Vector3(FallingTree.TrunkWidth + 1.4f, 0.04f, length),
                 palette.foam, upright, "Wash").transform;
         }
 
         public override void Pose(double seconds)
         {
-            var (tilt, shake, washed) = tree.Pose(seconds);
-            var wobble = shake * 3f * Mathf.Sin((float)seconds * 31f);
-            var drift = SimSpace.Direction(tree.At.Tangent) * (washed * 14f) + Vector3.down * (washed * 1.6f);
-            pivot.SetPositionAndRotation(foot + drift, upright * Quaternion.Euler(tilt * 90f + wobble, 0f, 0f));
-            foam.gameObject.SetActive(tilt >= 1f && washed < 0.5f);
+            var (tilt, shake) = tree.Pose(seconds);
+            var wobble = shake * shake * 6f * Mathf.Sin((float)seconds * 27f);
+            pivot.SetPositionAndRotation(foot, upright * Quaternion.Euler(tilt * 90f + wobble, 0f, 0f));
+            foam.gameObject.SetActive(tilt >= 1f);
+            if (tilt >= 1f && lastTilt is > 0f and < 1f) // it hit the water just now
+                for (var i = 1; i <= 3; i++)
+                    Splashes.Splash(SimSpace.ToWorld(tree.Foot - tree.Spot.side * tree.At.Left * (tree.Length * i / 3.5f), 0.1f), 2.2f, Palette);
+            lastTilt = tilt;
         }
     }
 
@@ -134,7 +158,19 @@ namespace RushAhead.Render
         {
             this.shoal = shoal;
             churn = Shapes3D.Group(Root, "Churn");
-            Shapes3D.MeshObject("Froth", Shapes3D.Disc(PiranhaShoal.Radius, 28), churn, new Vector3(0f, 0.03f, 0f), palette.foam);
+            Shapes3D.MeshObject("Froth", Shapes3D.Disc(PiranhaShoal.Radius, 28), churn, new Vector3(0f, 0.03f, 0f),
+                Tint(palette.foam, new Color(0.9f, 0.42f, 0.36f, 0.5f)));
+            var finSkin = Tint(palette.animal, new Color(0.22f, 0.22f, 0.24f));
+            for (var i = 0; i < 7; i++)
+            {
+                // Fins cutting the water, circling (they turn with the churn).
+                var angle = i * Mathf.PI * 2f / 7f;
+                var r = PiranhaShoal.Radius * (i % 2 == 0 ? 0.7f : 0.45f);
+                var fin = Shapes3D.Group(churn, "Fin", new Vector3(Mathf.Cos(angle) * r, 0f, Mathf.Sin(angle) * r));
+                fin.localRotation = Quaternion.LookRotation(new Vector3(-Mathf.Sin(angle), 0f, Mathf.Cos(angle)));
+                Part(PrimitiveType.Cube, fin, new Vector3(0f, 0.18f, 0f), new Vector3(0.05f, 0.36f, 0.32f), finSkin, Quaternion.Euler(-30f, 0f, 0f), "Dorsal");
+                Shapes3D.MeshObject("Wake", Shapes3D.Disc(0.28f, 10), fin, new Vector3(0f, 0.04f, -0.2f), palette.foam);
+            }
             var random = new System.Random(Mathf.RoundToInt(shoal.Spot.distance * 11f));
             for (var i = 0; i < 9; i++)
             {
@@ -162,7 +198,7 @@ namespace RushAhead.Render
         {
             var centre = shoal.Position(seconds);
             churn.position = SimSpace.ToWorld(centre);
-            churn.localRotation = Quaternion.Euler(0f, (float)seconds * 40f, 0f);
+            churn.localRotation = Quaternion.Euler(0f, (float)seconds * 75f, 0f);
             foreach (var (one, spot, phase) in fish)
             {
                 var t = (float)seconds * 3.2f + phase;
@@ -182,27 +218,45 @@ namespace RushAhead.Render
         readonly Waterspout spout;
         readonly Transform column;
         readonly Transform swirl;
-        readonly List<Transform> rings = new();
+        readonly Transform cloud;
 
         public WaterspoutView(Waterspout spout, ArtPalette palette, Transform parent) : base(Shapes3D.Group(parent, "Waterspout"), palette)
         {
             this.spout = spout;
+            const float core = Waterspout.Core;
+            var heights = new[] { 0f, 1.2f, 3f, 5.5f, 8f, 10.5f, 12.5f, 14.2f };
+            var radii = new[] { core * 1.25f, core * 0.85f, core * 0.7f, core * 0.75f, core * 0.95f, core * 1.35f, core * 2f, core * 3.2f };
+            var sway = new[] { 0f, 0.15f, 0.45f, 0.7f, 0.55f, 0.15f, -0.3f, -0.5f };
             column = Shapes3D.Group(Root, "Column");
-            for (var i = 0; i < 8; i++)
+            Shapes3D.MeshObject("Funnel", Lathe(radii, heights, sway), column, Vector3.zero, palette.Spray(new Color(0.55f, 0.6f, 0.66f, 0.85f), 0.9f, 0f, 2.5f, 1f));
+            var veil = new float[radii.Length];
+            for (var i = 0; i < radii.Length; i++) veil[i] = radii[i] * 1.45f + 0.2f;
+            Shapes3D.MeshObject("Veil", Lathe(veil, heights, sway), column, Vector3.zero, palette.Spray(new Color(0.88f, 0.9f, 0.94f, 0.3f), 0.7f, -0.3f, 1.5f, 1.2f));
+
+            // The storm cloud it hangs from: dark, low and lumpy.
+            cloud = Shapes3D.Group(Root, "Cloud", new Vector3(0f, 15.2f, 0f));
+            var storm = Tint(palette.eyeWhite, new Color(0.33f, 0.35f, 0.4f));
+            var random = new System.Random(Mathf.RoundToInt(spout.Spot.distance * 3f));
+            for (var i = 0; i < 9; i++)
             {
-                var r = i < 5 ? Waterspout.Core * (1.15f - 0.13f * i) : Waterspout.Core * (0.5f + 0.35f * (i - 4));
-                rings.Add(Part(PrimitiveType.Cylinder, column, new Vector3(0f, 0.8f + i * 1.6f, 0f), new Vector3(2f * r, 0.8f, 2f * r), palette.foam, name: "Spray").transform);
+                var angle = i * 40f * Mathf.Deg2Rad;
+                var r = i == 0 ? 0f : 2.2f + (float)random.NextDouble() * 2.6f;
+                var size = 3.4f + (float)random.NextDouble() * 2.4f;
+                Part(PrimitiveType.Sphere, cloud, new Vector3(Mathf.Cos(angle) * r, (float)random.NextDouble() * 0.8f, Mathf.Sin(angle) * r),
+                    new Vector3(size, size * 0.55f, size), storm, name: "Billow");
             }
 
-            Part(PrimitiveType.Sphere, column, new Vector3(0f, 13.5f, 0f), new Vector3(7f, 1.8f, 7f), Palette.Tinted(palette.foam, new Color(0.7f, 0.72f, 0.76f, 0.7f)), name: "Cloud");
+            // Spray boiling up round its foot, and streaks of foam spiralling in.
             swirl = Shapes3D.Group(Root, "Swirl");
-            Shapes3D.MeshObject("Foot", Shapes3D.Disc(Waterspout.Core * 1.6f, 20), swirl, new Vector3(0f, 0.04f, 0f), palette.foam);
-            for (var i = 0; i < 8; i++)
+            Shapes3D.MeshObject("Spray", Lathe(new[] { core * 3f, core * 2.4f, core * 1.3f }, new[] { 0.05f, 1f, 2.3f }), swirl, Vector3.zero,
+                palette.Spray(new Color(0.95f, 0.97f, 1f, 0.6f), 0.6f, 0f, 1f));
+            Shapes3D.MeshObject("Foot", Shapes3D.Disc(core * 2.6f, 24), swirl, new Vector3(0f, 0.04f, 0f), palette.foam);
+            for (var i = 0; i < 10; i++)
             {
-                var angle = i * Mathf.PI / 4f;
-                var r = 1.6f + (i % 3) * 0.9f;
-                Part(PrimitiveType.Cube, swirl, new Vector3(Mathf.Cos(angle) * r, 0.03f, Mathf.Sin(angle) * r), new Vector3(0.35f, 0.03f, 1.8f + r * 0.4f), palette.foam,
-                    Quaternion.Euler(0f, -angle * Mathf.Rad2Deg + 20f, 0f), "Streak");
+                var angle = i * Mathf.PI / 5f;
+                var r = 2.2f + (i % 3) * 0.9f;
+                Part(PrimitiveType.Cube, swirl, new Vector3(Mathf.Cos(angle) * r, 0.03f, Mathf.Sin(angle) * r), new Vector3(0.35f, 0.03f, 2f + r * 0.4f), palette.foam,
+                    Quaternion.Euler(0f, -angle * Mathf.Rad2Deg + 25f, 0f), "Streak");
             }
         }
 
@@ -210,14 +264,9 @@ namespace RushAhead.Render
         {
             var t = (float)seconds;
             Root.position = SimSpace.ToWorld(spout.Position(seconds));
-            column.localRotation = Quaternion.Euler(0f, t * 240f, 0f);
-            for (var i = 0; i < rings.Count; i++)
-            {
-                var p = rings[i].localPosition;
-                rings[i].localPosition = new Vector3(Mathf.Sin(t * 1.3f + i * 0.5f) * 0.12f * i, p.y, Mathf.Cos(t * 1.1f + i * 0.4f) * 0.1f * i);
-            }
-
-            swirl.localRotation = Quaternion.Euler(0f, t * 140f, 0f);
+            column.localRotation = Quaternion.Euler(Mathf.Sin(t * 0.7f) * 4f, t * 260f, Mathf.Cos(t * 0.9f) * 4f);
+            swirl.localRotation = Quaternion.Euler(0f, t * 150f, 0f);
+            cloud.localRotation = Quaternion.Euler(0f, t * 12f, 0f);
         }
     }
 
@@ -243,19 +292,38 @@ namespace RushAhead.Render
                 var across = Mathf.Lerp(-0.8f, 0.8f, i / 4f) * at.HalfWidth;
                 var lengthways = ((float)random.NextDouble() - 0.5f) * ElectricEels.Depth * 0.6f;
                 var eel = Shapes3D.Group(Root, "Eel");
-                eel.SetPositionAndRotation(SimSpace.ToWorld(at.Centre + at.Left * across + at.Tangent * lengthways, -0.12f), Facing(at.Left * (i % 2 == 0 ? 1f : -1f)));
-                for (var s = 0; s < 6; s++)
+                eel.SetPositionAndRotation(SimSpace.ToWorld(at.Centre + at.Left * across + at.Tangent * lengthways, 0f), Facing(at.Left * (i % 2 == 0 ? 1f : -1f)));
+                for (var s = 0; s < 7; s++)
                 {
-                    var size = s == 0 ? 0.36f : 0.32f - s * 0.03f;
-                    Part(PrimitiveType.Sphere, eel, new Vector3(0f, 0f, 0.6f - s * 0.38f), new Vector3(size, size * 0.8f, 0.5f), skin, name: "Segment");
-                    if (s % 2 == 1) Part(PrimitiveType.Sphere, eel, new Vector3(0f, size * 0.35f, 0.6f - s * 0.38f), Vector3.one * 0.1f, spots, name: "Spot");
+                    // Backs and heads just breaking the surface, glowing spots along them.
+                    var size = s == 0 ? 0.5f : 0.46f - s * 0.04f;
+                    Part(PrimitiveType.Sphere, eel, new Vector3(0f, 0f, 0.9f - s * 0.5f), new Vector3(size, size * 0.55f, 0.68f), skin, name: "Segment");
+                    Part(PrimitiveType.Sphere, eel, new Vector3(0f, size * 0.24f, 0.9f - s * 0.5f), Vector3.one * 0.13f, spots, name: "Spot");
                 }
+
+                foreach (var x in new[] { -1f, 1f })
+                    Part(PrimitiveType.Sphere, eel, new Vector3(0.14f * x, 0.12f, 1.05f), Vector3.one * 0.09f, palette.eyeDark, name: "Eye");
 
                 bodies.Add((eel, (float)random.NextDouble() * 6f));
             }
 
             glow = new Material(palette.foam) { name = "Eel glow", color = new Color(0.45f, 0.85f, 1f, 0f) };
             glowStrip = Part(PrimitiveType.Cube, Root, SimSpace.ToWorld(at.Centre, 0.05f), new Vector3(2f * at.HalfWidth, 0.02f, ElectricEels.Depth), glow, along, "Glow").transform;
+            // A warning sign on each bank: a yellow diamond with a black bolt.
+            var yellow = Tint(palette.sign, new Color(1f, 0.82f, 0.1f));
+            var black = Tint(palette.eyeDark, new Color(0.05f, 0.05f, 0.05f));
+            foreach (var side in new[] { -1f, 1f })
+            {
+                var post = Shapes3D.Group(Root, "Warning sign");
+                post.SetPositionAndRotation(SimSpace.ToWorld(at.Centre + at.Left * (side * (at.HalfWidth + 0.7f)) - at.Tangent * (ElectricEels.Depth * 0.5f + 1f)),
+                    Facing(-at.Tangent));
+                Part(PrimitiveType.Cylinder, post, new Vector3(0f, 0.9f, 0f), new Vector3(0.1f, 0.9f, 0.1f), palette.Planks, name: "Post");
+                Part(PrimitiveType.Cube, post, new Vector3(0f, 2.05f, -0.06f), new Vector3(0.85f, 0.85f, 0.06f), yellow, Quaternion.Euler(0f, 0f, 45f), "Diamond");
+                Part(PrimitiveType.Cube, post, new Vector3(0.06f, 2.2f, -0.1f), new Vector3(0.12f, 0.42f, 0.03f), black, Quaternion.Euler(0f, 0f, -25f), "Bolt");
+                Part(PrimitiveType.Cube, post, new Vector3(-0.06f, 1.9f, -0.1f), new Vector3(0.12f, 0.42f, 0.03f), black, Quaternion.Euler(0f, 0f, -25f), "Bolt");
+                Part(PrimitiveType.Cube, post, new Vector3(0f, 2.05f, -0.1f), new Vector3(0.3f, 0.09f, 0.03f), black, Quaternion.Euler(0f, 0f, 20f), "Bolt");
+            }
+
             var spark = Tint(palette.eyeWhite, new Color(0.8f, 0.95f, 1f));
             for (var i = 0; i < 12; i++)
             {
@@ -270,9 +338,11 @@ namespace RushAhead.Render
         {
             var t = (float)seconds;
             var warning = eels.Warning(seconds, out var pulsing);
-            var flicker = pulsing ? 0.75f : warning > 0f && Mathf.Sin(t * 45f) > 0.6f - warning ? 0.25f + 0.25f * warning : 0f;
+            // A faint hum always marks the band; it flickers harder as a pulse comes, and blazes during one.
+            var hum = 0.16f + 0.05f * Mathf.Sin(t * 7f);
+            var flicker = pulsing ? 0.8f : warning > 0f && Mathf.Sin(t * 45f) > 0.6f - warning ? 0.3f + 0.3f * warning : hum;
             glow.color = new Color(0.45f, 0.85f, 1f, flicker);
-            glowStrip.gameObject.SetActive(flicker > 0f);
+            glowStrip.gameObject.SetActive(true);
             for (var i = 0; i < sparks.Count; i++)
             {
                 sparks[i].gameObject.SetActive(pulsing && Mathf.Sin(t * 60f + i * 2.1f) > 0f);
@@ -282,7 +352,7 @@ namespace RushAhead.Render
             foreach (var (eel, phase) in bodies)
             {
                 var p = eel.position;
-                eel.position = new Vector3(p.x, -0.12f + (pulsing ? 0.08f : 0f), p.z);
+                eel.position = new Vector3(p.x, (pulsing ? 0.12f : 0f) + 0.03f * Mathf.Sin(t * 1.7f + phase), p.z);
                 var e = eel.eulerAngles;
                 eel.rotation = Quaternion.Euler(e.x, e.y, (pulsing ? 25f : 6f) * Mathf.Sin(t * (pulsing ? 30f : 2f) + phase));
             }
@@ -310,11 +380,15 @@ namespace RushAhead.Render
             var mud = Tint(palette.rock, new Color(0.38f, 0.27f, 0.17f));
             var wet = palette.mud != null ? palette.mud : Tint(palette.rock, new Color(0.27f, 0.19f, 0.11f));
             var facing = Facing(into);
-            slopeAt = SimSpace.ToWorld(edge - into * 3f, 1.4f);
-            slope = Part(PrimitiveType.Cube, Root, slopeAt, new Vector3(2f * Mudslide.Along + 1f, 0.6f, 6.5f), mud, facing * Quaternion.Euler(18f, 0f, 0f), "Slope").transform;
+            var random0 = new System.Random(Mathf.RoundToInt(slide.Spot.distance * 3f));
+            slope = Shapes3D.Group(Root, "Hillside");
+            slopeAt = Vector3.zero;
+            Shapes3D.MeshObject("Bluff", Bluff(at, slide.Spot.side, Mudslide.Along + 1.5f, 5f, 5f, random0), slope, Vector3.zero,
+                palette.mud != null ? Tint(palette.mud, new Color(0.74f, 0.6f, 0.46f)) : mud);
+            // The scar down its face where the mud comes away: from near the top to the water.
             pour = Shapes3D.Group(Root, "Pour");
-            pour.SetPositionAndRotation(SimSpace.ToWorld(edge, 0.55f), facing * Quaternion.Euler(35f, 0f, 0f));
-            Part(PrimitiveType.Cube, pour, new Vector3(0f, 0f, -0.9f), new Vector3(2f * Mudslide.Along, 0.28f, 2.2f), wet, name: "Chute");
+            pour.SetPositionAndRotation(SimSpace.ToWorld(edge - into * 2.4f, 2.45f), facing * Quaternion.Euler(44f, 0f, 0f));
+            Part(PrimitiveType.Cube, pour, Vector3.zero, new Vector3(2f * Mudslide.Along, 0.3f, 7f), wet, name: "Chute");
             sheet = Shapes3D.Group(Root, "Sheet");
             sheet.SetPositionAndRotation(SimSpace.ToWorld(edge, 0.06f), facing);
             Part(PrimitiveType.Cube, sheet, new Vector3(0f, 0f, 0.5f), new Vector3(2f * Mudslide.Along, 0.14f, 1f), wet, name: "Slurry");
@@ -331,7 +405,7 @@ namespace RushAhead.Render
         {
             var flow = slide.Flow(seconds, out var rumble);
             var t = (float)seconds;
-            slope.position = slopeAt + new Vector3(Mathf.Sin(t * 41f), 0f, Mathf.Cos(t * 37f)) * (0.06f * rumble);
+            slope.localPosition = slopeAt + new Vector3(Mathf.Sin(t * 41f), 0f, Mathf.Cos(t * 37f)) * (0.06f * rumble);
             pour.gameObject.SetActive(flow > 0f || rumble > 0.4f);
             pour.localScale = new Vector3(flow > 0f ? 1f : 0.25f, 1f, 1f);
             var reach = slide.Reach * flow;
@@ -506,9 +580,11 @@ namespace RushAhead.Render
 
             dark = new Material(palette.foam) { name = "Pelican shadow", color = new Color(0f, 0f, 0f, 0f) };
             shadow = Shapes3D.MeshObject("Shadow", Shapes3D.Disc(PelicanDive.Splash, 28), Root, Vector3.zero, dark).transform;
+            Shapes3D.MeshObject("Target", Shapes3D.Torus(PelicanDive.Splash, 0.09f, 40, 8), shadow, new Vector3(0f, 0.03f, 0f),
+                Tint(palette.sign, new Color(1f, 0.25f, 0.15f)));
             splash = Shapes3D.Group(Root, "Splash");
             Shapes3D.MeshObject("Ring", Shapes3D.Disc(PelicanDive.Splash, 24), splash, new Vector3(0f, 0.05f, 0f), palette.foam);
-            Part(PrimitiveType.Sphere, splash, new Vector3(0f, 0.3f, 0f), new Vector3(1.6f, 1.2f, 1.6f), palette.foam, name: "Plume");
+            Part(PrimitiveType.Sphere, splash, new Vector3(0f, 0.3f, 0f), new Vector3(1.6f, 1.2f, 1.6f), palette.Spray(new Color(1f, 1f, 1f, 0.75f), 0.5f, 0f, 1.5f), name: "Plume");
         }
 
         public override void Pose(double seconds)

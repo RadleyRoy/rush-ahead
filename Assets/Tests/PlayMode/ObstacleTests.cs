@@ -242,18 +242,28 @@ namespace RushAhead.Tests
             Build();
             var loose = Spawn(new Vector2(40f, 3f));
             var braced = Spawn(new Vector2(30f, 3f), brace: true);
-            while (Seconds < 8f * FallingTree.Down - 0.2f) Run(Dt, loose, braced);
-            Assert.That(loose.CapsizeCount, Is.Zero, "nothing happens while it stands");
+            var tree = (FallingTree)course.Hazards.Obstacles[2];
+            Run(20f, loose, braced);
+            Assert.That(tree.Pose(Seconds).tilt, Is.Zero, "no race on: it stands");
+            Assert.That(loose.CapsizeCount, Is.Zero, "and nothing happens");
+
+            course.Hazards.RaceStart = Seconds + 1.0;
+            var lands = ((FallingTree)course.Hazards.Obstacles[0]).LandsAt;
+            Assert.That(lands, Is.EqualTo(tree.LandsAt), "trees this near the start all fall 2.5 s after it");
+            while (Seconds < lands - 0.2) Run(Dt, loose, braced);
+            Assert.That(loose.CapsizeCount, Is.Zero, "nothing happens while it creaks");
             Run(0.6f, loose, braced);
             Assert.That(loose.CapsizeCount, Is.GreaterThanOrEqualTo(1), "it came down on the raft");
             Assert.That(braced.CapsizeCount, Is.Zero, "braced, the crew rode it out");
 
-            var tree = (FallingTree)course.Hazards.Obstacles[2];
             var trunk = At(new Vector2(50f, 3f));
             Assert.That(trunk, Is.Not.Null, "lying across the river");
             Assert.That(trunk.isTrigger, Is.False, "solid where no raft is under it");
             Assert.That(At(new Vector2(50f, tree.GapCentre)), Is.Null, "with open water past its crown");
             Assert.That(tree.GapCentre, Is.LessThan(-3f), "on the far side from its foot");
+            Run(30f, loose, braced);
+            Assert.That(tree.Pose(Seconds).tilt, Is.EqualTo(1f), "it stays down for the rest of the race");
+            Assert.That(At(new Vector2(50f, 3f)), Is.Not.Null, "still across the river");
         }
 
         [Test]

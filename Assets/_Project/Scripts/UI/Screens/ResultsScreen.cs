@@ -1,4 +1,6 @@
 using System.Collections.Generic;
+using System.Linq;
+using RushAhead.Content;
 using RushAhead.Render;
 using RushAhead.Sim;
 using UnityEngine;
@@ -21,6 +23,8 @@ namespace RushAhead.UI
         VisualElement splits;
         readonly List<(VisualElement cell, Label name, Label time, Label delta)> splitCells = new();
         Label details;
+        VisualElement culpritRow;
+        Label culprits;
         VisualElement hostButtons;
         VisualElement joinerRow;
         Label waiting;
@@ -70,6 +74,15 @@ namespace RushAhead.UI
             panel.Add(splits);
             details = Ui.Text("", "small muted");
             panel.Add(details);
+            panel.Add(Ui.Spacer("spacer-s"));
+            culprits = Ui.Text("", "body");
+            culprits.style.flexShrink = 1;
+            culpritRow = Ui.El("row", culprits, Ui.Grow(), Btn("results-culprit", "What hit me?", () =>
+            {
+                var last = App.Culprits.Count > 0 ? App.Culprits[App.Culprits.Count - 1] : null;
+                App.OpenGuide(last);
+            }, "btn btn--small"));
+            panel.Add(culpritRow);
             panel.Add(Ui.Grow());
 
             hostButtons = Ui.El("row");
@@ -146,6 +159,9 @@ namespace RushAhead.UI
             }
 
             ShowSplits(run);
+            Ui.Show(culpritRow, App.Culprits.Count > 0);
+            if (App.Culprits.Count > 0)
+                Ui.Set(culprits, "Caught out by " + string.Join(", ", App.Culprits.Select(id => ObstacleGuide.ById(id)?.Name.ToLowerInvariant() ?? id)) + ".");
             Ui.Set(details, $"{run.Lives} of {Race.MaxLives} lives left, {run.Capsizes} capsize{(run.Capsizes == 1 ? "" : "s")}.   A star for every life you finish with.");
         }
 

@@ -42,8 +42,15 @@ namespace RushAhead.Sim
         readonly Dictionary<(Boat, object, int), double> lastHit = new();
         readonly List<Obstacle> obstacles = new();
         readonly List<BoostLane> boosts = new();
+        readonly List<Marker> markers = new();
         double lastSeconds = double.NaN;
         static readonly PhysicsMaterial2D Paddle = new("Paddle") { bounciness = 0.5f, friction = 0.2f };
+
+        /// <summary>
+        /// The race clock's time at the start (the GO) of the race being run, or NaN between races. What happens once a
+        /// race (a tree falling) is timed from it, so every device agrees from the clock alone.
+        /// </summary>
+        public double RaceStart { get; set; } = double.NaN;
 
         public Hazards(Course course, Transform parent)
         {
@@ -68,12 +75,14 @@ namespace RushAhead.Sim
                 wheels.Add(go.GetComponent<Rigidbody2D>());
                 var at = course.River.Project(wheel.position);
                 wheelSpots.Add((at.Distance, at.Lateral));
+                Mark(ObstacleKind.Wheel, at.Distance, at.Lateral);
             }
 
             foreach (var geyser in def.geysers)
             {
                 var at = course.River.Project(geyser.position);
                 geyserSpots.Add((at.Distance, at.Lateral));
+                Mark(ObstacleKind.Geyser, at.Distance, at.Lateral);
             }
 
             for (var i = 0; i < def.crocodiles.Length; i++)
@@ -86,36 +95,97 @@ namespace RushAhead.Sim
                 capsule.size = new Vector2(CrocLength, 2f * CrocRadius);
                 capsule.isTrigger = true; // its bite does the work: a body switching solid with a raft inside it flings the raft clean off
                 crocs.Add(go.GetComponent<Rigidbody2D>());
+                Mark(ObstacleKind.Crocodile, def.crocodiles[i].distance, 0f);
             }
 
-            foreach (var spot in def.rockslides) Add(new Rockslide(course, parent, spot));
-            foreach (var spot in def.hippos) Add(new Hippo(course, parent, spot));
-            foreach (var spot in def.sluices) Add(new Sluice(course, parent, spot));
-            foreach (var spot in def.sweepers) Add(new Sweeper(course, parent, spot));
-            foreach (var spot in def.cannons) Add(new Cannon(course, spot));
-            foreach (var spot in def.rapids) Add(new Rapids(course, spot));
-            foreach (var spot in def.weirs) Add(new Weir(course, spot));
-            foreach (var spot in def.bumpers) Add(new Bumper(course, parent, spot));
-            foreach (var spot in def.ferries) Add(new Ferry(course, parent, spot));
-            foreach (var spot in def.bears) Add(new Bear(course, spot));
-            foreach (var spot in def.trees) Add(new FallingTree(course, parent, spot));
-            foreach (var spot in def.turtles) Add(new Turtle(course, parent, spot));
-            foreach (var spot in def.shoals) Add(new PiranhaShoal(course, spot));
-            foreach (var spot in def.waterspouts) Add(new Waterspout(course, spot));
-            foreach (var spot in def.eels) Add(new ElectricEels(course, spot));
-            foreach (var spot in def.mudslides) Add(new Mudslide(course, spot));
-            foreach (var spot in def.floes) Add(new IceFloes(course, parent, spot));
-            foreach (var spot in def.dams) Add(new BeaverDam(course, parent, spot));
-            foreach (var spot in def.pelicans) Add(new PelicanDive(course, spot));
-            foreach (var spot in def.netBoats) Add(new NetBoat(course, parent, spot));
-            foreach (var spot in def.boosts) boosts.Add(new BoostLane(course, spot));
+            foreach (var swing in def.swingers) Mark(ObstacleKind.SwingingLog, swing.distance, 0f);
+
+            foreach (var spot in def.rockslides) Add(new Rockslide(course, parent, spot), ObstacleKind.Rockslide, spot.distance, Bank(spot.distance, spot.side));
+            foreach (var spot in def.hippos) Add(new Hippo(course, parent, spot), ObstacleKind.Hippo, spot.distance, spot.across);
+            foreach (var spot in def.sluices) Add(new Sluice(course, parent, spot), ObstacleKind.Sluice, spot.distance);
+            foreach (var spot in def.sweepers) Add(new Sweeper(course, parent, spot), ObstacleKind.Sweeper, spot.distance, spot.across);
+            foreach (var spot in def.cannons) Add(new Cannon(course, spot), ObstacleKind.Cannon, spot.distance, Bank(spot.distance, spot.side));
+            foreach (var spot in def.rapids) Add(new Rapids(course, spot), ObstacleKind.Rapids, spot.from);
+            foreach (var spot in def.weirs) Add(new Weir(course, spot), ObstacleKind.Weir, spot.distance);
+            foreach (var spot in def.bumpers) Add(new Bumper(course, parent, spot), ObstacleKind.Bumper, course.River.Project(spot.position).Distance, course.River.Project(spot.position).Lateral);
+            foreach (var spot in def.ferries) Add(new Ferry(course, parent, spot), ObstacleKind.Ferry, spot.distance);
+            foreach (var spot in def.bears) Add(new Bear(course, spot), ObstacleKind.Bear, spot.distance, Bank(spot.distance, spot.side));
+            foreach (var spot in def.trees) Add(new FallingTree(course, parent, spot), ObstacleKind.FallingTree, spot.distance, Bank(spot.distance, spot.side));
+            foreach (var spot in def.turtles) Add(new Turtle(course, parent, spot), ObstacleKind.Turtle, spot.distance);
+            foreach (var spot in def.shoals) Add(new PiranhaShoal(course, spot), ObstacleKind.PiranhaShoal, spot.distance);
+            foreach (var spot in def.waterspouts) Add(new Waterspout(course, spot), ObstacleKind.Waterspout, spot.distance);
+            foreach (var spot in def.eels) Add(new ElectricEels(course, spot), ObstacleKind.ElectricEels, spot.distance);
+            foreach (var spot in def.mudslides) Add(new Mudslide(course, spot), ObstacleKind.Mudslide, spot.distance, Bank(spot.distance, spot.side));
+            foreach (var spot in def.floes) Add(new IceFloes(course, parent, spot), ObstacleKind.IceFloes, spot.distance);
+            foreach (var spot in def.dams) Add(new BeaverDam(course, parent, spot), ObstacleKind.BeaverDam, spot.distance);
+            foreach (var spot in def.pelicans) Add(new PelicanDive(course, spot), ObstacleKind.Pelican, spot.distance, 0.5f * Bank(spot.distance, spot.side));
+            foreach (var spot in def.netBoats) Add(new NetBoat(course, parent, spot), ObstacleKind.NetBoat, spot.distance);
+            foreach (var spot in def.boosts)
+            {
+                boosts.Add(new BoostLane(course, spot));
+                markers.Add(new Marker("BoostLane", null, spot.distance, spot.across, null));
+            }
+
+            foreach (var pool in course.Def.whirlpools)
+            {
+                var at = course.River.Project(pool.position);
+                markers.Add(new Marker("Whirlpool", null, at.Distance - pool.radius * 0.5f, at.Lateral, null));
+            }
         }
 
-        void Add(Obstacle obstacle)
+        /// <summary>The bank on one side (+1 the left), as metres across from the middle.</summary>
+        float Bank(float distance, float side) => side * course.River.At(distance).HalfWidth;
+
+        void Add(Obstacle obstacle, ObstacleKind kind, float distance, float across = 0f)
         {
             obstacle.Owner = this;
             obstacles.Add(obstacle);
+            Mark(kind, distance, across, obstacle);
         }
+
+        void Mark(ObstacleKind kind, float distance, float across, Obstacle obstacle = null) =>
+            markers.Add(new Marker(kind.ToString(), kind, distance, across, obstacle));
+
+        /// <summary>Where something on this round's river is and what it is, for the warnings and the Field Guide.</summary>
+        public readonly struct Marker
+        {
+            /// <summary>Its Field Guide entry (<see cref="ObstacleGuide.ById"/>): the obstacle's kind, or a feature such as "Whirlpool".</summary>
+            public readonly string Id;
+            /// <summary>The obstacle's kind, or null for a course feature.</summary>
+            public readonly ObstacleKind? Kind;
+            /// <summary>Metres down the river.</summary>
+            public readonly float Distance;
+            /// <summary>Metres across from the middle (positive the left), where it matters.</summary>
+            public readonly float Across;
+            /// <summary>The obstacle itself (null for the first four, which live in here).</summary>
+            public readonly Obstacle Obstacle;
+
+            public Marker(string id, ObstacleKind? kind, float distance, float across, Obstacle obstacle)
+            {
+                Id = id;
+                Kind = kind;
+                Distance = distance;
+                Across = across;
+                Obstacle = obstacle;
+            }
+        }
+
+        /// <summary>Every obstacle this round, nearest the start first.</summary>
+        public IReadOnlyList<Marker> Markers
+        {
+            get
+            {
+                if (!sorted)
+                {
+                    markers.Sort((a, b) => a.Distance.CompareTo(b.Distance));
+                    sorted = true;
+                }
+
+                return markers;
+            }
+        }
+
+        bool sorted;
 
         /// <summary>The newer obstacles (rockslides, hippos, sluice gates and the rest), in the order the course lists them by type.</summary>
         public IReadOnlyList<Obstacle> Obstacles => obstacles;

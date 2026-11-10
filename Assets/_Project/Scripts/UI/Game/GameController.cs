@@ -254,6 +254,7 @@ namespace RushAhead.UI
             ApplyCommandLine();
             AutoDemo.StartIfRequested(this);
             ScreenTour.StartIfRequested(this);
+            Gallery.StartIfRequested(this);
         }
 
         void Update()

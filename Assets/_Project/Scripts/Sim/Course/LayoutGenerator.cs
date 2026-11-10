@@ -46,6 +46,22 @@ namespace RushAhead.Sim
             return best;
         }
 
+        /// <summary>
+        /// One obstacle of <paramref name="kind"/> alone, as near <paramref name="distance"/> as it'll go, dealt by the same
+        /// rules as a round (for the obstacle gallery). Null if it won't go anywhere near there.
+        /// </summary>
+        public static CourseLayout Single(CourseDef def, River river, ObstacleKind kind, float distance, int seed = 1)
+        {
+            var dice = new Dice(seed);
+            for (var tries = 0; tries < 200; tries++)
+            {
+                var deal = new Deal(def, river);
+                if (deal.TryPlace(dice, kind, distance + (tries % 2 == 0 ? 1f : -1f) * (tries / 2) * 0.5f)) return deal.Layout;
+            }
+
+            return null;
+        }
+
         static CourseLayout DealOnce(CourseDef def, River river, int seed)
         {
             var dice = new Dice(seed);

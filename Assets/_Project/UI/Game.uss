@@ -401,6 +401,148 @@
 
 /* Scrolling lists */
 
+/* The Field Guide: a grid of photographed tiles on the left, the page on the right. */
+
+.guide {
+    width: 96%;
+    height: 94%;
+    padding: 30px 36px;
+    align-items: stretch;
+}
+
+.guide-grid {
+    flex-wrap: wrap;
+    align-items: flex-start;
+}
+
+.guide-tile {
+    width: 236px;
+    margin: 0 12px 12px 0;
+    padding: 6px;
+    border-radius: 4px;
+    border-width: 2px;
+    border-color: rgba(0, 0, 0, 0);
+    background-color: var(--panel-light);
+}
+
+.guide-tile:hover {
+    border-color: var(--line);
+}
+
+.guide-tile--on, .guide-tile--on:hover {
+    border-color: var(--accent);
+    background-color: rgba(255, 106, 43, 0.14);
+}
+
+.guide-tile--unmet .guide-thumb {
+    opacity: 0.55;
+}
+
+.guide-thumb {
+    height: 126px;
+    border-radius: 3px;
+    background-color: #1A3F55;
+    overflow: hidden;
+}
+
+.guide-name {
+    font-size: 28px;
+    margin-top: 6px;
+    letter-spacing: 1px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    -unity-font-definition: url("project://database/Assets/_Project/ThirdParty/Fonts/BarlowCondensed-SemiBold.ttf");
+}
+
+.guide-unmet {
+    position: absolute;
+    top: 6px;
+    left: 6px;
+    font-size: 21px;
+    padding: 1px 8px;
+    letter-spacing: 2px;
+    color: var(--ink);
+    background-color: var(--accent);
+    border-radius: 2px;
+    -unity-font-definition: url("project://database/Assets/_Project/ThirdParty/Fonts/BarlowCondensed-Bold.ttf");
+}
+
+.guide-picture {
+    height: 410px;
+    border-radius: 4px;
+    background-color: #1A3F55;
+    overflow: hidden;
+}
+
+.guide-initial {
+    position: absolute;
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    font-size: 80px;
+    color: rgba(255, 255, 255, 0.35);
+    -unity-text-align: middle-center;
+    -unity-font-definition: url("project://database/Assets/_Project/ThirdParty/Fonts/BarlowCondensed-Bold.ttf");
+}
+
+.guide-counter {
+    color: var(--ink);
+    background-color: var(--accent);
+    border-width: 0;
+    margin-right: 0;
+}
+
+/* The race's look-out: what's coming next, and a card for something new. */
+
+.ahead {
+    flex-direction: row;
+    align-items: center;
+    padding: 10px 22px 10px 10px;
+}
+
+.ahead-picture {
+    width: 176px;
+    height: 99px;
+    margin-right: 18px;
+    border-radius: 3px;
+    background-color: #1A3F55;
+    overflow: hidden;
+}
+
+.ahead-name {
+    font-size: 36px;
+    letter-spacing: 1px;
+    -unity-font-definition: url("project://database/Assets/_Project/ThirdParty/Fonts/BarlowCondensed-Bold.ttf");
+}
+
+.ahead-counter {
+    font-size: 30px;
+    letter-spacing: 3px;
+    color: var(--accent);
+    -unity-font-definition: url("project://database/Assets/_Project/ThirdParty/Fonts/BarlowCondensed-Bold.ttf");
+}
+
+.ahead-counter--now {
+    color: var(--bad);
+}
+
+.ahead-card {
+    width: 520px;
+    padding: 20px 26px;
+    border-left-width: 4px;
+    border-left-color: var(--accent);
+}
+
+.ahead-card-picture {
+    height: 262px;
+    margin: 10px 0 12px 0;
+    border-radius: 3px;
+    background-color: #1A3F55;
+    overflow: hidden;
+}
+
 .scroll {
     flex-grow: 1;
 }

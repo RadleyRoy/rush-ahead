@@ -5,17 +5,19 @@ using UnityEngine;
 namespace RushAhead.Sim
 {
     /// <summary>
-    /// A tree on the lip. It creaks and shakes (the warning), topples across the river, and lies there as a barrier
-    /// with a gap past its crown until the water takes it away. A raft caught under it as it lands goes over unless
-    /// the crew braces; once it's down, steer for the gap.
+    /// A tree on the lip. Once per race, a little before the leaders get there, it creaks and shakes (the warning),
+    /// topples across the river and stays down for the rest of the race as a barrier with a gap past its crown. A raft
+    /// caught under it as it lands goes over unless the crew braces; once it's down, steer for the gap. Between races
+    /// (and before the first) it stands. When it falls is set from the race's start and how far down the river it is,
+    /// so every device agrees from the clock alone.
     /// </summary>
     public sealed class FallingTree : Obstacle
     {
         public const float TrunkWidth = 0.8f;
-        public const float Creak = 0.3f;
-        public const float Fall = 0.45f;
-        public const float Down = 0.53f;
-        public const float Wash = 0.85f;
+        /// <summary>Seconds of creaking and shaking before it goes.</summary>
+        public const float CreakSeconds = 1.4f;
+        /// <summary>Seconds from starting to fall to lying flat.</summary>
+        public const float FallSeconds = 0.55f;
         const float Knock = 120f;
         const float Heel = 9f;
 
@@ -50,15 +52,36 @@ namespace RushAhead.Sim
         /// <summary>The middle of the open water past its crown, across the river (positive is the left).</summary>
         public float GapCentre => -spot.side * (at.HalfWidth - 0.5f * (2f * at.HalfWidth + 0.5f - Length));
 
-        /// <summary>How far over it is (0 standing, 1 flat across the river), how hard it shakes, and how far the water has carried it off.</summary>
-        public (float tilt, float shake, float washed) Pose(double seconds)
+        /// <summary>
+        /// When it starts to fall on the race clock: a little before a fast crew could be there (at the approach speed,
+        /// less a second and a half and a little more by the spot's offset), never sooner than 2.5 s after the start;
+        /// NaN when no race is on.
+        /// </summary>
+        public double FallsAt
         {
-            var phase = Phase(seconds, spot.period, spot.offset);
-            var shake = phase >= Creak && phase < Fall ? (phase - Creak) / (Fall - Creak) : 0f;
-            var tilt = phase < Fall ? 0f : phase < Down ? Mathf.Pow((phase - Fall) / (Down - Fall), 2f) : 1f;
-            var washed = phase >= Wash ? (phase - Wash) / (1f - Wash) : 0f;
-            return (tilt, shake, washed);
+            get
+            {
+                var start = Owner?.RaceStart ?? double.NaN;
+                if (double.IsNaN(start)) return double.NaN;
+                var lead = (spot.distance - Course.Def.startDistance) / ApproachSpeed - 1.5f - Mathf.Repeat(spot.offset, 1f);
+                return start + Mathf.Max(2.5f, lead);
+            }
         }
+
+        /// <summary>When it lands flat across the river (NaN when no race is on).</summary>
+        public double LandsAt => FallsAt + FallSeconds;
+
+        /// <summary>How far over it is (0 standing, 1 flat across the river) and how hard it shakes.</summary>
+        public (float tilt, float shake) Pose(double seconds)
+        {
+            var falls = FallsAt;
+            if (double.IsNaN(falls) || seconds < falls - CreakSeconds) return (0f, 0f);
+            if (seconds < falls) return (0f, (float)(1.0 - (falls - seconds) / CreakSeconds));
+            var t = (float)((seconds - falls) / FallSeconds);
+            return (t >= 1f ? 1f : t * t, 0f);
+        }
+
+        bool Lying(double seconds) => !double.IsNaN(FallsAt) && seconds >= LandsAt;
 
         /// <summary>Whether a raft's middle is under the trunk's line, give or take <paramref name="margin"/>.</summary>
         bool Under(Vector2 point, float margin)
@@ -70,8 +93,8 @@ namespace RushAhead.Sim
 
         public override void Step(double seconds, float dt, IReadOnlyList<Boat> boats)
         {
-            var phase = Phase(seconds, spot.period, spot.offset);
-            var landing = phase >= Down - 0.01f && phase < Down + 0.02f;
+            var lands = LandsAt;
+            var landing = seconds >= lands - 0.05 && seconds < lands + 0.12;
             var overlapping = false;
             foreach (var boat in boats)
             {
@@ -82,7 +105,7 @@ namespace RushAhead.Sim
             }
 
             // Solid while it lies across the water, but never switched solid on top of a raft (that would fling it off).
-            var lying = phase >= Down && phase < Wash;
+            var lying = Lying(seconds);
             trunk.isTrigger = !lying || (trunk.isTrigger && overlapping);
             if (!lying) return;
             var gapWidth = 2f * at.HalfWidth + 0.5f - Length;
@@ -91,29 +114,23 @@ namespace RushAhead.Sim
 
         public override void Zones(double seconds, List<Vector2> lines)
         {
-            var (tilt, _, washed) = Pose(seconds);
-            if (tilt > 0f && washed <= 0f) Box(lines, Middle, at.Left, Length * 0.5f - RaftRadius, TrunkWidth * 0.5f);
+            var (tilt, _) = Pose(seconds);
+            if (tilt > 0f) Box(lines, Middle, at.Left, Length * 0.5f - RaftRadius, TrunkWidth * 0.5f);
         }
 
         public override bool BraceNeeded(Vector2 position, double seconds, float lookahead)
         {
             if (!Under(position, 1f)) return false;
-            for (var t = 0f; t <= lookahead; t += 0.1f)
-            {
-                var phase = Phase(seconds + t, spot.period, spot.offset);
-                if (phase >= Fall && phase < Down + 0.03f) return true;
-            }
-
-            return false;
+            var falls = FallsAt;
+            return !double.IsNaN(falls) && seconds + lookahead >= falls && seconds < LandsAt + 0.15;
         }
 
         /// <summary>Once it's creaking (or down), make for the gap past its crown.</summary>
         public override float SteerAcross(float from, float to, float across, double seconds, float limit)
         {
             if (!Between(spot.distance, TrunkWidth + RaftRadius + 1f, from, to)) return across;
-            var soon = Phase(seconds + 1.0, spot.period, spot.offset);
-            var now = Phase(seconds, spot.period, spot.offset);
-            return (soon >= Creak && soon < Wash) || (now >= Creak && now < Wash) ? Mathf.Clamp(GapCentre, -limit, limit) : across;
+            var falls = FallsAt;
+            return !double.IsNaN(falls) && seconds + 1.0 >= falls - CreakSeconds ? Mathf.Clamp(GapCentre, -limit, limit) : across;
         }
     }
 }

@@ -19,6 +19,7 @@ namespace RushAhead.UI
         UIDocument document;
         VisualElement root;
         VisualElement safe;
+        VisualElement backdrop;
         VisualElement modalLayer;
         Label toast;
         float toastUntil;
@@ -36,6 +37,19 @@ namespace RushAhead.UI
         public int DressingSeat { get; set; } = -1;
 
         public GameSettings Settings { get; private set; }
+
+        /// <summary>The Field Guide page to open at, next time it opens (then cleared).</summary>
+        public string GuideFocus { get; set; }
+
+        /// <summary>What capsized your raft or put it over the edge this race (Field Guide ids, first first), for "What hit me?".</summary>
+        public List<string> Culprits { get; } = new();
+
+        /// <summary>Opens the Field Guide, at a page if given.</summary>
+        public void OpenGuide(string focus = null)
+        {
+            GuideFocus = focus;
+            Flow.OpenGuide();
+        }
 
         /// <summary>The race camera, for shaking.</summary>
         public ChaseCamera Chase => chase;
@@ -80,6 +94,11 @@ namespace RushAhead.UI
             root.AddToClassList("root");
             root.pickingMode = PickingMode.Ignore;
 
+            // Behind everything and outside the safe area: an opaque screen's background, edge to edge.
+            backdrop = Ui.El("layer");
+            backdrop.pickingMode = PickingMode.Ignore;
+            Ui.Show(backdrop, false);
+            root.Add(backdrop);
             safe = Ui.El("layer");
             safe.pickingMode = PickingMode.Ignore;
             root.Add(safe);
@@ -101,6 +120,7 @@ namespace RushAhead.UI
             Add(AppScreen.Results, new ResultsScreen(this));
             Add(AppScreen.YourAnimal, new YourAnimalScreen(this));
             Add(AppScreen.Settings, new SettingsScreen(this));
+            Add(AppScreen.FieldGuide, new FieldGuideScreen(this));
 
             var camera = Camera.main;
             chase = camera.GetComponent<ChaseCamera>();
@@ -150,6 +170,14 @@ namespace RushAhead.UI
             }
 
             shown?.Refresh();
+            var fill = shown?.Backdrop;
+            Ui.Show(backdrop, fill != null);
+            if (fill != null)
+            {
+                if (backdrop.resolvedStyle.backgroundImage.texture != fill) backdrop.style.backgroundImage = fill;
+                backdrop.style.opacity = shown.Root.resolvedStyle.opacity;
+            }
+
             Time.timeScale = Flow.Paused && Game.Session == SessionKind.Solo ? 0f : DemoSpeed;
             var audio = GameAudio.Instance;
             if (audio != null)
@@ -290,8 +318,18 @@ namespace RushAhead.UI
         }
 
         /// <summary>Menus show off the raft from outside; races follow it from behind.</summary>
+        /// <summary>Something else (the gallery) is placing the camera: neither the chase nor the showcase camera moves it.</summary>
+        public static bool CameraHeld;
+
         void UpdateCamera()
         {
+            if (CameraHeld)
+            {
+                showcase.enabled = false;
+                chase.enabled = false;
+                return;
+            }
+
             var shot = Flow.Screen switch
             {
                 AppScreen.Race => (ShowcaseCamera.Shot?)null,

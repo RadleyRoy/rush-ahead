@@ -15,6 +15,7 @@ namespace RushAhead.UI
         Results,
         YourAnimal,
         Settings,
+        FieldGuide,
     }
 
     /// <summary>What the back button (or Escape) asks the screens to do, beyond moving between them.</summary>
@@ -96,6 +97,7 @@ namespace RushAhead.UI
             {
                 case AppScreen.YourAnimal:
                 case AppScreen.Settings:
+                case AppScreen.FieldGuide:
                     // Over the lobby these can stay open; a race starting (or ending) takes everyone to it.
                     if (phaseMoved && phase != RoomPhase.Lobby) GoGame();
                     else if (phaseMoved) RetargetReturns();
@@ -142,10 +144,16 @@ namespace RushAhead.UI
             if (Screen is AppScreen.MainMenu or AppScreen.Lobby || (Screen == AppScreen.Race && Paused)) Push(AppScreen.Settings);
         }
 
-        /// <summary>Closes Your animal or Settings, back to where they were opened from.</summary>
+        /// <summary>The Field Guide: from the main menu, the lobby, the results, or the pause menu during a race.</summary>
+        public void OpenGuide()
+        {
+            if (Screen is AppScreen.MainMenu or AppScreen.Lobby or AppScreen.Results || (Screen == AppScreen.Race && Paused)) Push(AppScreen.FieldGuide);
+        }
+
+        /// <summary>Closes Your animal, Settings or the Field Guide, back to where they were opened from.</summary>
         public void Close()
         {
-            if (Screen is not (AppScreen.YourAnimal or AppScreen.Settings)) return;
+            if (Screen is not (AppScreen.YourAnimal or AppScreen.Settings or AppScreen.FieldGuide)) return;
             var back = returns.Count > 0 ? returns.Pop() : InGame ? GameScreenNow() : AppScreen.MainMenu;
             if (!InGame && back is AppScreen.Lobby or AppScreen.Race or AppScreen.Results or AppScreen.Connecting) back = AppScreen.MainMenu;
             Screen = back;
@@ -174,6 +182,7 @@ namespace RushAhead.UI
                     return BackAction.Handled;
                 case AppScreen.YourAnimal:
                 case AppScreen.Settings:
+                case AppScreen.FieldGuide:
                     Close();
                     return BackAction.Handled;
                 case AppScreen.Race:

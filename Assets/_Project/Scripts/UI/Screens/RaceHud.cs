@@ -52,6 +52,7 @@ namespace RushAhead.UI
         VisualElement tagLayer;
         VisualElement pushMarker;
         VisualElement pauseMenu;
+        AheadWarning ahead;
         Label pauseTitle;
         Button restart;
         Button toLobby;
@@ -220,6 +221,7 @@ namespace RushAhead.UI
 
             Root.Add(orderBar);
 
+            ahead = new AheadWarning(Root, tagLayer);
             BuildPauseMenu();
         }
 
@@ -238,6 +240,7 @@ namespace RushAhead.UI
                 Game.ResetBoat();
             });
             panel.Add(restart);
+            panel.Add(Btn("pause-guide", "Field guide", () => App.OpenGuide()));
             panel.Add(Btn("pause-settings", "Settings", Flow.OpenSettings));
             toLobby = Btn("pause-lobby", "Back to the lobby", () =>
             {
@@ -443,6 +446,11 @@ namespace RushAhead.UI
                 Ui.SetClass(orderButtons[id], "segment--on", order == current || (order == CrewOrder.PushHere && touch.Capturing));
             ShowPushMarker(current == CrewOrder.PushHere ? Game.CurrentOrder.Point : (Vector2?)null);
 
+            // What's coming, and (during the countdown) a clean slate for what got you.
+            if (run.Active && run.Countdown > 0) App.Culprits.Clear();
+            var camera = Camera.main;
+            ahead.Refresh(Game, run, boat, world => camera != null ? PanelPoint(camera, world) : null);
+
             Ui.Show(pauseMenu, Flow.Paused);
             if (Flow.Paused) RefreshPauseMenu();
 
@@ -485,12 +493,25 @@ namespace RushAhead.UI
         {
             App.Chase.Shake(0.85f);
             Haptics.Pulse(320, 1f);
+            Blame(false);
         }
 
         void OnFell()
         {
             App.Chase.Shake(1f);
             Haptics.Pulse(450, 1f);
+            Blame(true);
+        }
+
+        /// <summary>Notes what got your raft, for "What hit me?" on the results.</summary>
+        void Blame(bool fell)
+        {
+            var boat = Game.ViewedBoat;
+            if (boat == null || !Game.Run.Active) return;
+            var culprit = AheadWarning.Culprit(Game.CurrentCourse, boat.RenderPosition, fell);
+            if (culprit == null) return;
+            App.Culprits.Remove(culprit);
+            App.Culprits.Add(culprit);
         }
 
         void OnBurst(int seat)

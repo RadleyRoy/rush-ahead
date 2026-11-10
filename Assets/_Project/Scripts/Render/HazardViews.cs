@@ -49,7 +49,8 @@ namespace RushAhead.Render
 
         void BuildWheel(Content.WheelSpot spot)
         {
-            var wood = palette.Planks;
+            var wood = palette.Tinted(palette.Planks, new Color(0.66f, 0.55f, 0.42f));
+            var paint = palette.Tinted(palette.barrel, new Color(0.86f, 0.24f, 0.2f));
             var root = Shapes3D.Group(transform, "Paddle wheel", SimSpace.ToWorld(spot.position));
             Shapes3D.Primitive(PrimitiveType.Cylinder, root, new Vector3(0f, 0.9f, 0f), new Vector3(0.7f, 0.9f, 0.7f), palette.Metal, name: "Post");
             Shapes3D.MeshObject("Foam", Shapes3D.Disc(spot.radius + 0.4f), root, new Vector3(0f, 0.02f, 0f), palette.foam);
@@ -59,7 +60,7 @@ namespace RushAhead.Render
             {
                 var angle = Quaternion.Euler(0f, -arm * 360f / arms, 0f);
                 Shapes3D.Primitive(PrimitiveType.Cube, spin, angle * new Vector3(spot.radius * 0.5f, 0.35f, 0f), new Vector3(spot.radius, 0.22f, 0.22f), wood, angle, "Arm");
-                Shapes3D.Primitive(PrimitiveType.Cube, spin, angle * new Vector3(spot.radius - 0.3f, 0.35f, 0f), new Vector3(0.6f, 0.7f, Hazards.ArmWidth + 0.5f), wood, angle, "Paddle");
+                Shapes3D.Primitive(PrimitiveType.Cube, spin, angle * new Vector3(spot.radius - 0.3f, 0.35f, 0f), new Vector3(0.6f, 0.7f, Hazards.ArmWidth + 0.5f), paint, angle, "Paddle");
             }
 
             wheels.Add(spin);
@@ -144,7 +145,8 @@ namespace RushAhead.Render
                 Shapes3D.Primitive(PrimitiveType.Sphere, bubbles, new Vector3(Mathf.Cos(angle) * distance, 0.05f, Mathf.Sin(angle) * distance), Vector3.one * 0.3f, palette.foam, name: "Bubble");
             }
 
-            var spout = Shapes3D.Primitive(PrimitiveType.Cylinder, root, new Vector3(0f, 2f, 0f), new Vector3(spot.radius * 1.2f, 2f, spot.radius * 1.2f), palette.air, name: "Spout").transform;
+            var spout = Shapes3D.Primitive(PrimitiveType.Cylinder, root, new Vector3(0f, 2f, 0f), new Vector3(spot.radius * 1.2f, 2f, spot.radius * 1.2f),
+                palette.Spray(new Color(0.92f, 0.97f, 1f, 0.8f), 0.8f, 0.4f, 2.5f), name: "Spout").transform;
             geysers.Add((bubbles, spout, ring.GetComponent<Renderer>()));
         }
 

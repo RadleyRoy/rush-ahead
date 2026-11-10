@@ -32,6 +32,9 @@ namespace RushAhead.UI
         /// <summary>Raised by every button press, for the click sound.</summary>
         public static event Action Clicked;
 
+        /// <summary>The click sound, for things that are pressed like buttons without being one.</summary>
+        public static void Click() => Clicked?.Invoke();
+
         /// <summary>A button styled by Game.uss alone (Unity's own button look is dropped): uppercase, and slanted unless it's a tab or round.</summary>
         public static Button Btn(string text, Action clicked, string classes = "btn")
         {

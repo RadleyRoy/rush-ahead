@@ -43,6 +43,7 @@ namespace RushAhead.Sim
             StartTick = nowTick + Mathf.RoundToInt(CountdownSeconds * tickRate);
 
             if (lane == 0) course.ResetBarrels(); // once per race, not once per raft
+            course.Hazards.RaceStart = StartTick / (double)tickRate; // what happens once a race (a tree falling) is timed from here
             var (start, heading) = course.RespawnPose(0, lane, lanes);
             boat.ResetTo(start, heading);
             boat.ControlsLocked = true;

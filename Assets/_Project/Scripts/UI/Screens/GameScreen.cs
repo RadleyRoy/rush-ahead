@@ -24,6 +24,12 @@ namespace RushAhead.UI
         /// <summary>Whether the 3D world shows through (most screens) or the screen covers it.</summary>
         public virtual bool Opaque => false;
 
+        /// <summary>
+        /// A picture painted edge to edge behind this screen, under notches and rounded corners too (the screen itself
+        /// stays inside the safe area), fading with it. Null for none.
+        /// </summary>
+        public virtual UnityEngine.Texture2D Backdrop => null;
+
         public abstract void Build();
 
         public virtual void OnShow()

@@ -239,7 +239,7 @@ namespace RushAhead.Render
         {
             var barrel = Shapes3D.Group(parent, "Barrel");
             if (palette.barrelMesh != null)
-                Shapes3D.Model("Drum", palette.barrelMesh, palette.barrelMaterial, barrel, Vector3.zero, 2f * radius, 0f, 0.35f);
+                Shapes3D.Model("Drum", palette.barrelMesh, palette.Tinted(palette.barrelMaterial, new Color(1f, 0.5f, 0.42f)), barrel, Vector3.zero, 2f * radius, 0f, 0.35f);
             else
             {
                 Shapes3D.Primitive(PrimitiveType.Cylinder, barrel, new Vector3(0f, 0.25f, 0f), new Vector3(2f * radius, 0.45f, 2f * radius), palette.barrel, name: "Drum");

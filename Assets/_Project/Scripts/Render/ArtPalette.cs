@@ -36,6 +36,7 @@ namespace RushAhead.Render
         [Header("Transparent")]
         public Material air;
         public Material foam;
+        [Tooltip("See-through moving water with a solid shape (Shaders/Spray.shader): spouts, standing waves, jets.")] public Material spray;
 
         [Header("Photographic (Poly Haven, CC0; empty without the files)")]
         public Material planks;
@@ -97,6 +98,30 @@ namespace RushAhead.Render
         public TerrainLayer TerrainLayerFor(GorgeTerrain.Ground role) => terrainLayers[(int)role];
 
         [NonSerialized] Dictionary<(Material, Color), Material> tinted;
+        [NonSerialized] Dictionary<(Color, Vector4), Material> sprays;
+
+        /// <summary>
+        /// Moving water with a body to it (a spout, a wave, a jet): this colour (alpha: how solid), with streaks running
+        /// round the object's up axis at <paramref name="spin"/> turns a second and up it at <paramref name="rise"/> metres
+        /// a second. Shared by everything asking for the same. Falls back to tinted foam without the shader.
+        /// </summary>
+        public Material Spray(Color color, float streaks = 0.5f, float spin = 0f, float rise = 0f, float rim = 0.8f)
+        {
+            if (spray == null) return Tinted(foam, color);
+            sprays ??= new Dictionary<(Color, Vector4), Material>();
+            var key = (color, new Vector4(streaks, spin, rise, rim));
+            if (!sprays.TryGetValue(key, out var material) || material == null)
+            {
+                material = new Material(spray) { name = $"Spray {ColorUtility.ToHtmlStringRGBA(color)}", color = color };
+                material.SetFloat("_Streaks", streaks);
+                material.SetFloat("_Spin", spin);
+                material.SetFloat("_Rise", rise);
+                material.SetFloat("_Rim", rim);
+                sprays[key] = material;
+            }
+
+            return material;
+        }
         [NonSerialized] Dictionary<(Color, Color, Color), Material> furs;
 
         /// <summary>The fur material in one animal's colours (shared by everyone asking for the same ones).</summary>

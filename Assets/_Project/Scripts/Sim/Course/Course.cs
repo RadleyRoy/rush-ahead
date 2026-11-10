@@ -55,7 +55,8 @@ namespace RushAhead.Sim
 
         /// <param name="seed">Deals this round's obstacles from the course's menu (see <see cref="LayoutGenerator"/>); a course
         /// without a menu always has its fixed layout.</param>
-        public Course(CourseDef def, int seed = 0)
+        /// <param name="layout">A layout to use as it is instead (the obstacle gallery's single exhibits).</param>
+        public Course(CourseDef def, int seed = 0, CourseLayout layout = null)
         {
             Def = def;
             River = new River(def.river);
@@ -64,7 +65,7 @@ namespace RushAhead.Sim
             var start = River.At(def.startDistance);
             SpawnPosition = start.Centre;
             SpawnAngleRad = Mathf.Atan2(start.Tangent.y, start.Tangent.x);
-            Layout = def.HasMenu ? LayoutGenerator.Generate(def, River, seed) : CourseLayout.Fixed(def);
+            Layout = layout ?? (def.HasMenu ? LayoutGenerator.Generate(def, River, seed) : CourseLayout.Fixed(def));
         }
 
         public CourseDef Def { get; }
@@ -95,9 +96,9 @@ namespace RushAhead.Sim
         /// <summary>Whether the loose body at this index is a log (the logs follow the barrels).</summary>
         public bool IsLog(int index) => index >= Def.barrels.Length;
 
-        public static Course Build(CourseDef def, int seed = 0)
+        public static Course Build(CourseDef def, int seed = 0, CourseLayout layout = null)
         {
-            var course = new Course(def, seed);
+            var course = new Course(def, seed, layout);
             course.BuildPhysics();
             return course;
         }

@@ -21,6 +21,10 @@ namespace RushAhead.EditorTools
             ("ReedMarsh", ReedMarsh), ("WhirlpoolReach", WhirlpoolReach), ("WhitewaterRun", WhitewaterRun),
         };
 
+        /// <summary>The shipped courses as they stand, in menu order (null for any not made yet).</summary>
+        public static CourseDef[] Shipped() =>
+            System.Array.ConvertAll(Layouts, entry => AssetDatabase.LoadAssetAtPath<CourseDef>($"{Folder}/{entry.file}.asset"));
+
         public static CourseDef[] CreateDefaults()
         {
             ContentBootstrap.EnsureFolder(Folder);

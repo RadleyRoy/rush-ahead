@@ -32,6 +32,7 @@ MonoBehaviour:
   blowerTrim: {fileID: 2100000, guid: 5af1f44ef46ad2f4fb91df7fa71b6ccf, type: 2}
   air: {fileID: 2100000, guid: 676150983e93e87498f7cda047ee14f9, type: 2}
   foam: {fileID: 2100000, guid: 7472e098c083c754daaee972b4dcfc5f, type: 2}
+  spray: {fileID: 2100000, guid: 6ce76ba6b73e0b845b60cfadb0c73c2a, type: 2}
   planks: {fileID: 2100000, guid: 1486e6fe381fe7343bb5952d96d7f686, type: 2}
   metal: {fileID: 2100000, guid: f40f896108371c24bbb7f80f941cb7d9, type: 2}
   sand: {fileID: 2100000, guid: d5bbb665ab80b574786b5aaa92ca7558, type: 2}

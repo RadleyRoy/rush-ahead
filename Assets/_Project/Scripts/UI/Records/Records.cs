@@ -60,6 +60,32 @@ namespace RushAhead.UI
         }
 
         /// <summary>Forgets every best time on this device.</summary>
+        const string SeenKey = "guide.seen";
+        static HashSet<string> seen;
+
+        /// <summary>Whether this player has met this Field Guide entry on a river yet.</summary>
+        public static bool Seen(string id) => SeenSet().Contains(id);
+
+        /// <summary>Notes a Field Guide entry as met; true the first time.</summary>
+        public static bool MarkSeen(string id)
+        {
+            if (string.IsNullOrEmpty(id) || !SeenSet().Add(id)) return false;
+            PlayerPrefs.SetString(SeenKey, string.Join(",", seen));
+            PlayerPrefs.Save();
+            return true;
+        }
+
+        public static int SeenCount => SeenSet().Count;
+
+        static HashSet<string> SeenSet()
+        {
+            if (seen != null) return seen;
+            seen = new HashSet<string>();
+            foreach (var id in PlayerPrefs.GetString(SeenKey, "").Split(','))
+                if (id.Length > 0) seen.Add(id);
+            return seen;
+        }
+
         public static void Clear(IEnumerable<CourseDef> courses)
         {
             foreach (var course in courses)

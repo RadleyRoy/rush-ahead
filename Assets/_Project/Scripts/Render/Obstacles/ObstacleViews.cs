@@ -53,6 +53,85 @@ namespace RushAhead.Render
 
         /// <summary>A world rotation facing a direction on the water.</summary>
         protected static Quaternion Facing(Vector2 direction) => Quaternion.LookRotation(SimSpace.Direction(direction));
+
+        /// <summary>
+        /// A bluff on one bank (<paramref name="side"/> +1 the left), built across the river's line: rising from just under
+        /// the water at the bank to <paramref name="height"/> at <paramref name="peakOut"/> metres out, then dropping away into
+        /// the gorge; <paramref name="halfAlong"/> either side of the spot, its ends sloping down. Lumpy with noise.
+        /// </summary>
+        protected static Mesh Bluff(RiverSample at, float side, float halfAlong, float height, float peakOut, System.Random random)
+        {
+            var bank = at.HalfWidth;
+            var outs = new[] { bank - 0.5f, bank + 0.2f, bank + peakOut * 0.35f, bank + peakOut * 0.7f, bank + peakOut, bank + peakOut + 2.5f, bank + peakOut + 5f, bank + peakOut + 6f };
+            var rise = new[] { -0.8f, 0.05f, 0.45f, 0.82f, 1f, 0.92f, 0.5f, -4f };
+            const int rows = 9;
+            var vertices = new List<Vector3>();
+            var triangles = new List<int>();
+            for (var a = 0; a < rows; a++)
+            {
+                var v = a / (rows - 1f) * 2f - 1f; // -1 upstream end, +1 downstream end
+                var along = v * (halfAlong + 3f);
+                var shoulder = Mathf.Pow(Mathf.Max(0f, 1f - v * v), 0.45f);
+                for (var o = 0; o < outs.Length; o++)
+                {
+                    var h = rise[o] > 0f ? height * rise[o] * shoulder : rise[o] * height;
+                    if (o > 0 && o < outs.Length - 1 && a > 0 && a < rows - 1) h += ((float)random.NextDouble() - 0.5f) * 0.5f;
+                    if (rise[o] > 0f && shoulder < 0.2f) h = Mathf.Min(h, -0.3f);
+                    vertices.Add(SimSpace.ToWorld(at.Centre + at.Left * (side * outs[o]) + at.Tangent * along, h));
+                }
+            }
+
+            var n = outs.Length;
+            for (var a = 0; a < rows - 1; a++)
+            for (var o = 0; o < n - 1; o++)
+            {
+                var i = a * n + o;
+                if (side > 0f) triangles.AddRange(new[] { i, i + 1, i + n, i + 1, i + n + 1, i + n });
+                else triangles.AddRange(new[] { i, i + n, i + 1, i + 1, i + n, i + n + 1 });
+            }
+
+            var mesh = new Mesh { name = "Bluff" };
+            mesh.SetVertices(vertices);
+            mesh.SetTriangles(triangles, 0);
+            mesh.RecalculateNormals();
+            mesh.RecalculateBounds();
+            return mesh;
+        }
+
+        /// <summary>
+        /// A surface of revolution about the local up axis: a ring of <paramref name="radii"/>[i] at
+        /// <paramref name="heights"/>[i], each ring's middle shifted sideways by <paramref name="sway"/>[i] (x) so a
+        /// column can snake. Open at both ends.
+        /// </summary>
+        protected static Mesh Lathe(float[] radii, float[] heights, float[] sway = null, int segments = 28)
+        {
+            var vertices = new List<Vector3>();
+            var triangles = new List<int>();
+            for (var ring = 0; ring < radii.Length; ring++)
+            {
+                var shift = sway != null ? sway[ring] : 0f;
+                for (var s = 0; s <= segments; s++)
+                {
+                    var a = s * Mathf.PI * 2f / segments;
+                    vertices.Add(new Vector3(shift + Mathf.Cos(a) * radii[ring], heights[ring], Mathf.Sin(a) * radii[ring]));
+                }
+            }
+
+            var row = segments + 1;
+            for (var ring = 0; ring < radii.Length - 1; ring++)
+            for (var s = 0; s < segments; s++)
+            {
+                var i = ring * row + s;
+                triangles.AddRange(new[] { i, i + row, i + 1, i + 1, i + row, i + row + 1 });
+            }
+
+            var mesh = new Mesh { name = "Lathe" };
+            mesh.SetVertices(vertices);
+            mesh.SetTriangles(triangles, 0);
+            mesh.RecalculateNormals();
+            mesh.RecalculateBounds();
+            return mesh;
+        }
     }
 
     /// <summary>A pile of rocks on one side with a boulder that teeters, rolls down, tumbles across and drops away.</summary>
@@ -67,43 +146,110 @@ namespace RushAhead.Render
             this.slide = slide;
             var at = slide.At;
             var side = slide.Spot.side;
+            var radius = slide.Spot.radius;
             var random = new System.Random(Mathf.RoundToInt(slide.Spot.distance * 10f));
-            var stone = Tint(palette.rock, new Color(0.55f, 0.52f, 0.48f));
-            for (var i = 0; i < 9; i++)
-            {
-                var across = side * (at.HalfWidth + 2.5f + (float)random.NextDouble() * 4f);
-                var along = ((float)random.NextDouble() - 0.5f) * 5f;
-                var size = 1.6f + (float)random.NextDouble() * 2.2f;
-                var place = SimSpace.ToWorld(at.Centre + at.Left * across + at.Tangent * along, size * 0.3f + 0.8f);
-                if (palette.HasRocks)
+            var stone = palette.cliff;
+
+            // The crag: a rock mass standing out of the gorge beside the river, a chute sloping from its edge down to the
+            // water where the boulders come down, flat on top where the pile waits.
+            Shapes3D.MeshObject("Crag", Crag(at, side, radius, random), Root, Vector3.zero, stone);
+            if (palette.HasRocks)
+                for (var i = 0; i < 7; i++)
                 {
+                    // Rough stones on the top and down the crag's flanks (never in the chute).
                     var pick = random.Next(palette.rockMeshes.Length);
-                    Shapes3D.Model("Outcrop", palette.rockMeshes[pick], palette.rockMaterials[pick], Root, place - Vector3.up * size * 0.3f, size * 1.4f, (float)random.NextDouble() * 360f);
+                    var along = (i % 2 == 0 ? 1f : -1f) * (radius + 1.4f + (float)random.NextDouble() * 2.2f);
+                    var out_ = at.HalfWidth + 1.2f + (float)random.NextDouble() * (Rockslide.CragEdge + 4f);
+                    var size = 0.9f + (float)random.NextDouble() * 1.3f;
+                    var height = Mathf.Lerp(0f, Rockslide.CragHeight, Mathf.InverseLerp(at.HalfWidth + 0.3f, at.HalfWidth + Rockslide.CragEdge, out_));
+                    Shapes3D.Model("Stone", palette.rockMeshes[pick], palette.rockMaterials[pick], Root,
+                        SimSpace.ToWorld(at.Centre + at.Left * (side * out_) + at.Tangent * along, height - 0.25f), size, (float)random.NextDouble() * 360f);
                 }
-                else Part(PrimitiveType.Sphere, Root, place, new Vector3(size, size * 0.9f, size), stone, Quaternion.Euler(0f, (float)random.NextDouble() * 360f, 0f), "Outcrop");
+
+            boulder = Boulder(Root, "Boulder", palette, radius);
+            // The pile the next ones come from, out behind the edge.
+            for (var i = 0; i < 3; i++)
+            {
+                var spot = at.Centre + at.Left * (side * (at.HalfWidth + Rockslide.CragEdge + Rockslide.PileOut + 1.6f + i * 0.9f)) +
+                           at.Tangent * ((i - 1) * radius * 1.7f);
+                var waiting = Boulder(Root, "Waiting boulder", palette, radius * (0.85f + 0.1f * i));
+                waiting.SetPositionAndRotation(SimSpace.ToWorld(spot, Rockslide.CragHeight + radius * 0.9f), Quaternion.Euler(i * 70f, i * 130f, 0f));
             }
 
-            boulder = Shapes3D.Group(Root, "Boulder");
+            axis = SimSpace.Direction(at.Tangent) * side; // rolling across the river turns it about the river's line
+        }
+
+        static Transform Boulder(Transform parent, string name, ArtPalette palette, float radius)
+        {
+            var boulder = Shapes3D.Group(parent, name);
             if (palette.HasRocks)
             {
                 // Centred on the group, so it spins about its middle as it rolls.
                 // The roundest scan, sized so it reaches the boulder's radius every way it rolls.
                 var pick = CourseDressing.RoundestRock(palette);
                 var rock = Shapes3D.Model("Rock", palette.rockMeshes[pick], palette.rockMaterials[pick], boulder, Vector3.zero,
-                    slide.Spot.radius * 1.02f / palette.RockReach(pick).z);
+                    radius * 1.02f / palette.RockReach(pick).z);
                 rock.transform.localPosition -= Vector3.up * (palette.rockMeshes[pick].bounds.size.y * rock.transform.localScale.y * 0.5f); // its middle on the pivot
             }
-            else Part(PrimitiveType.Sphere, boulder, Vector3.zero, Vector3.one * (slide.Spot.radius * 2f), Tint(palette.rock, new Color(0.47f, 0.44f, 0.4f)), name: "Rock");
-            axis = SimSpace.Direction(at.Tangent) * side; // rolling across the river turns it about the river's line
+            else Part(PrimitiveType.Sphere, boulder, Vector3.zero, Vector3.one * (radius * 2f), palette.Tinted(palette.rock, new Color(0.47f, 0.44f, 0.4f)), name: "Rock");
+
+            return boulder;
         }
+
+        /// <summary>
+        /// The crag's rock, built across the river's line: from the bank out, a chute rising from the water to the edge
+        /// (as wide as the boulders, with shoulders either side), a flat top, and a face dropping into the gorge.
+        /// </summary>
+        static Mesh Crag(RiverSample at, float side, float radius, System.Random random)
+        {
+            var bank = at.HalfWidth;
+            // The section across, as (metres out from the middle, height): bank, chute, edge, top, back, deep.
+            var outs = new[] { bank - 0.4f, bank + 0.3f, bank + Rockslide.CragEdge, bank + Rockslide.CragEdge + 2.5f, bank + 11f, bank + 12f, bank + 10f };
+            var heights = new[] { -1.5f, 0f, Rockslide.CragHeight, Rockslide.CragHeight + 0.2f, Rockslide.CragHeight + 0.6f, -6f, -40f };
+            // Along the river: the chute in the middle, shoulders standing higher either side, the ends falling away.
+            var alongs = new[] { -radius - 5f, -radius - 2.5f, -radius - 0.6f, -radius + 0.1f, radius - 0.1f, radius + 0.6f, radius + 2.5f, radius + 5f };
+            var lift = new[] { -3.5f, 0.8f, 1.3f, 0f, 0f, 1.3f, 0.8f, -3.5f };
+            var vertices = new List<Vector3>();
+            var triangles = new List<int>();
+            for (var a = 0; a < alongs.Length; a++)
+            for (var o = 0; o < outs.Length; o++)
+            {
+                var h = heights[o];
+                if (o >= 1 && o <= 4) h += lift[a] * (o == 1 ? 0.5f : 1f) + (a is > 0 and < 7 && (a < 3 || a > 4) ? ((float)random.NextDouble() - 0.5f) * 0.6f : 0f);
+                if (o == 0) h = Mathf.Min(h, lift[a] * 0.3f - 1.2f);
+                var outward = outs[o] + (a is 0 or 7 ? -0.5f : 0f);
+                vertices.Add(SimSpace.ToWorld(at.Centre + at.Left * (side * outward) + at.Tangent * alongs[a], h));
+            }
+
+            var n = outs.Length;
+            for (var a = 0; a < alongs.Length - 1; a++)
+            for (var o = 0; o < n - 1; o++)
+            {
+                var i = a * n + o;
+                // Clockwise seen from above (Unity's front faces), whichever bank it's on.
+                if (side > 0f) triangles.AddRange(new[] { i, i + 1, i + n, i + 1, i + n + 1, i + n });
+                else triangles.AddRange(new[] { i, i + n, i + 1, i + 1, i + n, i + n + 1 });
+            }
+
+            var mesh = new Mesh { name = "Crag" };
+            mesh.SetVertices(vertices);
+            mesh.SetTriangles(triangles, 0);
+            mesh.RecalculateNormals();
+            mesh.RecalculateBounds();
+            return mesh;
+        }
+
+        bool wasCrossing;
 
         public override void Pose(double seconds)
         {
-            var (position, height, rolled, _, teeter) = slide.Boulder(seconds);
+            var (position, height, rolled, crossing, teeter) = slide.Boulder(seconds);
             var wobble = teeter * Mathf.Sin((float)seconds * 22f) * 0.15f;
             boulder.position = SimSpace.ToWorld(position, slide.Spot.radius + height) + SimSpace.Direction(slide.At.Left) * wobble;
             boulder.rotation = Quaternion.AngleAxis(rolled / slide.Spot.radius * Mathf.Rad2Deg, axis);
             boulder.gameObject.SetActive(height > -30f);
+            if (crossing && !wasCrossing) Splashes.Splash(SimSpace.ToWorld(position, 0.2f), 2.4f, Palette); // into the water it comes
+            wasCrossing = crossing;
         }
     }
 
@@ -250,16 +396,28 @@ namespace RushAhead.Render
             Part(PrimitiveType.Cylinder, barrel, new Vector3(0f, 0f, 0.4f), new Vector3(0.55f, 0.7f, 0.55f), metal, Quaternion.Euler(90f, 0f, 0f), "Tube");
             Part(PrimitiveType.Cylinder, barrel, new Vector3(0f, 0f, 1.15f), new Vector3(0.38f, 0.08f, 0.38f), brass, Quaternion.Euler(90f, 0f, 0f), "Muzzle");
             jet = Shapes3D.Group(Root, "Jet", new Vector3(0f, 1.1f, 0f));
-            Part(PrimitiveType.Cylinder, jet, new Vector3(0f, 0f, cannon.Reach * 0.5f), new Vector3(Cannon.JetRadius * 1.4f, cannon.Reach * 0.5f, Cannon.JetRadius * 1.4f), palette.foam,
-                Quaternion.Euler(90f, 0f, 0f), "Water");
-            Part(PrimitiveType.Sphere, jet, new Vector3(0f, -0.9f, cannon.Reach), new Vector3(2.4f, 0.8f, 2.4f), palette.foam, name: "Splash");
+            Part(PrimitiveType.Cylinder, jet, new Vector3(0f, 0f, cannon.Reach * 0.5f), new Vector3(Cannon.JetRadius * 1.4f, cannon.Reach * 0.5f, Cannon.JetRadius * 1.4f),
+                palette.Spray(new Color(0.85f, 0.95f, 1f, 0.8f), 0.8f, 0f, -1.5f), Quaternion.Euler(90f, 0f, 0f), "Water");
+            Part(PrimitiveType.Sphere, jet, new Vector3(0f, -0.9f, cannon.Reach), new Vector3(2.4f, 0.8f, 2.4f), palette.Spray(new Color(1f, 1f, 1f, 0.75f), 0.5f, 0f, 1f),
+                name: "Splash");
+            // The jet's track on the water: a churned white stripe where it lands, so you can see where it's pointing.
+            track = Shapes3D.Group(Root, "Track", new Vector3(0f, -SimSpace.ToWorld(cannon.Muzzle).y + 0.04f, 0f));
+            Part(PrimitiveType.Cube, track, new Vector3(0f, 0f, cannon.Reach * 0.55f), new Vector3(Cannon.JetRadius * 2.2f, 0.02f, cannon.Reach * 0.9f),
+                Tint(palette.foam, new Color(1f, 1f, 1f, 0.45f)), name: "Stripe");
+            // A tank of water behind the gun, with a pipe to it.
+            var tank = Tint(palette.Metal, new Color(0.35f, 0.42f, 0.5f));
+            Part(PrimitiveType.Cylinder, Root, new Vector3(0f, 1.3f, -1.6f), new Vector3(1.5f, 1.3f, 1.5f), tank, name: "Tank");
+            Part(PrimitiveType.Cylinder, Root, new Vector3(0f, 1.25f, -0.75f), new Vector3(0.22f, 0.5f, 0.22f), metal, Quaternion.Euler(90f, 0f, 0f), "Pipe");
         }
+
+        readonly Transform track;
 
         public override void Pose(double seconds)
         {
             var aim = Facing(cannon.Jet(seconds));
             barrel.rotation = aim;
             jet.rotation = aim * Quaternion.Euler(4f, 0f, 0f); // the water droops as it goes
+            track.rotation = aim;
             var flicker = 1f + 0.08f * Mathf.Sin((float)seconds * 37f);
             jet.localScale = new Vector3(flicker, flicker, 1f);
         }
@@ -274,16 +432,30 @@ namespace RushAhead.Render
         {
             var river = rapids.Course.River;
             var random = new System.Random(Mathf.RoundToInt(rapids.Spot.from * 7f));
-            for (var distance = rapids.Spot.from; distance < rapids.Spot.to; distance += 2.2f)
+            var white = palette.Spray(new Color(1f, 1f, 1f, 0.9f), 0.5f, 0f, 0.6f, 0.5f);
+            var boil = palette.Spray(new Color(0.62f, 0.85f, 0.92f, 0.75f), 0.6f, 0f, 0.4f, 0.6f);
+            var froth = Tint(palette.foam, new Color(1f, 1f, 1f, 0.8f));
+            var row = 0;
+            for (var distance = rapids.Spot.from; distance < rapids.Spot.to; distance += 1.5f, row++)
             {
                 var at = river.At(distance);
                 var turn = Quaternion.LookRotation(SimSpace.Direction(at.Tangent));
-                var across = ((float)random.NextDouble() - 0.5f) * at.HalfWidth;
-                var width = at.HalfWidth * (0.6f + (float)random.NextDouble() * 0.9f);
-                var wave = Part(PrimitiveType.Cube, Root, SimSpace.ToWorld(at.Centre + at.Left * across, 0.06f), new Vector3(width, 0.18f, 0.5f), palette.foam, turn, "Standing wave").transform;
-                waves.Add((wave, (float)random.NextDouble() * 6f));
-                Shapes3D.MeshObject("Foam", Shapes3D.Disc(0.8f + (float)random.NextDouble() * 1.2f, 14), Root,
-                    SimSpace.ToWorld(at.Centre + at.Left * (((float)random.NextDouble() - 0.5f) * 1.6f * at.HalfWidth), 0.03f), palette.foam);
+                var count = 2 + row % 2;
+                for (var k = 0; k < count; k++)
+                {
+                    // A standing wave: a short hump of green water with a white crest curling over, staggered row to row.
+                    var slot = (k + 0.5f + (row % 2) * 0.5f) / (count + 0.5f) * 2f - 1f;
+                    var across = (slot + ((float)random.NextDouble() - 0.5f) * 0.25f) * at.HalfWidth * 0.85f;
+                    var width = at.HalfWidth * (0.3f + (float)random.NextDouble() * 0.25f);
+                    var wave = Shapes3D.Group(Root, "Standing wave", SimSpace.ToWorld(at.Centre + at.Left * across, 0f));
+                    wave.rotation = turn * Quaternion.Euler(0f, ((float)random.NextDouble() - 0.5f) * 30f, 0f);
+                    Part(PrimitiveType.Capsule, wave, Vector3.zero, new Vector3(0.6f, width * 0.5f, 1.4f), boil, Quaternion.Euler(0f, 0f, 90f), "Hump");
+                    Part(PrimitiveType.Capsule, wave, new Vector3(0f, 0.17f, 0.3f), new Vector3(0.26f, width * 0.42f, 0.5f), white, Quaternion.Euler(0f, 0f, 90f), "Crest");
+                    waves.Add((wave, (float)random.NextDouble() * 6f));
+                }
+
+                Shapes3D.MeshObject("Foam", Shapes3D.Disc(1.2f + (float)random.NextDouble() * 1.4f, 14), Root,
+                    SimSpace.ToWorld(at.Centre + at.Left * (((float)random.NextDouble() - 0.5f) * 1.6f * at.HalfWidth), 0.03f), froth);
             }
         }
 
@@ -292,7 +464,7 @@ namespace RushAhead.Render
             foreach (var (wave, phase) in waves)
             {
                 var p = wave.localPosition;
-                wave.localPosition = new Vector3(p.x, 0.05f + 0.12f * Mathf.Sin((float)seconds * 5f + phase), p.z);
+                wave.localPosition = new Vector3(p.x, -0.05f + 0.16f * Mathf.Sin((float)seconds * 5f + phase), p.z);
             }
         }
     }
@@ -310,10 +482,14 @@ namespace RushAhead.Render
             for (var across = -at.HalfWidth; across <= at.HalfWidth + 0.01f; across += 1.1f)
                 Part(PrimitiveType.Cube, Root, SimSpace.ToWorld(at.Centre + at.Left * across, -0.05f), new Vector3(1.05f, 0.25f, 0.9f), stone,
                     turn * Quaternion.Euler(0f, across * 7f, 0f), "Stone");
-            Part(PrimitiveType.Cube, Root, SimSpace.ToWorld(at.Centre + at.Tangent * 1.2f, 0.05f), new Vector3(2f * at.HalfWidth, 0.12f, 2f), palette.foam, turn, "White water");
-            spray = Shapes3D.Group(Root, "Spray", SimSpace.ToWorld(at.Centre + at.Tangent * 1.5f, 0.3f));
-            for (var i = -2; i <= 2; i++)
-                Part(PrimitiveType.Sphere, spray, SimSpace.Direction(at.Left) * (i * at.HalfWidth * 0.4f), new Vector3(2.2f, 0.7f, 1.6f), palette.foam, name: "Puff");
+            var white = palette.Spray(new Color(1f, 1f, 1f, 0.88f), 0.6f, 0f, 0.8f, 0.5f);
+            // The lip the water pours over (a smooth glassy band), and the churning white water below it.
+            Part(PrimitiveType.Cube, Root, SimSpace.ToWorld(at.Centre - at.Tangent * 0.6f, 0.04f), new Vector3(2f * at.HalfWidth, 0.06f, 1.2f),
+                palette.Spray(new Color(0.55f, 0.85f, 0.85f, 0.55f), 0.4f, 0f, 1.2f, 0.3f), turn, "Glassy lip");
+            Part(PrimitiveType.Cube, Root, SimSpace.ToWorld(at.Centre + at.Tangent * 1.6f, 0.06f), new Vector3(2f * at.HalfWidth, 0.14f, 3f), white, turn, "White water");
+            spray = Shapes3D.Group(Root, "Spray", SimSpace.ToWorld(at.Centre + at.Tangent * 1.3f, 0.35f));
+            for (var i = -3; i <= 3; i++)
+                Part(PrimitiveType.Sphere, spray, SimSpace.Direction(at.Left) * (i * at.HalfWidth * 0.29f), new Vector3(2.2f, 0.9f, 1.8f), white, name: "Puff");
         }
 
         public override void Pose(double seconds) => spray.localScale = Vector3.one * (1f + 0.1f * Mathf.Sin((float)seconds * 9f));
@@ -329,7 +505,8 @@ namespace RushAhead.Render
         {
             var r = bumper.Spot.radius;
             buoy = Shapes3D.Group(Root, "Buoy");
-            if (palette.buoyMesh != null) Shapes3D.Model("Buoy", palette.buoyMesh, palette.buoyMaterial, buoy, Vector3.zero, 2f * r, Yaw(bumper), 0.25f);
+            if (palette.buoyMesh != null)
+                Shapes3D.Model("Buoy", palette.buoyMesh, palette.buoyMaterial, buoy, Vector3.zero, 2f * r, Yaw(bumper), 0.3f, Quaternion.Euler(-90f, 0f, 0f));
             else
             {
                 var red = Tint(palette.sign, new Color(0.9f, 0.18f, 0.15f));

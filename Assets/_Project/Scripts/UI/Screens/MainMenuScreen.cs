@@ -87,6 +87,7 @@ namespace RushAhead.UI
             right.Add(Btn("play-solo", "Play solo", Game.BeginSolo, "btn btn--primary"));
             right.Add(Btn("menu-host", "Host a game", Flow.OpenHost));
             right.Add(Btn("menu-join", "Join a game", Flow.OpenJoin));
+            right.Add(Btn("menu-guide", "Field guide", () => App.OpenGuide()));
             right.Add(Btn("menu-settings", "Settings", Flow.OpenSettings));
             if (GameUi.CanQuit)
             {

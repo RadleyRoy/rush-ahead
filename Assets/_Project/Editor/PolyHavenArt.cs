@@ -32,7 +32,7 @@ namespace RushAhead.EditorTools
             palette.grass = Triplanar("Ground", "aerial_grass_rock", 9f, 0.08f, new Color(0.6f, 0.62f, 0.54f));
             palette.wood = Triplanar("Bark", "bark_brown_02", 1.6f, 0.12f, new Color(0.5f, 0.5f, 0.5f), objectSpace: true);
             palette.leaves = Triplanar("Leaves", "forest_leaves_02", 1.4f, 0.15f, new Color(0.42f, 0.55f, 0.38f), objectSpace: true);
-            palette.planks = Triplanar("Planks", "weathered_planks", 2.2f, 0.15f, new Color(0.5f, 0.5f, 0.5f), objectSpace: true);
+            palette.planks = Triplanar("Planks", "weathered_planks", 2.2f, 0.15f, new Color(0.6f, 0.55f, 0.5f), objectSpace: true);
             palette.metal = Triplanar("Metal", "rusty_metal_02", 1.2f, 0.35f, new Color(0.5f, 0.5f, 0.5f), objectSpace: true);
             palette.sand = Triplanar("Sand", "coast_sand_01", 4f, 0.1f, new Color(0.5f, 0.5f, 0.5f));
 

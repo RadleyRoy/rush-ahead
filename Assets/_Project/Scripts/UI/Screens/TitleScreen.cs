@@ -28,9 +28,15 @@ namespace RushAhead.UI
 
         public override bool Opaque => true;
 
+        Texture2D backdrop;
+
+        /// <summary>The dark gradient runs right to the screen's edges, past any notch (the words stay in the safe area).</summary>
+        public override Texture2D Backdrop => backdrop;
+
         public override void Build()
         {
-            Root.style.backgroundImage = Gradients.Vertical(Top, Bottom);
+            backdrop = Gradients.Vertical(Top, Bottom);
+            Root.style.backgroundImage = backdrop;
             Root.AddToClassList("center");
 
             var streaks = new VisualElement { pickingMode = PickingMode.Ignore };
@@ -96,10 +102,11 @@ namespace RushAhead.UI
                 var lean = (bottom - top) * 1.2f;
                 painter.fillColor = color;
                 painter.BeginPath();
-                painter.MoveTo(new Vector2(0f, top));
+                // From well off the left (the screen sits inside the safe area, so a notch's width is still to go).
+                painter.MoveTo(new Vector2(-600f, top));
                 painter.LineTo(new Vector2(w * length + lean, top));
                 painter.LineTo(new Vector2(w * length, bottom));
-                painter.LineTo(new Vector2(0f, bottom));
+                painter.LineTo(new Vector2(-600f, bottom));
                 painter.ClosePath();
                 painter.Fill();
             }

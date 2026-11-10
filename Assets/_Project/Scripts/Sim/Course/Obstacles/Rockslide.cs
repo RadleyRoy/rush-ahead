@@ -5,9 +5,10 @@ using UnityEngine;
 namespace RushAhead.Sim
 {
     /// <summary>
-    /// A rocky outcrop on one side of the river. Every period a boulder teeters at its top (the warning), rolls down,
-    /// thunders across the river and drops off the far edge. It's solid while it crosses, and a raft it hits is
-    /// knocked hard and heeled over; bracing takes some of it, but timing (or luck) is the real answer.
+    /// A rocky crag on one side of the river with a pile of boulders on top. Every period the next boulder rolls out
+    /// from the pile to the edge, teeters there (the warning), rolls down the chute, thunders across the river and drops
+    /// off the far edge. It's solid while it crosses, and a raft it hits is knocked hard and heeled over; bracing takes
+    /// some of it, but timing (or luck) is the real answer.
     /// </summary>
     public sealed class Rockslide : Obstacle
     {
@@ -16,6 +17,12 @@ namespace RushAhead.Sim
         const float RollFor = 0.4f; // down the outcrop
         const float CrossFor = 0.8f; // across the river
         const float FallFor = 0.6f; // over the far edge and gone
+        const float ArriveFor = 0.6f; // the next one rolling out from the pile to the edge
+        /// <summary>How high the crag's top stands above the water, and how far out from the bank its edge is.</summary>
+        public const float CragHeight = 3f;
+        public const float CragEdge = 4.5f;
+        /// <summary>How much further out the pile of waiting boulders sits.</summary>
+        public const float PileOut = 2.8f;
         const float Shove = 150f;
         const float Heel = 6f;
 
@@ -39,8 +46,9 @@ namespace RushAhead.Sim
         public RiverSample At => at;
 
         /// <summary>
-        /// The boulder: where it is on the water plane, how high above it (on the outcrop or falling past the edge), how
-        /// far it has rolled (for spinning it), whether it's crossing the river, and how much it's rocking (0 to 1).
+        /// The boulder: where it is on the water plane, how high above it (on the crag or falling past the edge), how
+        /// far it has rolled toward the river (for spinning it), whether it's crossing the river, and how much it's
+        /// rocking (0 to 1). Between boulders the next one rolls out from the pile, so none pops into view.
         /// </summary>
         public (Vector2 position, float height, float rolled, bool crossing, float teeter) Boulder(double seconds)
         {
@@ -51,20 +59,22 @@ namespace RushAhead.Sim
             var teetering = rolling - TeeterFor / spot.period;
             var gone = landing + CrossFor / spot.period;
             var fallen = gone + FallFor / spot.period;
-            var top = spot.side * (at.HalfWidth + 4.5f);
+            var top = spot.side * (at.HalfWidth + CragEdge);
             var lip = spot.side * (at.HalfWidth + 0.3f);
             var far = -spot.side * (at.HalfWidth + 2.5f);
             float across, height;
-            if (phase < rolling)
+            if (phase < rolling || phase >= fallen)
             {
-                across = top;
-                height = 3f;
+                var since = Mathf.Repeat(phase - fallen, 1f) * spot.period; // seconds since the last one went over
+                var t = Smooth(Mathf.Clamp01(since / ArriveFor));
+                across = top + spot.side * PileOut * (1f - t);
+                height = CragHeight;
             }
             else if (phase < landing)
             {
                 var t = (phase - rolling) / (landing - rolling);
                 across = Mathf.Lerp(top, lip, t * t);
-                height = Mathf.Lerp(3f, 0f, t * t);
+                height = Mathf.Lerp(CragHeight, 0f, t * t);
             }
             else if (phase < gone)
             {
@@ -75,11 +85,11 @@ namespace RushAhead.Sim
             {
                 var t = Mathf.Clamp01((phase - gone) / (fallen - gone));
                 across = far - spot.side * t * 3f;
-                height = phase < fallen ? -40f * t * t : -100f; // gone over the edge
+                height = -40f * t * t; // over the edge
             }
 
             var teeter = phase >= teetering && phase < rolling ? (phase - teetering) / (rolling - teetering) : 0f;
-            var rolled = Mathf.Abs(across - top);
+            var rolled = spot.side * (top - across); // signed, so it keeps turning the same way from the pile to the far edge
             return (at.Centre + at.Left * across, height, rolled, phase >= landing && phase < gone, teeter);
         }
 

@@ -32,7 +32,6 @@ namespace RushAhead.Render
         BankStyle style;
         readonly List<Renderer[]> gateBanners = new();
         readonly List<Chevron> chevrons = new();
-        readonly List<(Transform spiral, float degreesPerSecond)> whirlpools = new();
 
         /// <summary>The moving obstacles (wheels, crocodiles, swinging logs, geysers); set their clock to pose them.</summary>
         public HazardViews Obstacles { get; private set; }
@@ -52,6 +51,9 @@ namespace RushAhead.Render
             public float From, To, Speed;
         }
 
+        /// <summary>Leaves the scenery unbatched (a diagnostic: <c>-rushahead-no-batching</c>).</summary>
+        public static bool NoBatching = System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-rushahead-no-batching") >= 0;
+
         public static CourseView Build(Course course, ArtPalette palette)
         {
             var view = new GameObject($"Course view: {course.Def.displayName}").AddComponent<CourseView>();
@@ -69,7 +71,7 @@ namespace RushAhead.Render
             else view.BuildFloor(scenery, random);
             foreach (var rock in course.Def.rocks) CourseDressing.Rock(scenery, rock.position, rock.radius, palette, random);
             if (view.style.LilyPads) view.BuildLilyPads(scenery, random);
-            StaticBatchingUtility.Combine(scenery.gameObject); // hundreds of primitives that never move: draw them in a few batches
+            if (!NoBatching) StaticBatchingUtility.Combine(scenery.gameObject); // hundreds of primitives that never move: draw them in a few batches
 
             var moving = Shapes3D.Group(view.transform, "Moving");
             for (var i = 0; i < course.Barrels.Count; i++)
@@ -102,7 +104,7 @@ namespace RushAhead.Render
 
         void Update()
         {
-            foreach (var (spiral, rate) in whirlpools) spiral.Rotate(0f, rate * Time.deltaTime, 0f);
+            CircleDebris(Time.deltaTime);
 
             var river = course.River;
             foreach (var chevron in chevrons)
@@ -150,6 +152,7 @@ namespace RushAhead.Render
             var flowing = new Material(palette.water) { name = "River water" };
             flowing.SetFloat("_RiverSpace", 1f);
             flowing.SetFloat("_FlowSpeed", course.Def.flow);
+            flowing.SetFloat("_Holes", 1f); // whirlpools' funnels show through
             Shapes3D.MeshObject("Water", water.Build("Water"), parent, Vector3.zero, flowing);
         }
 
@@ -475,30 +478,130 @@ namespace RushAhead.Render
         /// Each whirlpool: a patch of darker water and three foam arms spiralling in, turning the way the water goes
         /// (anticlockwise from above for a positive spin), about as fast as the water halfway out.
         /// </summary>
+        static readonly int WhirlpoolsId = Shader.PropertyToID("_RushWhirlpools");
+        static readonly int WhirlpoolCountId = Shader.PropertyToID("_RushWhirlpoolCount");
+
+        /// <summary>
+        /// Each whirlpool is a funnel: the river's water is cut away over it (in the water shader) and a bowl dips in its
+        /// place, its water turning with foam arms spiralling into a dark eye, sticks and leaves circling down into it.
+        /// Rafts ride down into the bowl (<see cref="WaterSurface"/>).
+        /// </summary>
         void BuildWhirlpools(Transform parent)
         {
-            var deep = palette.Tinted(palette.water, new Color(0.05f, 0.38f, 0.62f));
-            foreach (var pool in course.Def.whirlpools)
+            var spots = course.Def.whirlpools;
+            var holes = new Vector4[6];
+            for (var i = 0; i < spots.Length && i < holes.Length; i++)
+                holes[i] = new Vector4(spots[i].position.x, spots[i].position.y, spots[i].radius - 0.04f, 0f);
+            whirlpoolOwner = this; // a course torn down after this one was built mustn't clear its whirlpools
+            Shader.SetGlobalVectorArray(WhirlpoolsId, holes);
+            Shader.SetGlobalFloat(WhirlpoolCountId, Mathf.Min(spots.Length, holes.Length));
+            WaterSurface.SetFunnels(spots);
+
+            var bark = palette.Tinted(palette.wood, new Color(0.42f, 0.31f, 0.2f));
+            var random = new System.Random(spots.Length * 31 + 5);
+            foreach (var pool in spots)
             {
                 var root = Shapes3D.Group(parent, "Whirlpool", SimSpace.ToWorld(pool.position, 0f));
-                Shapes3D.MeshObject("Deep water", Shapes3D.Disc(pool.radius, 32), root, new Vector3(0f, 0.01f, 0f), deep);
-                var spiral = Shapes3D.Group(root, "Spiral");
-                const int arms = 3, pieces = 12;
-                for (var arm = 0; arm < arms; arm++)
-                for (var k = 0; k < pieces; k++)
-                {
-                    var t = k / (pieces - 1f);
-                    var angle = (arm * 360f / arms + t * 300f) * Mathf.Deg2Rad;
-                    var radius = pool.radius * (0.12f + 0.8f * t);
-                    var at = new Vector3(Mathf.Cos(angle), 0f, Mathf.Sin(angle)) * radius;
-                    var along = Quaternion.LookRotation(new Vector3(-Mathf.Sin(angle), 0f, Mathf.Cos(angle)));
-                    Shapes3D.Primitive(PrimitiveType.Cube, spiral, at + Vector3.up * 0.04f, new Vector3(0.12f + 0.1f * t, 0.02f, 0.5f + 0.5f * t), palette.foam, along, "Foam");
-                }
+                var depth = WaterSurface.FunnelDepth(pool.radius);
+                var water = new Material(palette.water) { name = "Whirlpool water" };
+                water.SetFloat("_Swirl", 1f);
+                water.SetVector("_SwirlCentre", new Vector4(pool.position.x, pool.position.y, 0f, 0f));
+                water.SetFloat("_SwirlRadius", pool.radius);
+                // A positive spin turns sim x toward sim y (world x toward z); the shader's pattern turns the other way for a positive rate.
+                var turn = pool.spin / Mathf.Max(0.5f, pool.radius * 0.5f);
+                water.SetFloat("_SwirlSpin", -turn * 1.5f);
+                Shapes3D.MeshObject("Funnel", Funnel(pool.radius, depth), root, Vector3.zero, water);
 
-                // A positive spin turns sim x toward sim y, which in the world is x toward z: a negative turn about y.
-                var degreesPerSecond = -pool.spin / Mathf.Max(0.5f, pool.radius * 0.5f) * Mathf.Rad2Deg;
-                whirlpools.Add((spiral, degreesPerSecond));
+                for (var i = 0; i < 6; i++)
+                {
+                    var stick = Shapes3D.Group(root, "Debris");
+                    var leafy = i % 3 == 2;
+                    Shapes3D.Primitive(leafy ? PrimitiveType.Sphere : PrimitiveType.Cylinder, stick, Vector3.zero,
+                        leafy ? new Vector3(0.35f, 0.06f, 0.25f) : new Vector3(0.09f, 0.45f + 0.3f * (float)random.NextDouble(), 0.09f),
+                        leafy ? palette.leaves : bark, leafy ? Quaternion.identity : Quaternion.Euler(90f, 0f, 0f), "Piece");
+                    debris.Add(new Debris
+                    {
+                        Piece = stick, Centre = pool.position, Radius = pool.radius, Depth = depth, Turn = turn,
+                        R = pool.radius * (0.2f + 0.75f * (float)random.NextDouble()), Angle = (float)(random.NextDouble() * Mathf.PI * 2.0),
+                    });
+                }
             }
+        }
+
+        /// <summary>A bowl of water dipping to <paramref name="depth"/> at its eye, flat at the rim to meet the river.</summary>
+        static Mesh Funnel(float radius, float depth)
+        {
+            const int rings = 16, segments = 56;
+            var vertices = new List<Vector3>();
+            var triangles = new List<int>();
+            for (var ring = 0; ring <= rings; ring++)
+            {
+                var r = radius * (1f - ring / (float)rings * 0.97f);
+                var y = WaterSurface.FunnelHeight(r, radius, depth);
+                for (var s = 0; s < segments; s++)
+                {
+                    var a = s * Mathf.PI * 2f / segments;
+                    vertices.Add(new Vector3(Mathf.Cos(a) * r, y, Mathf.Sin(a) * r));
+                }
+            }
+
+            for (var ring = 0; ring < rings; ring++)
+            for (var s = 0; s < segments; s++)
+            {
+                var a = ring * segments + s;
+                var b = ring * segments + (s + 1) % segments;
+                var c = a + segments;
+                var d = b + segments;
+                triangles.AddRange(new[] { a, c, b, b, c, d });
+            }
+
+            // The eye: a little cap closing the bottom.
+            var eye = vertices.Count;
+            vertices.Add(new Vector3(0f, -depth, 0f));
+            for (var s = 0; s < segments; s++)
+                triangles.AddRange(new[] { rings * segments + s, eye, rings * segments + (s + 1) % segments });
+
+            var mesh = new Mesh { name = "Whirlpool funnel" };
+            mesh.SetVertices(vertices);
+            mesh.SetTriangles(triangles, 0);
+            mesh.RecalculateNormals();
+            mesh.RecalculateBounds();
+            return mesh;
+        }
+
+        /// <summary>A stick or leaf circling down into a whirlpool, faster as it nears the eye, then back out at the rim.</summary>
+        sealed class Debris
+        {
+            public Transform Piece;
+            public Vector2 Centre;
+            public float Radius, Depth, Turn, R, Angle;
+        }
+
+        readonly List<Debris> debris = new();
+
+        void CircleDebris(float dt)
+        {
+            foreach (var bit in debris)
+            {
+                var spin = bit.Turn * Mathf.Clamp(bit.Radius * 0.5f / Mathf.Max(bit.R, 0.4f), 0.5f, 3f);
+                bit.Angle += spin * dt;
+                bit.R -= (0.25f + 0.9f * (1f - bit.R / bit.Radius)) * dt;
+                if (bit.R < 0.35f) bit.R = bit.Radius * 0.95f;
+                var at = bit.Centre + new Vector2(Mathf.Cos(bit.Angle), Mathf.Sin(bit.Angle)) * bit.R;
+                var along = new Vector2(-Mathf.Sin(bit.Angle), Mathf.Cos(bit.Angle)) * Mathf.Sign(bit.Turn);
+                bit.Piece.SetPositionAndRotation(SimSpace.ToWorld(at, WaterSurface.FunnelHeight(bit.R, bit.Radius, bit.Depth) + 0.04f),
+                    Quaternion.LookRotation(SimSpace.Direction(along)));
+            }
+        }
+
+        static CourseView whirlpoolOwner;
+
+        void OnDestroy()
+        {
+            if (whirlpoolOwner != this) return;
+            whirlpoolOwner = null;
+            WaterSurface.Clear();
+            Shader.SetGlobalFloat(WhirlpoolCountId, 0f);
         }
 
         void BuildGates(Transform parent)
@@ -558,13 +661,14 @@ namespace RushAhead.Render
             foreach (var current in course.Def.currents)
             {
                 var zone = new CurrentZoneView { From = current.from, To = current.to, Speed = current.speed };
-                var count = Mathf.CeilToInt((current.to - current.from) / 2.5f);
+                var count = Mathf.CeilToInt((current.to - current.from) / 1.6f);
+                var arrow = palette.Spray(current.speed >= 0f ? new Color(0.8f, 1f, 1f, 0.8f) : new Color(1f, 0.78f, 0.45f, 0.85f), 0f, 0f, 0f, 0f);
                 for (var i = 0; i < count; i++)
                 {
                     var shape = Shapes3D.Group(parent, "Current");
                     foreach (var side in new[] { -1f, 1f })
-                        Shapes3D.Primitive(PrimitiveType.Cube, shape, new Vector3(0.32f * side, 0f, -0.25f), new Vector3(0.1f, 0.02f, 0.9f), palette.foam,
-                            Quaternion.Euler(0f, -35f * side, 0f), "Stroke");
+                        Shapes3D.Primitive(PrimitiveType.Cube, shape, new Vector3(0.55f * side, 0f, -0.45f), new Vector3(0.22f, 0.02f, 1.5f), arrow,
+                            Quaternion.Euler(0f, -38f * side, 0f), "Stroke");
                     chevrons.Add(new Chevron
                     {
                         Shape = shape,

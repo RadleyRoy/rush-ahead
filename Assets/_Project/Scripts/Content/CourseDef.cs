@@ -425,6 +425,22 @@ namespace RushAhead.Content
         BeaverDam,
         Pelican,
         NetBoat,
+        Kraken,
+        TidalBore,
+        JumpRamp,
+        GooseGang,
+        ChainedMines,
+        WreckingBall,
+        StormCloud,
+        PaddleSteamer,
+        MillRace,
+        Drawbridge,
+        CargoCrane,
+        LogFlume,
+        CalvingGlacier,
+        DynamiteFloat,
+        LeapingFrogs,
+        GiantFan,
     }
 
     /// <summary>One kind on a course's menu, and how often it comes up compared with the others.</summary>

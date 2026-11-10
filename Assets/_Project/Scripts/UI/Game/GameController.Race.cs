@@ -25,11 +25,17 @@ namespace RushAhead.UI
         /// <summary>Where the room is in the round of play. The host decides; joined players follow.</summary>
         public RoomPhase Phase => Mode == NetMode.Joined ? client.Race.Phase : phase;
 
-        /// <summary>A fresh race with a countdown while racing; otherwise the rafts go back to the start line.</summary>
+        /// <summary>A fresh race (on a freshly dealt layout) with a countdown while racing; otherwise the rafts go back to the start line.</summary>
         public void ResetBoat()
         {
-            if (phase == RoomPhase.Racing) StartRun();
-            else Stage();
+            if (phase != RoomPhase.Racing)
+            {
+                Stage();
+                return;
+            }
+
+            if (layoutRaced) DealNewLayout(); // a fresh attempt deals a fresh layout, like Race again
+            StartRun();
         }
 
         /// <summary>Loads a venue (0 is the practice lagoon) for the next race, with the rafts waiting on its start line.</summary>
@@ -149,13 +155,16 @@ namespace RushAhead.UI
             course.ResetStrays();
             boatsOnCourse.Clear();
             foreach (var raft in rafts) boatsOnCourse.Add(raft.Boat);
-            course.Hazards.Step(tick / (double)config.tickRate, boatsOnCourse); // where they'll be for the next physics step
+            course.Hazards.Step(exhibitClock?.Invoke() ?? tick / (double)config.tickRate, boatsOnCourse); // where they'll be for the next physics step
         }
 
         readonly List<Boat> boatsOnCourse = new();
 
         /// <summary>The race clock in seconds: the host's tick, or the tick a joined player is drawing. Obstacles run on it.</summary>
-        double ClockSeconds() => (Mode == NetMode.Joined ? PlaybackTick : runner.World.Tick) / config.tickRate;
+        /// <summary>The race clock in seconds, as this device poses the obstacles.</summary>
+        public double ObstacleClock => ClockSeconds();
+
+        double ClockSeconds() => exhibitClock?.Invoke() ?? (Mode == NetMode.Joined ? PlaybackTick : runner.World.Tick) / config.tickRate;
 
         /// <summary>For the AI: where across the river to aim to keep clear of the wheels, geysers and crocodiles there.</summary>
         float SteerAcross(float from, float to, float across) =>
@@ -186,6 +195,8 @@ namespace RushAhead.UI
         void UpdateRun()
         {
             CheckForResults();
+            if (course != null && exhibitClock == null)
+                course.Hazards.RaceStart = Phase == RoomPhase.Lobby ? double.NaN : (Mode == NetMode.Joined ? clientRaceStart : StartTick) / (double)config.tickRate;
             var boat = ViewedBoat;
             if (boat == null) return;
             if (boat.TeleportCount != shownTeleports)

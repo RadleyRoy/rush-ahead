@@ -46,6 +46,9 @@ namespace RushAhead.EditorTools
             palette.blowerTrim = Lit("BlowerTrim", new Color(0.18f, 0.18f, 0.22f), 0.4f);
             palette.air = Soft("Air", Color.white, puff);
             palette.foam = Soft("Foam", new Color(1f, 1f, 1f, 0.55f), puff);
+            palette.spray = LoadOrCreateMaterial("Spray", "RushAhead/Spray");
+            palette.spray.SetColor("_BaseColor", new Color(1f, 1f, 1f, 0.7f));
+            EditorUtility.SetDirty(palette.spray);
             PolyHavenArt.Apply(palette); // photo textures and scanned models over the flat colours, where we have them
             NatureArt.Apply(palette); // the land, its plants and the trees' foliage
             SculptBootstrap.Apply(palette); // the sculpted animals and their fur
