@@ -19,6 +19,8 @@ namespace RushAhead.EditorTools
         {
             ("OtterCreek", OtterCreek), ("MirrorLake", MirrorLake), ("BeaverBend", BeaverBend),
             ("ReedMarsh", ReedMarsh), ("WhirlpoolReach", WhirlpoolReach), ("WhitewaterRun", WhitewaterRun),
+            ("GlacierGate", GlacierGate), ("RedRockRun", RedRockRun), ("ThunderRapids", ThunderRapids),
+            ("IcefallChute", IcefallChute), ("DynamiteGulch", DynamiteGulch), ("DevilsStaircase", DevilsStaircase),
         };
 
         /// <summary>The shipped courses as they stand, in menu order (null for any not made yet).</summary>
@@ -133,7 +135,8 @@ namespace RushAhead.EditorTools
                 new ObstacleChance(ObstacleKind.Bumper), new ObstacleChance(ObstacleKind.Rockslide),
                 new ObstacleChance(ObstacleKind.Hippo), new ObstacleChance(ObstacleKind.Weir),
                 new ObstacleChance(ObstacleKind.FallingTree), new ObstacleChance(ObstacleKind.Turtle),
-                new ObstacleChance(ObstacleKind.Pelican),
+                new ObstacleChance(ObstacleKind.Pelican), new ObstacleChance(ObstacleKind.GooseGang),
+                new ObstacleChance(ObstacleKind.LeapingFrogs),
             };
             c.minObstacles = 6;
             c.maxObstacles = 9;
@@ -227,7 +230,9 @@ namespace RushAhead.EditorTools
                 new ObstacleChance(ObstacleKind.Bear), new ObstacleChance(ObstacleKind.SwingingLog, 0.7f),
                 new ObstacleChance(ObstacleKind.Turtle), new ObstacleChance(ObstacleKind.PiranhaShoal),
                 new ObstacleChance(ObstacleKind.Pelican), new ObstacleChance(ObstacleKind.NetBoat),
-                new ObstacleChance(ObstacleKind.Waterspout),
+                new ObstacleChance(ObstacleKind.Waterspout), new ObstacleChance(ObstacleKind.PaddleSteamer),
+                new ObstacleChance(ObstacleKind.LeapingFrogs), new ObstacleChance(ObstacleKind.GooseGang),
+                new ObstacleChance(ObstacleKind.Kraken),
             };
             c.minObstacles = 8;
             c.maxObstacles = 11;
@@ -294,6 +299,8 @@ namespace RushAhead.EditorTools
                 new ObstacleChance(ObstacleKind.Weir, 0.6f),
                 new ObstacleChance(ObstacleKind.FallingTree), new ObstacleChance(ObstacleKind.BeaverDam, 1.3f),
                 new ObstacleChance(ObstacleKind.Mudslide), new ObstacleChance(ObstacleKind.Turtle),
+                new ObstacleChance(ObstacleKind.LogFlume), new ObstacleChance(ObstacleKind.MillRace),
+                new ObstacleChance(ObstacleKind.Drawbridge),
             };
             c.minObstacles = 8;
             c.maxObstacles = 11;
@@ -352,9 +359,11 @@ namespace RushAhead.EditorTools
                 new ObstacleChance(ObstacleKind.Rapids, 0.5f),
                 new ObstacleChance(ObstacleKind.ElectricEels), new ObstacleChance(ObstacleKind.Pelican),
                 new ObstacleChance(ObstacleKind.FallingTree), new ObstacleChance(ObstacleKind.BeaverDam),
+                new ObstacleChance(ObstacleKind.LeapingFrogs), new ObstacleChance(ObstacleKind.GooseGang),
+                new ObstacleChance(ObstacleKind.StormCloud),
             };
-            c.minObstacles = 7;
-            c.maxObstacles = 10;
+            c.minObstacles = 6;
+            c.maxObstacles = 9;
         }
 
         /// <summary>Fast water past three whirlpools and a rock slalom, then a long run to the finish.</summary>
@@ -421,9 +430,11 @@ namespace RushAhead.EditorTools
                 new ObstacleChance(ObstacleKind.Bumper),
                 new ObstacleChance(ObstacleKind.Waterspout), new ObstacleChance(ObstacleKind.IceFloes),
                 new ObstacleChance(ObstacleKind.Mudslide), new ObstacleChance(ObstacleKind.ElectricEels),
+                new ObstacleChance(ObstacleKind.Kraken), new ObstacleChance(ObstacleKind.TidalBore),
+                new ObstacleChance(ObstacleKind.ChainedMines), new ObstacleChance(ObstacleKind.WreckingBall),
             };
-            c.minObstacles = 10;
-            c.maxObstacles = 13;
+            c.minObstacles = 9;
+            c.maxObstacles = 12;
         }
 
         /// <summary>The longest and hardest: every kind of obstacle, the most of them, in the fastest water.</summary>
@@ -504,9 +515,448 @@ namespace RushAhead.EditorTools
                 new ObstacleChance(ObstacleKind.ElectricEels), new ObstacleChance(ObstacleKind.Mudslide),
                 new ObstacleChance(ObstacleKind.IceFloes), new ObstacleChance(ObstacleKind.BeaverDam),
                 new ObstacleChance(ObstacleKind.Pelican), new ObstacleChance(ObstacleKind.NetBoat),
+                new ObstacleChance(ObstacleKind.GiantFan), new ObstacleChance(ObstacleKind.CargoCrane),
+                new ObstacleChance(ObstacleKind.StormCloud), new ObstacleChance(ObstacleKind.Drawbridge),
+                new ObstacleChance(ObstacleKind.JumpRamp), new ObstacleChance(ObstacleKind.ChainedMines),
             };
             c.minObstacles = 12;
             c.maxObstacles = 17;
+        }
+
+        // Phase 17: six harder courses in faster water, in two new places (glacier and canyon) and the rapids.
+
+        /// <summary>Into the ice: a lake of floes, a gorge between ice walls, and the glacier shedding blocks.</summary>
+        static void GlacierGate(CourseDef c)
+        {
+            c.displayName = "Glacier Gate";
+            c.blurb = "Turquoise meltwater, ice floes and a glacier that drops blocks into the river. New obstacles every round.";
+            c.scene = CourseScene.Glacier;
+            c.starsToUnlock = 10;
+            c.flow = 9f;
+            c.river = new[]
+            {
+                new RiverPoint(0f, 0f, 16f),
+                new RiverPoint(17f, 0f, 16f),
+                new RiverPoint(33.8f, 2.4f, 16f),
+                new RiverPoint(49.6f, 8.7f, 17f),
+                new RiverPoint(63.7f, 18.2f, 18f),
+                new RiverPoint(77.1f, 28.7f, 22f), // the floe lake
+                new RiverPoint(91.5f, 37.7f, 22f),
+                new RiverPoint(107.5f, 43.5f, 22f),
+                new RiverPoint(124.4f, 44.7f, 18f),
+                new RiverPoint(141.2f, 41.8f, 16f),
+                new RiverPoint(157.5f, 37.1f, 15f),
+                new RiverPoint(174.1f, 33.5f, 14f),
+                new RiverPoint(191.1f, 34.1f, 12f),
+                new RiverPoint(207.3f, 39.4f, 11f), // the ice gorge
+                new RiverPoint(222.3f, 47.4f, 11f),
+                new RiverPoint(237.3f, 55.4f, 12f),
+                new RiverPoint(253.5f, 60.6f, 14f),
+                new RiverPoint(270.5f, 61.2f, 15f),
+                new RiverPoint(287.1f, 57.7f, 16f),
+                new RiverPoint(303.3f, 52.4f, 16f),
+                new RiverPoint(319.9f, 48.9f, 17f),
+                new RiverPoint(336.9f, 49.5f, 18f),
+                new RiverPoint(353.2f, 54.2f, 18f, -0.5f), // whirlpool to the left: keep right
+                new RiverPoint(369f, 60.5f, 16f),
+                new RiverPoint(385f, 66.3f, 15f),
+                new RiverPoint(401.6f, 69.9f, 15f),
+                new RiverPoint(418.6f, 70.5f, 16f),
+                new RiverPoint(435.6f, 69.9f, 16f),
+                new RiverPoint(452.6f, 69.3f, 16f),
+                new RiverPoint(469.6f, 68.7f, 16f),
+            };
+
+            var s = new Survey(c);
+            c.startDistance = 8f;
+            c.gates = new[] { s.Near(4), s.Near(8), s.Near(12) + 4f, s.Near(16), s.Near(20), s.Near(24), s.Finish };
+            c.rocks = new[] { s.Rock(s.Near(6), 6f, 1.3f), s.Rock(s.Near(7), -6f, 1.2f) }; // ice boulders in the lake
+            c.currents = new[]
+            {
+                new CurrentZone(s.Near(1) + 4f, s.Near(3), 1.5f), new CurrentZone(s.Near(12), s.Near(15), 1.8f),
+                new CurrentZone(s.Near(18), s.Near(20), -0.9f),
+            };
+            c.whirlpools = new[] { s.Whirlpool(s.Near(22), 4.5f, 5.5f, 2.2f, 1.1f) };
+            c.menu = new[]
+            {
+                new ObstacleChance(ObstacleKind.CalvingGlacier, 1.4f), new ObstacleChance(ObstacleKind.IceFloes, 1.3f),
+                new ObstacleChance(ObstacleKind.TidalBore), new ObstacleChance(ObstacleKind.Kraken),
+                new ObstacleChance(ObstacleKind.StormCloud), new ObstacleChance(ObstacleKind.JumpRamp),
+                new ObstacleChance(ObstacleKind.Drawbridge), new ObstacleChance(ObstacleKind.WreckingBall),
+                new ObstacleChance(ObstacleKind.GooseGang), new ObstacleChance(ObstacleKind.Rockslide),
+                new ObstacleChance(ObstacleKind.SwingingLog), new ObstacleChance(ObstacleKind.FallingTree),
+                new ObstacleChance(ObstacleKind.Geyser), new ObstacleChance(ObstacleKind.Rapids, 0.7f),
+                new ObstacleChance(ObstacleKind.Weir, 0.6f), new ObstacleChance(ObstacleKind.Bumper),
+                new ObstacleChance(ObstacleKind.Bear), new ObstacleChance(ObstacleKind.Sluice),
+                new ObstacleChance(ObstacleKind.Waterspout),
+            };
+            c.minObstacles = 11;
+            c.maxObstacles = 14;
+        }
+
+        /// <summary>Red sandstone walls: a basin, a narrow cut and the mine works along the banks.</summary>
+        static void RedRockRun(CourseDef c)
+        {
+            c.displayName = "Red Rock Run";
+            c.blurb = "Down a red-rock canyon past the mine works: cranes, flumes and dynamite. New obstacles every round.";
+            c.scene = CourseScene.Canyon;
+            c.starsToUnlock = 12;
+            c.flow = 9.5f;
+            c.river = new[]
+            {
+                new RiverPoint(0f, 0f, 16f),
+                new RiverPoint(17f, 0f, 16f),
+                new RiverPoint(33.7f, -3f, 15f),
+                new RiverPoint(49f, -10.4f, 14f),
+                new RiverPoint(62.4f, -20.9f, 13f),
+                new RiverPoint(75.8f, -31.3f, 12f),
+                new RiverPoint(91.1f, -38.8f, 12f),
+                new RiverPoint(107.9f, -41.2f, 13f),
+                new RiverPoint(124.8f, -39.4f, 14f),
+                new RiverPoint(141.7f, -37f, 15f),
+                new RiverPoint(158.7f, -37.6f, 20f), // the basin
+                new RiverPoint(175f, -42.3f, 20f),
+                new RiverPoint(190.5f, -49.2f, 18f),
+                new RiverPoint(206.5f, -55f, 14f),
+                new RiverPoint(223.4f, -56.8f, 12f),
+                new RiverPoint(240.2f, -53.8f, 11f), // the narrows
+                new RiverPoint(256.3f, -48.6f, 11f),
+                new RiverPoint(273f, -45.1f, 12f),
+                new RiverPoint(289.9f, -46.2f, 13f),
+                new RiverPoint(305.7f, -52.6f, 14f),
+                new RiverPoint(320.1f, -61.6f, 15f),
+                new RiverPoint(335.1f, -69.6f, 16f),
+                new RiverPoint(351.4f, -74.3f, 16f),
+                new RiverPoint(368.4f, -75.5f, 15f),
+                new RiverPoint(385.4f, -75.5f, 14f),
+                new RiverPoint(402.3f, -77.2f, 14f),
+                new RiverPoint(418.5f, -82.5f, 15f),
+                new RiverPoint(434f, -89.4f, 16f),
+                new RiverPoint(449.8f, -95.8f, 16f),
+                new RiverPoint(465.5f, -102.2f, 16f),
+                new RiverPoint(481.3f, -108.5f, 16f),
+            };
+
+            var s = new Survey(c);
+            c.startDistance = 8f;
+            c.gates = new[] { s.Near(4), s.Near(8), s.Near(12), s.Near(16) + 4f, s.Near(20), s.Near(24), s.Finish };
+            c.rocks = new[] { s.Rock(s.Near(10), 6f, 1.3f), s.Rock(s.Near(11), -6f, 1.2f) };
+            c.logs = new[] { s.Log(s.Near(10) - 4f, -2.5f, 60f, 3.5f), s.Log(s.Near(11) + 2f, 3f, -40f, 4f) };
+            c.currents = new[]
+            {
+                new CurrentZone(s.Near(1) + 4f, s.Near(3), 1.6f), new CurrentZone(s.Near(14), s.Near(17), 2f),
+                new CurrentZone(s.Near(21), s.Near(23), -1f),
+            };
+            c.menu = new[]
+            {
+                new ObstacleChance(ObstacleKind.DynamiteFloat, 1.4f), new ObstacleChance(ObstacleKind.Rockslide, 1.3f),
+                new ObstacleChance(ObstacleKind.Mudslide), new ObstacleChance(ObstacleKind.CargoCrane),
+                new ObstacleChance(ObstacleKind.WreckingBall), new ObstacleChance(ObstacleKind.LogFlume),
+                new ObstacleChance(ObstacleKind.MillRace), new ObstacleChance(ObstacleKind.GiantFan),
+                new ObstacleChance(ObstacleKind.JumpRamp), new ObstacleChance(ObstacleKind.ChainedMines),
+                new ObstacleChance(ObstacleKind.PaddleSteamer), new ObstacleChance(ObstacleKind.Cannon),
+                new ObstacleChance(ObstacleKind.Geyser), new ObstacleChance(ObstacleKind.Rapids, 0.7f),
+                new ObstacleChance(ObstacleKind.Weir, 0.6f), new ObstacleChance(ObstacleKind.Sluice),
+                new ObstacleChance(ObstacleKind.Bear), new ObstacleChance(ObstacleKind.Pelican),
+                new ObstacleChance(ObstacleKind.Crocodile), new ObstacleChance(ObstacleKind.Bumper),
+            };
+            c.minObstacles = 12;
+            c.maxObstacles = 16;
+        }
+
+        /// <summary>Fast white water: an S-bend run, two whirlpools and a storm overhead.</summary>
+        static void ThunderRapids(CourseDef c)
+        {
+            c.displayName = "Thunder Rapids";
+            c.blurb = "White water under a stormy sky: krakens, mines and lightning. New obstacles every round.";
+            c.scene = CourseScene.Rapids;
+            c.starsToUnlock = 14;
+            c.flow = 10f;
+            c.river = new[]
+            {
+                new RiverPoint(0f, 0f, 16f),
+                new RiverPoint(17f, 0f, 16f),
+                new RiverPoint(33.7f, 3f, 15f),
+                new RiverPoint(49f, 10.4f, 14f),
+                new RiverPoint(63.1f, 19.9f, 13f, 0.25f), // S-bends
+                new RiverPoint(78.4f, 27.4f, 13f, -0.25f),
+                new RiverPoint(95f, 30.9f, 13f, 0.25f),
+                new RiverPoint(111.9f, 32.7f, 14f),
+                new RiverPoint(128.6f, 36.2f, 18f),
+                new RiverPoint(143.8f, 43.7f, 20f, -0.5f), // whirlpool to the left: keep right
+                new RiverPoint(157.6f, 53.7f, 16f),
+                new RiverPoint(172f, 62.7f, 13f),
+                new RiverPoint(188.2f, 67.9f, 11f),
+                new RiverPoint(205.2f, 68.5f, 11f),
+                new RiverPoint(222.1f, 67.3f, 12f),
+                new RiverPoint(239.1f, 68.5f, 14f),
+                new RiverPoint(255.1f, 74.3f, 16f),
+                new RiverPoint(269.5f, 83.3f, 18f, 0.5f), // whirlpool to the right: keep left
+                new RiverPoint(283.9f, 92.3f, 16f),
+                new RiverPoint(299.9f, 98.2f, 14f),
+                new RiverPoint(316.8f, 99.3f, 14f),
+                new RiverPoint(333.8f, 98.2f, 15f),
+                new RiverPoint(350.8f, 98.7f, 16f),
+                new RiverPoint(367.1f, 103.4f, 16f),
+                new RiverPoint(382.4f, 110.9f, 15f),
+                new RiverPoint(397.9f, 117.8f, 14f),
+                new RiverPoint(414.4f, 121.9f, 15f),
+                new RiverPoint(431.3f, 123.7f, 16f),
+                new RiverPoint(448.2f, 125.5f, 16f),
+                new RiverPoint(465.1f, 127.2f, 16f),
+                new RiverPoint(482f, 129f, 16f),
+            };
+
+            var s = new Survey(c);
+            c.startDistance = 8f;
+            c.gates = new[] { s.Near(3) - 4f, s.Near(7), s.Near(11), s.Near(15), s.Near(19), s.Near(23), s.Near(27), s.Finish };
+            c.rocks = System.Array.Empty<RockSpot>(); // at this speed a rock in the water is a wall: the bends are the slalom
+            c.currents = new[]
+            {
+                new CurrentZone(s.Near(1) + 4f, s.Near(3), 1.8f), new CurrentZone(s.Near(11), s.Near(13), -1f),
+                new CurrentZone(s.Near(20), s.Near(23), 2f),
+            };
+            c.whirlpools = new[] { s.Whirlpool(s.Near(9), 4.5f, 6f, -2.6f, 1.3f), s.Whirlpool(s.Near(17), -4.5f, 6f, 2.5f, 1.25f) };
+            c.menu = new[]
+            {
+                new ObstacleChance(ObstacleKind.Kraken), new ObstacleChance(ObstacleKind.TidalBore),
+                new ObstacleChance(ObstacleKind.ChainedMines), new ObstacleChance(ObstacleKind.WreckingBall),
+                new ObstacleChance(ObstacleKind.StormCloud, 1.3f), new ObstacleChance(ObstacleKind.Drawbridge),
+                new ObstacleChance(ObstacleKind.MillRace), new ObstacleChance(ObstacleKind.LeapingFrogs),
+                new ObstacleChance(ObstacleKind.GooseGang), new ObstacleChance(ObstacleKind.LogFlume),
+                new ObstacleChance(ObstacleKind.Wheel), new ObstacleChance(ObstacleKind.Crocodile),
+                new ObstacleChance(ObstacleKind.SwingingLog), new ObstacleChance(ObstacleKind.Geyser),
+                new ObstacleChance(ObstacleKind.Rockslide), new ObstacleChance(ObstacleKind.Hippo),
+                new ObstacleChance(ObstacleKind.Sluice), new ObstacleChance(ObstacleKind.Sweeper),
+                new ObstacleChance(ObstacleKind.Rapids, 0.8f), new ObstacleChance(ObstacleKind.Weir, 0.7f),
+                new ObstacleChance(ObstacleKind.Bumper), new ObstacleChance(ObstacleKind.Bear),
+                new ObstacleChance(ObstacleKind.FallingTree), new ObstacleChance(ObstacleKind.Waterspout),
+                new ObstacleChance(ObstacleKind.ElectricEels), new ObstacleChance(ObstacleKind.Pelican),
+            };
+            c.minObstacles = 11;
+            c.maxObstacles = 14;
+        }
+
+        /// <summary>Two ice chutes either side of a meltwater lake, and a gorge under the icefall.</summary>
+        static void IcefallChute(CourseDef c)
+        {
+            c.displayName = "Icefall Chute";
+            c.blurb = "Narrow ice chutes, a meltwater lake and a gorge under the icefall. New obstacles every round.";
+            c.scene = CourseScene.Glacier;
+            c.starsToUnlock = 16;
+            c.flow = 10.5f;
+            c.river = new[]
+            {
+                new RiverPoint(0f, 0f, 16f),
+                new RiverPoint(17f, 0f, 16f),
+                new RiverPoint(33.9f, -1.8f, 16f),
+                new RiverPoint(50.1f, -7f, 15f),
+                new RiverPoint(65.1f, -15f, 13f),
+                new RiverPoint(80.1f, -23f, 11f), // the first chute
+                new RiverPoint(96.3f, -28.2f, 11f),
+                new RiverPoint(113.2f, -29.4f, 12f),
+                new RiverPoint(130.1f, -27.7f, 14f),
+                new RiverPoint(147f, -25.9f, 20f), // the meltwater lake
+                new RiverPoint(164f, -26.5f, 22f),
+                new RiverPoint(180.5f, -30.6f, 20f),
+                new RiverPoint(195.8f, -38f, 16f),
+                new RiverPoint(210.2f, -47f, 13f),
+                new RiverPoint(225.5f, -54.5f, 11f),
+                new RiverPoint(242.1f, -58f, 10f), // the icefall gorge
+                new RiverPoint(259.1f, -57.4f, 10f),
+                new RiverPoint(276f, -55.7f, 11f),
+                new RiverPoint(293f, -56.3f, 13f),
+                new RiverPoint(309.2f, -61.5f, 15f),
+                new RiverPoint(323.6f, -70.5f, 16f),
+                new RiverPoint(337.3f, -80.5f, 18f, -0.5f), // whirlpool to the left: keep right
+                new RiverPoint(352.4f, -88.5f, 18f),
+                new RiverPoint(368.9f, -92.6f, 16f),
+                new RiverPoint(385.8f, -93.8f, 15f),
+                new RiverPoint(402.8f, -95f, 14f),
+                new RiverPoint(419.4f, -98.5f, 14f),
+                new RiverPoint(434.9f, -105.4f, 15f),
+                new RiverPoint(449.7f, -113.9f, 16f),
+                new RiverPoint(464.4f, -122.4f, 16f),
+                new RiverPoint(479.1f, -130.9f, 16f),
+            };
+
+            var s = new Survey(c);
+            c.startDistance = 8f;
+            c.gates = new[] { s.Near(4), s.Near(8), s.Near(12), s.Near(16), s.Near(20), s.Near(24), s.Finish };
+            c.rocks = new[] { s.Rock(s.Near(10), 5.5f, 1.3f) };
+            c.currents = new[]
+            {
+                new CurrentZone(s.Near(4), s.Near(7), 2f), new CurrentZone(s.Near(14), s.Near(17), 2.2f),
+                new CurrentZone(s.Near(25), s.Near(27), -1.1f),
+            };
+            c.whirlpools = new[] { s.Whirlpool(s.Near(21), 4.5f, 5.5f, 2.4f, 1.2f) };
+            c.menu = new[]
+            {
+                new ObstacleChance(ObstacleKind.CalvingGlacier, 1.5f), new ObstacleChance(ObstacleKind.IceFloes, 1.4f),
+                new ObstacleChance(ObstacleKind.TidalBore), new ObstacleChance(ObstacleKind.Kraken),
+                new ObstacleChance(ObstacleKind.StormCloud), new ObstacleChance(ObstacleKind.JumpRamp),
+                new ObstacleChance(ObstacleKind.Drawbridge), new ObstacleChance(ObstacleKind.WreckingBall),
+                new ObstacleChance(ObstacleKind.ChainedMines), new ObstacleChance(ObstacleKind.GiantFan),
+                new ObstacleChance(ObstacleKind.Rockslide), new ObstacleChance(ObstacleKind.SwingingLog),
+                new ObstacleChance(ObstacleKind.FallingTree), new ObstacleChance(ObstacleKind.Geyser),
+                new ObstacleChance(ObstacleKind.Rapids, 0.8f), new ObstacleChance(ObstacleKind.Weir, 0.7f),
+                new ObstacleChance(ObstacleKind.Bumper), new ObstacleChance(ObstacleKind.Bear),
+                new ObstacleChance(ObstacleKind.Sweeper), new ObstacleChance(ObstacleKind.Waterspout),
+                new ObstacleChance(ObstacleKind.Cannon),
+            };
+            c.minObstacles = 11;
+            c.maxObstacles = 15;
+        }
+
+        /// <summary>Switchbacks through a blasting quarry: dynamite floats, cranes and rockslides.</summary>
+        static void DynamiteGulch(CourseDef c)
+        {
+            c.displayName = "Dynamite Gulch";
+            c.blurb = "Switchbacks through a blasting quarry, with dynamite in the water. New obstacles every round.";
+            c.scene = CourseScene.Canyon;
+            c.starsToUnlock = 18;
+            c.flow = 11f;
+            c.river = new[]
+            {
+                new RiverPoint(0f, 0f, 16f),
+                new RiverPoint(17f, 0f, 16f),
+                new RiverPoint(33.6f, 3.5f, 15f),
+                new RiverPoint(48.4f, 12f, 14f),
+                new RiverPoint(60.6f, 23.8f, 13f),
+                new RiverPoint(72.4f, 36.1f, 13f),
+                new RiverPoint(86.5f, 45.6f, 14f),
+                new RiverPoint(102.8f, 50.3f, 15f),
+                new RiverPoint(119.8f, 50.3f, 16f),
+                new RiverPoint(136.8f, 49.1f, 20f), // the quarry basin
+                new RiverPoint(153.7f, 50.3f, 20f),
+                new RiverPoint(169.7f, 56.1f, 16f),
+                new RiverPoint(183.5f, 66.1f, 13f),
+                new RiverPoint(196.1f, 77.4f, 12f), // the cut
+                new RiverPoint(210.2f, 87f, 12f),
+                new RiverPoint(226.4f, 92.2f, 13f),
+                new RiverPoint(243.4f, 92.8f, 14f),
+                new RiverPoint(260.3f, 91.6f, 15f),
+                new RiverPoint(277.3f, 92.8f, 16f),
+                new RiverPoint(293.2f, 98.6f, 17f),
+                new RiverPoint(307.3f, 108.1f, 18f),
+                new RiverPoint(321.1f, 118.1f, 16f),
+                new RiverPoint(336.4f, 125.6f, 15f),
+                new RiverPoint(353f, 129.1f, 14f),
+                new RiverPoint(370f, 129.7f, 13f),
+                new RiverPoint(387f, 130.3f, 13f),
+                new RiverPoint(403.6f, 133.8f, 14f),
+                new RiverPoint(419.1f, 140.7f, 15f),
+                new RiverPoint(434.1f, 148.7f, 16f),
+                new RiverPoint(449.2f, 156.7f, 16f),
+                new RiverPoint(464.2f, 164.7f, 16f),
+                new RiverPoint(479.2f, 172.7f, 16f),
+            };
+
+            var s = new Survey(c);
+            c.startDistance = 8f;
+            c.gates = new[] { s.Near(4), s.Near(8), s.Near(12), s.Near(16), s.Near(20), s.Near(24), s.Near(28), s.Finish };
+            c.rocks = new[] { s.Rock(s.Near(9), -6f, 1.3f), s.Rock(s.Near(10), 6f, 1.3f) };
+            c.logs = new[] { s.Log(s.Near(9) + 4f, 2.5f, 70f, 3.5f) };
+            c.currents = new[]
+            {
+                new CurrentZone(s.Near(1) + 4f, s.Near(3), 1.8f), new CurrentZone(s.Near(12), s.Near(14), 2f),
+                new CurrentZone(s.Near(22), s.Near(24), -1.2f),
+            };
+            c.menu = new[]
+            {
+                new ObstacleChance(ObstacleKind.DynamiteFloat, 1.6f), new ObstacleChance(ObstacleKind.Rockslide, 1.3f),
+                new ObstacleChance(ObstacleKind.CargoCrane, 1.2f), new ObstacleChance(ObstacleKind.Mudslide),
+                new ObstacleChance(ObstacleKind.WreckingBall), new ObstacleChance(ObstacleKind.LogFlume),
+                new ObstacleChance(ObstacleKind.MillRace), new ObstacleChance(ObstacleKind.GiantFan),
+                new ObstacleChance(ObstacleKind.JumpRamp), new ObstacleChance(ObstacleKind.ChainedMines),
+                new ObstacleChance(ObstacleKind.PaddleSteamer), new ObstacleChance(ObstacleKind.StormCloud),
+                new ObstacleChance(ObstacleKind.Cannon), new ObstacleChance(ObstacleKind.Geyser),
+                new ObstacleChance(ObstacleKind.Rapids, 0.8f), new ObstacleChance(ObstacleKind.Weir, 0.7f),
+                new ObstacleChance(ObstacleKind.Sluice), new ObstacleChance(ObstacleKind.Bear),
+                new ObstacleChance(ObstacleKind.Crocodile), new ObstacleChance(ObstacleKind.Bumper),
+                new ObstacleChance(ObstacleKind.Wheel), new ObstacleChance(ObstacleKind.NetBoat),
+            };
+            c.minObstacles = 12;
+            c.maxObstacles = 16;
+        }
+
+        /// <summary>The last and hardest: the fastest water, step after step of weirs and rapids, and every kind of obstacle.</summary>
+        static void DevilsStaircase(CourseDef c)
+        {
+            c.displayName = "Devil's Staircase";
+            c.blurb = "The fastest water of all, weir after weir, and every obstacle there is. New obstacles every round.";
+            c.scene = CourseScene.Rapids;
+            c.starsToUnlock = 20;
+            c.flow = 12f;
+            c.river = new[]
+            {
+                new RiverPoint(0f, 0f, 16f),
+                new RiverPoint(17f, 0f, 16f),
+                new RiverPoint(33.8f, -2.4f, 15f),
+                new RiverPoint(49.6f, -8.7f, 14f),
+                new RiverPoint(63.7f, -18.2f, 13f, 0.15f), // S-bends
+                new RiverPoint(77.4f, -28.2f, 13f, -0.15f),
+                new RiverPoint(92.7f, -35.7f, 13f, 0.15f),
+                new RiverPoint(109.5f, -38.6f, 14f),
+                new RiverPoint(126.5f, -38f, 16f),
+                new RiverPoint(143.4f, -37.5f, 20f, 0.5f), // whirlpool to the right: keep left
+                new RiverPoint(160.3f, -39.8f, 18f),
+                new RiverPoint(175.8f, -46.7f, 14f),
+                new RiverPoint(189.6f, -56.7f, 12f),
+                new RiverPoint(203.3f, -66.7f, 11f),
+                new RiverPoint(218.8f, -73.6f, 11f),
+                new RiverPoint(235.7f, -76f, 12f),
+                new RiverPoint(252.7f, -75.4f, 14f),
+                new RiverPoint(269.7f, -75.4f, 18f, -0.5f), // whirlpool to the left: keep right
+                new RiverPoint(286.2f, -79.5f, 16f),
+                new RiverPoint(300.9f, -88f, 14f),
+                new RiverPoint(314.3f, -98.5f, 13f),
+                new RiverPoint(328.4f, -108f, 13f),
+                new RiverPoint(344.4f, -113.8f, 14f),
+                new RiverPoint(361.3f, -115.6f, 15f),
+                new RiverPoint(378.2f, -116.2f, 16f),
+                new RiverPoint(395.1f, -118.5f, 16f),
+                new RiverPoint(411.1f, -124.4f, 15f),
+                new RiverPoint(425.8f, -132.9f, 14f),
+                new RiverPoint(440.5f, -141.4f, 15f),
+                new RiverPoint(456.3f, -147.7f, 16f),
+                new RiverPoint(472.4f, -153f, 16f),
+                new RiverPoint(488.6f, -158.2f, 16f),
+                new RiverPoint(504.8f, -163.5f, 16f),
+            };
+
+            var s = new Survey(c);
+            c.startDistance = 8f;
+            c.gates = new[] { s.Near(3) - 4f, s.Near(7), s.Near(11), s.Near(15), s.Near(19), s.Near(23), s.Near(26), s.Near(29), s.Finish };
+            c.rocks = System.Array.Empty<RockSpot>(); // at this speed a rock in the water is a wall: the bends are the slalom
+            c.currents = new[]
+            {
+                new CurrentZone(s.Near(1) + 4f, s.Near(3), 2f), new CurrentZone(s.Near(11), s.Near(13), -1.2f),
+                new CurrentZone(s.Near(20), s.Near(23), 2.2f), new CurrentZone(s.Near(26), s.Near(28), -1f),
+            };
+            c.whirlpools = new[] { s.Whirlpool(s.Near(9), -4.5f, 6f, 2.7f, 1.35f), s.Whirlpool(s.Near(17), 4.5f, 6f, -2.7f, 1.35f) };
+            c.menu = new[]
+            {
+                new ObstacleChance(ObstacleKind.Weir, 1.4f), new ObstacleChance(ObstacleKind.Rapids, 1.2f),
+                new ObstacleChance(ObstacleKind.Kraken), new ObstacleChance(ObstacleKind.TidalBore),
+                new ObstacleChance(ObstacleKind.JumpRamp), new ObstacleChance(ObstacleKind.GooseGang),
+                new ObstacleChance(ObstacleKind.ChainedMines), new ObstacleChance(ObstacleKind.WreckingBall),
+                new ObstacleChance(ObstacleKind.StormCloud), new ObstacleChance(ObstacleKind.Drawbridge),
+                new ObstacleChance(ObstacleKind.MillRace), new ObstacleChance(ObstacleKind.CargoCrane),
+                new ObstacleChance(ObstacleKind.LogFlume), new ObstacleChance(ObstacleKind.LeapingFrogs),
+                new ObstacleChance(ObstacleKind.GiantFan), new ObstacleChance(ObstacleKind.Wheel),
+                new ObstacleChance(ObstacleKind.Crocodile), new ObstacleChance(ObstacleKind.SwingingLog),
+                new ObstacleChance(ObstacleKind.Geyser), new ObstacleChance(ObstacleKind.Rockslide),
+                new ObstacleChance(ObstacleKind.Hippo), new ObstacleChance(ObstacleKind.Sluice),
+                new ObstacleChance(ObstacleKind.Sweeper), new ObstacleChance(ObstacleKind.Cannon),
+                new ObstacleChance(ObstacleKind.Bumper), new ObstacleChance(ObstacleKind.Bear),
+                new ObstacleChance(ObstacleKind.FallingTree), new ObstacleChance(ObstacleKind.Turtle),
+                new ObstacleChance(ObstacleKind.PiranhaShoal), new ObstacleChance(ObstacleKind.Waterspout),
+                new ObstacleChance(ObstacleKind.ElectricEels), new ObstacleChance(ObstacleKind.Mudslide),
+                new ObstacleChance(ObstacleKind.BeaverDam), new ObstacleChance(ObstacleKind.Pelican),
+            };
+            c.minObstacles = 11;
+            c.maxObstacles = 15;
         }
     }
 }

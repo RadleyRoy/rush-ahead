@@ -1,0 +1,214 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 110f1613fe645bf43965f6081c1bcce4, type: 3}
+  m_Name: IcefallChute
+  m_EditorClassIdentifier: RushAhead.Content::RushAhead.Content.CourseDef
+  displayName: Icefall Chute
+  blurb: Narrow ice chutes, a meltwater lake and a gorge under the icefall. New obstacles
+    every round.
+  scene: 3
+  starsToUnlock: 16
+  river:
+  - position: {x: 0, y: 0}
+    width: 16
+    lineOffset: 0
+  - position: {x: 17, y: 0}
+    width: 16
+    lineOffset: 0
+  - position: {x: 33.9, y: -1.8}
+    width: 16
+    lineOffset: 0
+  - position: {x: 50.1, y: -7}
+    width: 15
+    lineOffset: 0
+  - position: {x: 65.1, y: -15}
+    width: 13
+    lineOffset: 0
+  - position: {x: 80.1, y: -23}
+    width: 11
+    lineOffset: 0
+  - position: {x: 96.3, y: -28.2}
+    width: 11
+    lineOffset: 0
+  - position: {x: 113.2, y: -29.4}
+    width: 12
+    lineOffset: 0
+  - position: {x: 130.1, y: -27.7}
+    width: 14
+    lineOffset: 0
+  - position: {x: 147, y: -25.9}
+    width: 20
+    lineOffset: 0
+  - position: {x: 164, y: -26.5}
+    width: 22
+    lineOffset: 0
+  - position: {x: 180.5, y: -30.6}
+    width: 20
+    lineOffset: 0
+  - position: {x: 195.8, y: -38}
+    width: 16
+    lineOffset: 0
+  - position: {x: 210.2, y: -47}
+    width: 13
+    lineOffset: 0
+  - position: {x: 225.5, y: -54.5}
+    width: 11
+    lineOffset: 0
+  - position: {x: 242.1, y: -58}
+    width: 10
+    lineOffset: 0
+  - position: {x: 259.1, y: -57.4}
+    width: 10
+    lineOffset: 0
+  - position: {x: 276, y: -55.7}
+    width: 11
+    lineOffset: 0
+  - position: {x: 293, y: -56.3}
+    width: 13
+    lineOffset: 0
+  - position: {x: 309.2, y: -61.5}
+    width: 15
+    lineOffset: 0
+  - position: {x: 323.6, y: -70.5}
+    width: 16
+    lineOffset: 0
+  - position: {x: 337.3, y: -80.5}
+    width: 18
+    lineOffset: -0.5
+  - position: {x: 352.4, y: -88.5}
+    width: 18
+    lineOffset: 0
+  - position: {x: 368.9, y: -92.6}
+    width: 16
+    lineOffset: 0
+  - position: {x: 385.8, y: -93.8}
+    width: 15
+    lineOffset: 0
+  - position: {x: 402.8, y: -95}
+    width: 14
+    lineOffset: 0
+  - position: {x: 419.4, y: -98.5}
+    width: 14
+    lineOffset: 0
+  - position: {x: 434.9, y: -105.4}
+    width: 15
+    lineOffset: 0
+  - position: {x: 449.7, y: -113.9}
+    width: 16
+    lineOffset: 0
+  - position: {x: 464.4, y: -122.4}
+    width: 16
+    lineOffset: 0
+  - position: {x: 479.1, y: -130.9}
+    width: 16
+    lineOffset: 0
+  startDistance: 8
+  gates:
+  - 68.06523
+  - 136.0849
+  - 204.16383
+  - 272.24927
+  - 340.34485
+  - 408.41052
+  - 494.4608
+  flow: 10.5
+  rocks:
+  - position: {x: 164.7577, y: -21.052444}
+    radius: 1.3
+  barrels: []
+  logs: []
+  currents:
+  - from: 68.06523
+    to: 119.09136
+    speed: 2
+  - from: 238.21237
+    to: 289.2395
+    speed: 2.2
+  - from: 425.45804
+    to: 459.4294
+    speed: -1.1
+  whirlpools:
+  - position: {x: 339.70847, y: -76.69879}
+    radius: 5.5
+    spin: 2.4
+    pull: 1.2
+  menu:
+  - kind: 36
+    weight: 1.5
+  - kind: 20
+    weight: 1.4
+  - kind: 25
+    weight: 1
+  - kind: 24
+    weight: 1
+  - kind: 30
+    weight: 1
+  - kind: 26
+    weight: 1
+  - kind: 33
+    weight: 1
+  - kind: 29
+    weight: 1
+  - kind: 28
+    weight: 1
+  - kind: 39
+    weight: 1
+  - kind: 4
+    weight: 1
+  - kind: 2
+    weight: 1
+  - kind: 14
+    weight: 1
+  - kind: 3
+    weight: 1
+  - kind: 9
+    weight: 0.8
+  - kind: 10
+    weight: 0.7
+  - kind: 11
+    weight: 1
+  - kind: 13
+    weight: 1
+  - kind: 7
+    weight: 1
+  - kind: 17
+    weight: 1
+  - kind: 8
+    weight: 1
+  minObstacles: 11
+  maxObstacles: 15
+  wheels: []
+  crocodiles: []
+  swingers: []
+  geysers: []
+  rockslides: []
+  hippos: []
+  sluices: []
+  sweepers: []
+  cannons: []
+  rapids: []
+  weirs: []
+  bumpers: []
+  ferries: []
+  bears: []
+  trees: []
+  turtles: []
+  shoals: []
+  waterspouts: []
+  eels: []
+  mudslides: []
+  floes: []
+  dams: []
+  pelicans: []
+  netBoats: []
+  extras: []
+  boosts: []

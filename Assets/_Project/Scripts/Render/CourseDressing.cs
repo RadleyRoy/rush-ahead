@@ -57,6 +57,26 @@ namespace RushAhead.Render
                 Plant = CourseDressing.Pine,
                 Fringe = CourseDressing.Pine,
             },
+            CourseScene.Glacier => new BankStyle
+            {
+                Cliff = palette.Tinted(palette.cliff, new Color(0.55f, 0.6f, 0.7f)),
+                Ground = palette.Tinted(palette.sand != null ? palette.sand : palette.grass, new Color(0.98f, 1.02f, 1.1f)), // snow
+                Height = 3f,
+                HeightRange = 2.2f,
+                Drop = 34f,
+                Plant = CourseDressing.Pine,
+                Fringe = CourseDressing.Pine,
+            },
+            CourseScene.Canyon => new BankStyle
+            {
+                Cliff = palette.Tinted(palette.cliff, new Color(0.86f, 0.44f, 0.3f)),
+                Ground = palette.Tinted(palette.sand != null ? palette.sand : palette.grass, new Color(0.74f, 0.48f, 0.33f)),
+                Height = 4f,
+                HeightRange = 2.6f,
+                Drop = 40f,
+                Plant = CourseDressing.Tree,
+                Fringe = CourseDressing.Reeds,
+            },
             _ => new BankStyle
             {
                 Cliff = palette.cliff,

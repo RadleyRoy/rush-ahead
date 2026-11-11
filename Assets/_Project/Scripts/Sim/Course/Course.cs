@@ -94,7 +94,20 @@ namespace RushAhead.Sim
         public IReadOnlyList<Rigidbody2D> BarrelBodies => barrelBodies;
 
         /// <summary>Whether the loose body at this index is a log (the logs follow the barrels).</summary>
-        public bool IsLog(int index) => index >= Def.barrels.Length;
+        public bool IsLog(int index) => index >= Def.barrels.Length && index < Def.barrels.Length + Def.logs.Length;
+
+        /// <summary>Whether the body at this index belongs to an obstacle (geese: after the barrels and logs), which moves itself.</summary>
+        public bool IsObstacleBody(int index) => index >= Def.barrels.Length + Def.logs.Length;
+
+        /// <summary>The barrels and logs, which drift with the water (an obstacle's own bodies swim for themselves).</summary>
+        public IEnumerable<Rigidbody2D> DriftingBodies
+        {
+            get
+            {
+                for (var i = 0; i < barrelBodies.Count; i++)
+                    if (!IsObstacleBody(i)) yield return barrelBodies[i];
+            }
+        }
 
         public static Course Build(CourseDef def, int seed = 0, CourseLayout layout = null)
         {
@@ -134,6 +147,13 @@ namespace RushAhead.Sim
                 body.transform.SetParent(Root.transform, true);
                 barrels.Add(body);
                 barrelBodies.Add(body.GetComponent<Rigidbody2D>());
+            }
+
+            // Then the obstacles' own free bodies (geese), sent with the barrels and logs in the same order everywhere.
+            foreach (var body in Hazards.LooseBodies)
+            {
+                barrels.Add(body.gameObject);
+                barrelBodies.Add(body);
             }
 
             // Loose barrels and logs slip under gates, dams, fallen trees and ice rather than jamming against them, where a
@@ -186,7 +206,7 @@ namespace RushAhead.Sim
         {
             for (var i = 0; i < barrels.Count; i++)
             {
-                if (!barrelBodies[i].simulated || !IsOffCourse(barrelBodies[i].position)) continue;
+                if (IsObstacleBody(i) || !barrelBodies[i].simulated || !IsOffCourse(barrelBodies[i].position)) continue;
                 if (!IsLog(i)) PhysicsBodies.Reset(barrels[i], Def.barrels[i]);
                 else
                 {
@@ -257,8 +277,10 @@ namespace RushAhead.Sim
         /// <summary>Puts the barrels and logs back where the course places them, at rest.</summary>
         public void ResetBarrels()
         {
+            Hazards.ResetLoose();
             for (var i = 0; i < barrels.Count; i++)
             {
+                if (IsObstacleBody(i)) continue;
                 if (!IsLog(i)) PhysicsBodies.Reset(barrels[i], Def.barrels[i]);
                 else
                 {

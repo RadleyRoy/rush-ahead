@@ -61,17 +61,22 @@ by `Ui.Slant` from the `--fill`, `--edge` and `--slant` properties in `Game.uss`
 
 ## Courses
 
-The six courses are laid out in code (`Assets/_Project/Editor/CourseLibrary.cs`): the river, checkpoints, rocks,
+The twelve courses, in five places (creek, lake, rapids, glacier and canyon), are laid out in code
+(`Assets/_Project/Editor/CourseLibrary.cs`): the river, checkpoints, rocks,
 barrels and logs, currents and whirlpools, the river's flow, and a menu of obstacles each course may be dealt, with how
 many. Every round deals a fresh layout from that menu (`Sim/Course/LayoutGenerator.cs`): only the seed goes over the
 network, and every device deals the same layout from it. The dealer keeps obstacles clear of the start, every respawn
 (with a run-up after it), the finish, whirlpools and rocks, spaces them out, never puts two brace-or-die ones back to
-back, and only puts the big ones where the river is wide enough. There are 24 kinds: paddle wheels, crocodiles, logs
+back, and only puts the big ones where the river is wide enough. There are 40 kinds: paddle wheels, crocodiles, logs
 swinging under bridges and geysers (`Sim/Course/Hazards.cs`), plus rockslides, hippos, sluice gates, sweepers, water
 cannons, rapids, weirs, bumper buoys, ferries, bears, falling trees, snapping turtles, piranha shoals, waterspouts,
-electric eels, mudslides, ice floes, beaver dams, diving pelicans and net boats (`Sim/Course/Obstacles`). Every
-obstacle runs on the race clock, so nothing about them goes over the network. Stars are the lives a crew finishes
-with. Rafts run at about 8-10 m/s on calm water and 12-14 m/s down the rapids, so a course takes 40-55 s; glowing chevron boost lanes, dealt into the straights
+electric eels, mudslides, ice floes, beaver dams, diving pelicans, net boats, a kraken, tidal bores, jump ramps, goose
+gangs, chained mines, wrecking balls, storm clouds, paddle steamers, mill races, drawbridges, cargo cranes, log flumes,
+calving glaciers, dynamite floats, leaping frogs and giant fans (`Sim/Course/Obstacles`). Every one has an entry in the
+in-game Field Guide (`Content/ObstacleGuide.cs`; also `docs/FIELD_GUIDE.md`). Nearly all run on the race clock, so
+nothing about them goes over the network; the geese are the exception, sent with the barrels and logs. Stars are the
+lives a crew finishes with. Rafts run at about 8-10 m/s on calm water and 12-14 m/s down the rapids, faster still on
+the last six courses (their water runs at 9-12 m/s), so a course takes 40-55 s; glowing chevron boost lanes, dealt into the straights
 with the obstacles, throw a raft forward (`Sim/Course/BoostLane.cs`), and the water carries a raft round bends rather
 than flinging it off the edge. The assets in `Assets/_Project/Content/Courses` are made from it once and never
 overwritten, so edits in the Inspector stick. After changing a layout in code, put every course back to the code's
@@ -104,7 +109,13 @@ and fabric are drawn in code (`Editor/RaftArt.cs`).
 ## Releasing
 
 `Store/RELEASE.md` walks through publishing on Google Play: the package name, your upload key, the signed
-release bundle (`BuildScript.AndroidRelease`), and the Play Console steps. `Store/LISTING.md` has the store text
+release bundle (`BuildScript.AndroidRelease`; `RUSHAHEAD_VERSION` sets its version), and the Play Console steps.
+`.github/workflows/release.yml` builds the APK and the App Bundle on GitHub's machines and publishes them as a GitHub
+Release when a version tag is pushed (`git tag v1.1.0` then `git push origin v1.1.0`), or from the Actions tab with a
+version. It signs with the upload key when the repository has the secrets `ANDROID_KEYSTORE_BASE64`,
+`ANDROID_KEYSTORE_PASS`, `ANDROID_KEYALIAS_NAME` and `ANDROID_KEYALIAS_PASS` (and the Unity ones the CI workflow uses);
+without them the files are debug-signed and named NOT-FOR-PLAY. Until GameCI fixes Unity Personal activation on Unity
+6000.3 (game-ci/unity-test-runner#336) it stops at that step. `Store/LISTING.md` has the store text
 and draft answers for Play's forms, `Store/PRIVACY.md` the privacy policy, and `Store/Graphics` the icon, feature
 graphic and screenshots (made by `Design/store_art.py` from a release build's captures).
 

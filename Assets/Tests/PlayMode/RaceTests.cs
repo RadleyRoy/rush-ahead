@@ -291,21 +291,27 @@ namespace RushAhead.Tests
 
                 var limit = race.StartTick + Mathf.CeilToInt(def.ExpectedSeconds * 1.5f * config.tickRate);
                 var furthest = 0f;
+                var losses = new List<string>();
                 while (race.Phase != RacePhase.Finished && race.Phase != RacePhase.Out && world.Tick < limit)
                 {
                     autopilot.Update(Dt);
                     course.Hazards.Step(world.Tick / (double)config.tickRate, new[] { boat });
+                    var afloat = boat.State == BoatState.Afloat;
                     world.Advance(Dt);
                     race.Step(world.Tick);
-                    furthest = Mathf.Max(furthest, course.River.Project(boat.Body.Position).Distance);
+                    var at = course.River.Project(boat.Body.Position);
+                    furthest = Mathf.Max(furthest, at.Distance);
+                    if (afloat && boat.State != BoatState.Afloat)
+                        losses.Add($"{(boat.State == BoatState.Fallen ? "fell" : "capsized")} at {at.Distance:0} m, {at.Lateral:0.0} across");
                 }
 
                 var time = race.SecondsAt(world.Tick);
+                var lost = losses.Count > 0 ? $" (lost: {string.Join("; ", losses)})" : "";
                 Debug.Log($"[RushAhead] {def.name}: autopilot {(race.Phase == RacePhase.Finished ? "finished" : "did not finish")} round {seed} " +
                           $"({course.Layout.Count} obstacles) in {time:0.0} s, capsizes {boat.CapsizeCount}, lives {boat.Lives}, gates {boat.GatesPassed}/{course.Gates.Count}, " +
-                          $"furthest {furthest:0} m of {def.FinishDistance:0} m");
+                          $"furthest {furthest:0} m of {def.FinishDistance:0} m{lost}");
                 Assert.That(race.Phase, Is.EqualTo(RacePhase.Finished),
-                    $"stuck {furthest:0} m down a {def.FinishDistance:0} m course after {time:0} s, with {boat.GatesPassed} of {course.Gates.Count} gates");
+                    $"stuck {furthest:0} m down a {def.FinishDistance:0} m course after {time:0} s, with {boat.GatesPassed} of {course.Gates.Count} gates{lost}");
             }
             finally
             {

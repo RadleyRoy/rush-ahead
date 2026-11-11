@@ -1,3 +1,4 @@
+using System.Linq;
 using NUnit.Framework;
 using RushAhead.Content;
 using RushAhead.Sim;
@@ -409,6 +410,270 @@ namespace RushAhead.Tests
             var hit = At(netBoat.Position(Seconds - Dt));
             Assert.That(hit, Is.Not.Null);
             Assert.That(hit.attachedRigidbody.name, Is.EqualTo("Net boat"));
+        }
+
+        // ---- The Phase 17 kinds (dealt as ObstacleSpots in a layout's extras) ----
+
+        T Only<T>(params ObstacleSpot[] spots) where T : Obstacle
+        {
+            def.extras = spots;
+            Build();
+            return (T)course.Hazards.Obstacles[0];
+        }
+
+        static int Counting(Boat boat, out System.Func<int> shoves)
+        {
+            var count = 0;
+            boat.Shoved += _ => count++;
+            shoves = () => count;
+            return 0;
+        }
+
+        [Test]
+        public void AKraken_SlamsATentacleAlongTheLineItsBubblesShowed()
+        {
+            var kraken = Only<Kraken>(new ObstacleSpot(ObstacleKind.Kraken, 40f, period: 4f, size: 1f));
+            const double slam = 4.0 * Kraken.Slam;
+            var (root, tip) = kraken.Line(0, slam);
+            Assert.That(kraken.Line(0, 4.0 * Kraken.Bubbles), Is.EqualTo((root, tip)), "the bubbles showed this very line");
+            Assert.That(kraken.Line(0, slam + 4.0), Is.Not.EqualTo((root, tip)), "the next slam lands somewhere else");
+            var under = Spawn(Vector2.Lerp(root, tip, 0.6f));
+            var clear = Spawn(new Vector2(70f, 0f));
+            Counting(under, out var hits);
+            Counting(clear, out var missed);
+            Run((float)slam + 0.4f, under, clear);
+            Assert.That(hits(), Is.EqualTo(1), "slammed once");
+            Assert.That(missed(), Is.Zero, "nothing away from the line");
+        }
+
+        [Test]
+        public void ATidalBore_RollsUpTheRiver_FlippingAnUnbracedRaft_ButNotABracedOne()
+        {
+            var bore = Only<TidalBore>(new ObstacleSpot(ObstacleKind.TidalBore, 40f, period: 6f));
+            Assert.That(bore.Wave(1.0).distance, Is.EqualTo(40f + TidalBore.Run).Within(0.01f), "it swells at the bottom of its stretch first");
+            Assert.That(bore.Wave(2.0).distance, Is.LessThan(bore.Wave(1.6).distance), "then rolls up the river");
+            var loose = Spawn(new Vector2(40f, 3.5f));
+            var braced = Spawn(new Vector2(40f, -3.5f), brace: true);
+            Run(4f, loose, braced);
+            Assert.That(loose.CapsizeCount, Is.GreaterThanOrEqualTo(1), "flipped");
+            Assert.That(braced.CapsizeCount, Is.Zero, "rode over it braced");
+            Assert.That(braced.Body.Position.x, Is.LessThan(40f), "thrown back up the river");
+        }
+
+        [Test]
+        public void AJumpRamp_LaunchesAFastRaft_AndOnlyABracedCrewLandsUpright()
+        {
+            def.flow = 9f;
+            def.extras = new[] { new ObstacleSpot(ObstacleKind.JumpRamp, 40f, across: 3.5f), new ObstacleSpot(ObstacleKind.JumpRamp, 40f, across: -3.5f) };
+            Build();
+            var ramps = course.Hazards.Obstacles;
+            var loose = Spawn(new Vector2(18f, 3.5f));
+            var braced = Spawn(new Vector2(18f, -3.5f), brace: true);
+            Counting(loose, out var knocks);
+            var highest = 0f;
+            for (var i = 0; i < 7 * 60; i++) // it lands about 5 s in; capsizing takes a moment more
+            {
+                Run(Dt, loose, braced);
+                highest = Mathf.Max(highest, ((JumpRamp)ramps[0]).Height(loose.Body.Position, loose.Body.Velocity));
+            }
+
+            Assert.That(highest, Is.GreaterThan(JumpRamp.Lip + 0.3f), "it flew, higher than the lip");
+            Assert.That(knocks(), Is.GreaterThanOrEqualTo(1), "it came down hard");
+            Assert.That(loose.CapsizeCount, Is.GreaterThanOrEqualTo(1), "and over it went, unbraced");
+            Assert.That(braced.CapsizeCount, Is.Zero, "braced, it lands upright");
+            Assert.That(((JumpRamp)ramps[0]).Height(new Vector2(40f, 3.5f), Vector2.zero), Is.GreaterThan(0f), "up on the ramp");
+            Assert.That(((JumpRamp)ramps[0]).Height(new Vector2(70f, 3.5f), new Vector2(9f, 0f)), Is.Zero, "and back on the water well past it");
+        }
+
+        [Test]
+        public void AGooseGang_ChasesAndPecksARaft_AndTheGeeseAreLooseBodiesSentWithTheProps()
+        {
+            var gang = Only<GooseGang>(new ObstacleSpot(ObstacleKind.GooseGang, 40f, side: 1f, size: 3f));
+            Assert.That(gang.Geese.Count, Is.EqualTo(3));
+            Assert.That(course.BarrelBodies.Count, Is.EqualTo(3), "sent to joined players after the barrels and logs");
+            for (var i = 0; i < 3; i++) Assert.That(course.IsObstacleBody(i), Is.True);
+            Assert.That(course.DriftingBodies, Is.Empty, "they swim, the water doesn't carry them");
+            var home = gang.Geese[0].position;
+            var boat = Spawn(new Vector2(38f, -1f));
+            Counting(boat, out var pecks);
+            Run(4f, boat);
+            Assert.That(pecks(), Is.GreaterThanOrEqualTo(1), "they caught it and pecked");
+            Assert.That(Vector2.Distance(gang.Geese[0].position, home), Is.GreaterThan(1f), "off their bank after it");
+            course.ResetBarrels();
+            Assert.That(gang.Geese[0].position, Is.EqualTo(home), "a new race: back home");
+        }
+
+        [Test]
+        public void ChainedMines_BlastARaftThatTouchesOne_AndLeaveTheWayBetweenThemClear()
+        {
+            var mines = Only<ChainedMines>(new ObstacleSpot(ObstacleKind.ChainedMines, 40f, across: 1f, period: 3f, size: 3f));
+            Assert.That(mines.Anchor(0).y * mines.Anchor(1).y, Is.LessThan(0f), "they alternate sides: a slalom");
+            var touching = Spawn(mines.Anchor(0));
+            var far = Spawn(new Vector2(70f, 0f));
+            Counting(touching, out var hits);
+            Counting(far, out var missed);
+            Run(1f, touching, far);
+            Assert.That(hits(), Is.EqualTo(1), "one blast, then it needs a moment");
+            Assert.That(missed(), Is.Zero);
+        }
+
+        [Test]
+        public void AWreckingBall_SmashesARaftInItsLaneLowInItsSwing_ButNotOneBesideIt()
+        {
+            var ball = Only<WreckingBall>(new ObstacleSpot(ObstacleKind.WreckingBall, 40f, across: 0f, period: 3f));
+            Assert.That(ball.Pose(0).height, Is.LessThan(WreckingBall.LowEnough), "low at the bottom of its swing");
+            Assert.That(ball.Pose(0.75).height, Is.GreaterThan(3.5f), "high at the end of it");
+            var under = Spawn(new Vector2(40f, 0f));
+            var beside = Spawn(new Vector2(40f, 5f));
+            Counting(under, out var hits);
+            Counting(beside, out var missed);
+            Run(0.5f, under, beside);
+            Assert.That(hits(), Is.EqualTo(1));
+            Assert.That(missed(), Is.Zero, "it swings in one lane");
+        }
+
+        [Test]
+        public void AStormCloud_StrikesTheGlowingRing_KnockingAndStunningAnUnbracedRaft()
+        {
+            var storm = Only<StormCloud>(new ObstacleSpot(ObstacleKind.StormCloud, 40f, period: 2f));
+            const double bolt = 2.0 * StormCloud.Bolt;
+            var target = storm.Target(bolt);
+            Assert.That(storm.Target(2.0 * StormCloud.Glow), Is.EqualTo(target), "the ring glows where it'll strike");
+            var boat = Spawn(target);
+            Counting(boat, out var hits);
+            Run((float)bolt + 0.05f, boat);
+            Assert.That(hits(), Is.EqualTo(1));
+            Assert.That(boat.StunnedSeconds, Is.GreaterThan(0.5f), "its blowers cut out");
+        }
+
+        [Test]
+        public void APaddleSteamer_IsSolid_AndItsPaddlesKnockARaftAway()
+        {
+            var steamer = Only<PaddleSteamer>(new ObstacleSpot(ObstacleKind.PaddleSteamer, 40f, across: 4f, period: 12f));
+            Run(Dt);
+            var (position, _) = steamer.Pose(Seconds);
+            var hull = At(position);
+            Assert.That(hull, Is.Not.Null);
+            Assert.That(hull.attachedRigidbody.name, Is.EqualTo("Paddle steamer"));
+            Assert.That(steamer.TopSpeed, Is.LessThan(5.5f), "never fast enough to fling a raft");
+            var boat = Spawn(new Vector2(position.x, 4f - PaddleSteamer.Width * 0.5f - PaddleSteamer.Paddle - 1f));
+            Counting(boat, out var hits);
+            Run(1f, boat);
+            Assert.That(hits(), Is.GreaterThanOrEqualTo(1), "the paddles caught it");
+            Assert.That(boat.Body.Position.y, Is.LessThan(-0.2f), "and knocked it away");
+        }
+
+        [Test]
+        public void AMillRace_DrawsARaftTowardItsBank()
+        {
+            Only<MillRace>(new ObstacleSpot(ObstacleKind.MillRace, 40f, side: 1f, period: 3f));
+            var boat = Spawn(new Vector2(42f, -3f));
+            Run(2f, boat);
+            Assert.That(boat.Body.Position.y, Is.GreaterThan(-2.2f), "pulled toward the mill");
+            var far = Spawn(new Vector2(60f, -3f));
+            Run(1f, far);
+            Assert.That(far.Body.Position.y, Is.EqualTo(-3f).Within(0.05f), "nothing past its stretch");
+        }
+
+        [Test]
+        public void ADrawbridge_IsAWallOnlyWhileItsDown()
+        {
+            var bridge = Only<Drawbridge>(new ObstacleSpot(ObstacleKind.Drawbridge, 40f, period: 6f));
+            Run(1f);
+            Assert.That(bridge.Open(Seconds), Is.EqualTo(1f));
+            Assert.That(bridge.Barriers.All(leaf => !leaf.enabled), Is.True, "up: the way is open");
+            Run(2.4f);
+            Assert.That(bridge.Open(Seconds), Is.EqualTo(0f));
+            Assert.That(bridge.Barriers.All(leaf => leaf.enabled), Is.True, "down: a wall right across");
+            Assert.That(At(new Vector2(40f, 3f)), Is.Not.Null);
+            Assert.That(bridge.Warning(6.0 * 0.35), Is.True, "lights flash before it comes down");
+        }
+
+        [Test]
+        public void ACargoCrane_DropsACrateWhereItsShadowShowed()
+        {
+            var crane = Only<CargoCrane>(new ObstacleSpot(ObstacleKind.CargoCrane, 40f, side: 1f, period: 4f));
+            const double land = 4.0 * CargoCrane.Land;
+            var target = crane.Target(land);
+            Assert.That(crane.Shadow(4.0 * 0.6), Is.GreaterThan(0f), "its shadow first");
+            Assert.That(crane.Target(4.0 * 0.6), Is.EqualTo(target));
+            var boat = Spawn(target);
+            Counting(boat, out var hits);
+            Run((float)land + 0.1f, boat);
+            Assert.That(hits(), Is.EqualTo(1));
+        }
+
+        [Test]
+        public void ALogFlume_ShootsLogsIntoTheRiver_ThatKnockARaftAside()
+        {
+            var flume = Only<LogFlume>(new ObstacleSpot(ObstacleKind.LogFlume, 40f, side: 1f, period: 3.4f, offset: 1.54f));
+            var (centre, _, _, inWater, alive) = flume.Log(0, 0.5);
+            Assert.That(alive && inWater, Is.True, "a log already in the water");
+            Assert.That(flume.Log(0, 0.9).centre.x, Is.GreaterThan(centre.x), "drifting down the river");
+            var boat = Spawn(flume.Log(0, 0.6).centre);
+            Counting(boat, out var hits);
+            Run(0.8f, boat);
+            Assert.That(hits(), Is.GreaterThanOrEqualTo(1));
+        }
+
+        [Test]
+        public void ACalvingGlacier_SendsAWaveAcross_ThatFlipsAnUnbracedRaft()
+        {
+            Only<CalvingGlacier>(new ObstacleSpot(ObstacleKind.CalvingGlacier, 40f, side: 1f, period: 6f));
+            var loose = Spawn(new Vector2(43f, 1f));
+            var braced = Spawn(new Vector2(37f, 1f), brace: true);
+            Run(5.5f, loose, braced);
+            Assert.That(loose.CapsizeCount, Is.GreaterThanOrEqualTo(1), "flipped");
+            Assert.That(braced.CapsizeCount, Is.Zero, "rode it out braced");
+            Assert.That(braced.Body.Position.y, Is.LessThan(0.9f), "pushed away from the ice");
+        }
+
+        [Test]
+        public void ADynamiteFloat_BlowsWhereItDrifted_WhenTheFuseRunsOut()
+        {
+            var dynamite = Only<DynamiteFloat>(new ObstacleSpot(ObstacleKind.DynamiteFloat, 40f, side: 1f, period: 4.5f));
+            const double blows = 4.5 * DynamiteFloat.Fuse;
+            var (crate, _, fuse, blast) = dynamite.Crate(blows);
+            Assert.That(fuse, Is.EqualTo(1f));
+            Assert.That(crate.x, Is.GreaterThan(45f), "it drifted down the river first");
+            Assert.That(dynamite.Crate(blows - 0.5).blast, Is.Zero, "not before");
+            var near = Spawn(crate + new Vector2(0f, -2.5f));
+            var far = Spawn(crate + new Vector2(-12f, 0f));
+            Counting(near, out var hits);
+            Counting(far, out var missed);
+            Run((float)blows + 0.1f, near, far);
+            Assert.That(hits(), Is.EqualTo(1));
+            Assert.That(missed(), Is.Zero);
+        }
+
+        [Test]
+        public void LeapingFrogs_SplashARaftByThePadTheyLandOn_NeverTheSamePadTogether()
+        {
+            var frogs = Only<LeapingFrogs>(new ObstacleSpot(ObstacleKind.LeapingFrogs, 40f, period: 1.6f));
+            for (var round = -8; round < 8; round++)
+                Assert.That(LeapingFrogs.PadOf(0, round), Is.Not.EqualTo(LeapingFrogs.PadOf(1, round)), "two frogs, two pads");
+            Assert.That(frogs.Frog(0, 1.6 * 0.8).height, Is.GreaterThan(1f), "in the air mid-hop");
+            var onPad = Spawn(frogs.Pad(1));
+            var between = Spawn(new Vector2(46f, 0f));
+            Counting(onPad, out var hits);
+            Counting(between, out var missed);
+            Run(3.3f, onPad, between);
+            Assert.That(hits(), Is.GreaterThanOrEqualTo(1));
+            Assert.That(missed(), Is.Zero);
+        }
+
+        [Test]
+        public void AGiantFan_BlowsRaftsAcrossTheRiver_OnlyWhileItsGusting()
+        {
+            var fan = Only<GiantFan>(new ObstacleSpot(ObstacleKind.GiantFan, 40f, side: 1f, period: 5f));
+            var boat = Spawn(new Vector2(40f, 1f));
+            Run(2.5f, boat);
+            Assert.That(fan.Blowing(Seconds), Is.Zero);
+            Assert.That(boat.Body.Position.y, Is.EqualTo(1f).Within(0.05f), "still: it's winding up");
+            Counting(boat, out var lurch);
+            Run(2f, boat);
+            Assert.That(boat.Body.Position.y, Is.LessThan(0f), "blown toward the far side");
+            Assert.That(lurch(), Is.EqualTo(1), "with one lurch as the gust hits");
         }
     }
 }

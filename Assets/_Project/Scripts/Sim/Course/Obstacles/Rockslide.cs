@@ -132,6 +132,20 @@ namespace RushAhead.Sim
         }
 
         /// <summary>When the boulder will cross where the raft will be by then (coming down the river at the usual speed).</summary>
+        /// <summary>
+        /// A boulder about to roll across: keep to the crag's side. A hit shoves a raft toward the far bank, so from there
+        /// it ends up in open water rather than over the far edge.
+        /// </summary>
+        public override float SteerAcross(float from, float to, float across, double seconds, float limit)
+        {
+            if (!Between(spot.distance, spot.radius + RaftRadius + 1f, from, to)) return across;
+            var coming = false;
+            for (var t = 0f; t <= 1.5f && !coming; t += 0.1f) coming = Boulder(seconds + t).crossing;
+            if (!coming) return across;
+            var nearSide = spot.side * Mathf.Min(0.35f * at.HalfWidth, limit);
+            return (across - nearSide) * spot.side < 0f ? nearSide : across;
+        }
+
         public override bool BraceNeeded(Vector2 position, double seconds, float lookahead)
         {
             var here = River.Project(position);

@@ -358,7 +358,7 @@ namespace RushAhead.UI
             if (def.logs.Length > 0) hazards.Add("logs");
             if (def.barrels.Length > 0) hazards.Add("barrels");
             if (def.rocks.Length > 0) hazards.Add("rocks");
-            var facts = $"{def.scene}, {def.FinishDistance:0} m";
+            var facts = $"{def.scene}, {def.FinishDistance:0} m, water at {def.flow:0.#} m/s";
             return hazards.Count > 0 ? $"{facts}: {string.Join(", ", hazards)}" : facts;
         }
     }

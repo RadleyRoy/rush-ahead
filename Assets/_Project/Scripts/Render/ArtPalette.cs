@@ -95,7 +95,44 @@ namespace RushAhead.Render
         /// <summary>Whether there's what a real terrain needs: its material and every ground layer.</summary>
         public bool HasLand => terrainMaterial != null && terrainLayers != null && terrainLayers.Length >= 6 && terrainLayers.All(l => l != null);
 
-        public TerrainLayer TerrainLayerFor(GorgeTerrain.Ground role) => terrainLayers[(int)role];
+        /// <summary>The terrain layer for a kind of ground: a photo layer, or one tinted from it for the glacier and the canyon.</summary>
+        public TerrainLayer TerrainLayerFor(GorgeTerrain.Ground role) => role switch
+        {
+            GorgeTerrain.Ground.Snow => TintedLayer(GorgeTerrain.Ground.Sand, new Vector4(1.4f, 1.45f, 1.55f, 1f)),
+            GorgeTerrain.Ground.Ice => TintedLayer(GorgeTerrain.Ground.Scree, new Vector4(0.95f, 1.25f, 1.45f, 1f)),
+            GorgeTerrain.Ground.RedRock => TintedLayer(GorgeTerrain.Ground.Scree, new Vector4(1.4f, 0.72f, 0.5f, 1f)),
+            GorgeTerrain.Ground.Dust => TintedLayer(GorgeTerrain.Ground.Sand, new Vector4(1.2f, 0.82f, 0.6f, 1f)),
+            _ => terrainLayers[(int)role],
+        };
+
+        [NonSerialized] Dictionary<(GorgeTerrain.Ground, Vector4), TerrainLayer> tintedLayers;
+
+        /// <summary>A copy of a photo layer with its colour scaled (the terrain shader's colour remap), made once and shared.</summary>
+        TerrainLayer TintedLayer(GorgeTerrain.Ground from, Vector4 tint)
+        {
+            tintedLayers ??= new Dictionary<(GorgeTerrain.Ground, Vector4), TerrainLayer>();
+            if (tintedLayers.TryGetValue((from, tint), out var layer) && layer != null) return layer;
+            var source = terrainLayers[(int)from];
+            layer = new TerrainLayer
+            {
+                name = $"{source.name} tinted",
+                diffuseTexture = source.diffuseTexture,
+                normalMapTexture = source.normalMapTexture,
+                maskMapTexture = source.maskMapTexture,
+                tileSize = source.tileSize,
+                tileOffset = source.tileOffset,
+                normalScale = source.normalScale,
+                metallic = source.metallic,
+                smoothness = source.smoothness,
+                specular = source.specular,
+                diffuseRemapMin = source.diffuseRemapMin,
+                diffuseRemapMax = tint,
+                maskMapRemapMin = source.maskMapRemapMin,
+                maskMapRemapMax = source.maskMapRemapMax,
+            };
+            tintedLayers[(from, tint)] = layer;
+            return layer;
+        }
 
         [NonSerialized] Dictionary<(Material, Color), Material> tinted;
         [NonSerialized] Dictionary<(Color, Vector4), Material> sprays;

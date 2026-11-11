@@ -93,14 +93,16 @@ namespace RushAhead.Sim
 
         /// <summary>Kinds that send a raft to one side of the river or the other to get past.</summary>
         static bool Lanes(ObstacleKind kind) => kind is ObstacleKind.Wheel or ObstacleKind.Sweeper or ObstacleKind.Bumper or ObstacleKind.Cannon or ObstacleKind.Bear or
-            ObstacleKind.Mudslide or ObstacleKind.Sluice or ObstacleKind.BeaverDam or ObstacleKind.FallingTree;
+            ObstacleKind.Mudslide or ObstacleKind.Sluice or ObstacleKind.BeaverDam or ObstacleKind.FallingTree or ObstacleKind.PaddleSteamer or
+            ObstacleKind.WreckingBall or ObstacleKind.MillRace or ObstacleKind.GiantFan;
 
         /// <summary>Kinds that wall off part of the river (or all of it) a raft can be pinned against.</summary>
         static bool Walls(ObstacleKind kind) => kind is ObstacleKind.Sluice or ObstacleKind.BeaverDam or ObstacleKind.FallingTree or ObstacleKind.IceFloes or
-            ObstacleKind.Ferry or ObstacleKind.NetBoat or ObstacleKind.Turtle or ObstacleKind.Weir;
+            ObstacleKind.Ferry or ObstacleKind.NetBoat or ObstacleKind.Turtle or ObstacleKind.Weir or ObstacleKind.Drawbridge or ObstacleKind.PaddleSteamer or
+            ObstacleKind.MillRace;
 
         static bool Braces(ObstacleKind kind) => kind is ObstacleKind.SwingingLog or ObstacleKind.Geyser or ObstacleKind.Hippo or ObstacleKind.Weir or
-            ObstacleKind.FallingTree or ObstacleKind.Pelican;
+            ObstacleKind.FallingTree or ObstacleKind.Pelican or ObstacleKind.TidalBore or ObstacleKind.CalvingGlacier or ObstacleKind.JumpRamp;
 
         /// <summary>One round's dealing: what's placed so far, and the rules for placing more.</summary>
         sealed class Deal
@@ -133,6 +135,7 @@ namespace RushAhead.Sim
             readonly List<AcrossSpot> dams = new();
             readonly List<SideSpot> pelicans = new();
             readonly List<CrossingSpot> netBoats = new();
+            readonly List<ObstacleSpot> extras = new();
             readonly List<BoostSpot> boosts = new();
 
             public int Boosts => boosts.Count;
@@ -186,7 +189,7 @@ namespace RushAhead.Sim
                 cannons = cannons.ToArray(), rapids = rapids.ToArray(), weirs = weirs.ToArray(), bumpers = bumpers.ToArray(),
                 ferries = ferries.ToArray(), bears = bears.ToArray(), trees = trees.ToArray(), turtles = turtles.ToArray(), shoals = shoals.ToArray(),
                 waterspouts = waterspouts.ToArray(), eels = eels.ToArray(), mudslides = mudslides.ToArray(), floes = floes.ToArray(), dams = dams.ToArray(),
-                pelicans = pelicans.ToArray(), netBoats = netBoats.ToArray(), boosts = boosts.ToArray(),
+                pelicans = pelicans.ToArray(), netBoats = netBoats.ToArray(), extras = extras.ToArray(), boosts = boosts.ToArray(),
             };
 
             /// <summary>A kind from the menu, by weight, among those the water here suits.</summary>
@@ -213,11 +216,17 @@ namespace RushAhead.Sim
             /// <summary>Kinds that need room only go where the river is wide enough to leave a way past.</summary>
             static bool Suits(ObstacleKind kind, float half) => kind switch
             {
+                ObstacleKind.PaddleSteamer => half >= 7f,
+                ObstacleKind.ChainedMines => half >= 7f, // a lane between them at speed
+                ObstacleKind.WreckingBall or ObstacleKind.MillRace or ObstacleKind.LogFlume or ObstacleKind.DynamiteFloat or
+                    ObstacleKind.LeapingFrogs or ObstacleKind.GiantFan => half >= 6f,
+                ObstacleKind.Kraken or ObstacleKind.GooseGang or ObstacleKind.CargoCrane => half >= 5.5f,
                 ObstacleKind.Cannon => half >= 7f,
                 ObstacleKind.Ferry or ObstacleKind.Waterspout => half >= 6.5f,
                 ObstacleKind.Wheel or ObstacleKind.Sweeper or ObstacleKind.Bumper or ObstacleKind.Turtle or ObstacleKind.PiranhaShoal or ObstacleKind.Bear or
                     ObstacleKind.Mudslide or ObstacleKind.IceFloes or ObstacleKind.NetBoat => half >= 6f,
-                ObstacleKind.Sluice or ObstacleKind.FallingTree or ObstacleKind.BeaverDam => half >= 5.5f,
+                ObstacleKind.Sluice or ObstacleKind.BeaverDam => half >= 5.5f,
+                ObstacleKind.FallingTree => half >= 6.5f, // its gap runs to the open edge: in narrow water that's a trap at speed
                 _ => true,
             };
 
@@ -234,6 +243,19 @@ namespace RushAhead.Sim
                 ObstacleKind.PiranhaShoal or ObstacleKind.BeaverDam or ObstacleKind.NetBoat => 5f,
                 ObstacleKind.Mudslide => 6f,
                 ObstacleKind.Waterspout => 7f,
+                ObstacleKind.Kraken => Kraken.Spread + 2.5f,
+                ObstacleKind.TidalBore => TidalBore.Run + 2f,
+                ObstacleKind.JumpRamp => 3f,
+                ObstacleKind.GooseGang => 6f,
+                ObstacleKind.ChainedMines => 9.5f,
+                ObstacleKind.WreckingBall => WreckingBall.Reach + 1f,
+                ObstacleKind.StormCloud => StormCloud.Spread + 2.5f,
+                ObstacleKind.PaddleSteamer => PaddleSteamer.Range + PaddleSteamer.Length * 0.5f + 1.5f,
+                ObstacleKind.MillRace => MillRace.Along + 1f,
+                ObstacleKind.CargoCrane => 6.5f,
+                ObstacleKind.CalvingGlacier => CalvingGlacier.Along + 1f,
+                ObstacleKind.DynamiteFloat => 5f,
+                ObstacleKind.GiantFan => GiantFan.Along + 1f,
                 _ => 4f,
             };
 
@@ -242,7 +264,16 @@ namespace RushAhead.Sim
             {
                 var at = river.At(distance);
                 var half = at.HalfWidth;
-                var length = kind == ObstacleKind.Rapids ? dice.Range(20f, 28f) : kind == ObstacleKind.IceFloes ? IceFloes.Run : 0f;
+                // How far it runs on downstream of its spot: a stretch of rapids, floes, a jump's flight, flume logs and dynamite drifting down.
+                var length = kind switch
+                {
+                    ObstacleKind.Rapids => dice.Range(20f, 28f),
+                    ObstacleKind.IceFloes => IceFloes.Run,
+                    ObstacleKind.JumpRamp => JumpRamp.Flight,
+                    ObstacleKind.LogFlume => LogFlume.Run(Quick(4.4f)),
+                    ObstacleKind.DynamiteFloat => DynamiteFloat.Run(Quick(6.6f)),
+                    _ => 0f,
+                };
                 var from = distance - Reach(kind, half);
                 var to = distance + length + Reach(kind, half);
                 if (to > def.FinishDistance - 3f) return false;
@@ -345,6 +376,8 @@ namespace RushAhead.Sim
                         bears.Add(new BearSpot(distance, side, Quick(dice.Range(3.2f, 3.8f)), dice.Range(0f, 3f)));
                         break;
                     case ObstacleKind.FallingTree:
+                        // Once it's down its gap is the only way past, so the water below the gap must be clear of rocks.
+                        if (!ClearAlong(distance, distance + 18f, -side * 0.5f * half, 1f)) return false;
                         trees.Add(new SideSpot(distance, side, Quick(dice.Range(6.5f, 8f)), dice.Range(0f, 8f)));
                         break;
                     case ObstacleKind.Turtle:
@@ -375,9 +408,87 @@ namespace RushAhead.Sim
                     case ObstacleKind.NetBoat:
                         netBoats.Add(new CrossingSpot(distance, dice.Range(6.5f, 8.5f), dice.Range(0f, 8f)));
                         break;
+                    case ObstacleKind.Kraken:
+                        extras.Add(new ObstacleSpot(kind, distance, period: Quick(dice.Range(4.6f, 5.6f)), offset: dice.Range(0f, 6f), size: 2f));
+                        break;
+                    case ObstacleKind.TidalBore:
+                        extras.Add(new ObstacleSpot(kind, distance, period: Quick(dice.Range(7.5f, 9f)), offset: dice.Range(0f, 9f)));
+                        break;
+                    case ObstacleKind.JumpRamp:
+                        // A straight run to the lip and all through the flight, with nothing standing in its lane.
+                        for (var d = distance - JumpRamp.Length; d <= distance + JumpRamp.Flight; d += 3f)
+                            if (Mathf.Abs(river.At(d).Curvature) > 0.03f) return false;
+                        across = dice.Range(-1f, 1f) * Mathf.Max(0f, half - JumpRamp.HalfWidth - 1.6f);
+                        if (!ClearAlong(distance - JumpRamp.Length, distance + JumpRamp.Flight, across, JumpRamp.HalfWidth)) return false;
+                        extras.Add(new ObstacleSpot(kind, distance, across: across));
+                        break;
+                    case ObstacleKind.GooseGang:
+                        extras.Add(new ObstacleSpot(kind, distance, side, size: dice.Range(3, 5)));
+                        break;
+                    case ObstacleKind.ChainedMines:
+                    {
+                        var mines = half >= 7.5f ? 3 : 2;
+                        for (var i = 0; i < mines; i++)
+                            if (!ClearOfRocks(distance + (i - (mines - 1) * 0.5f) * ChainedMines.Spacing, (i % 2 == 0 ? side : -side) * half * ChainedMines.Out,
+                                    ChainedMines.MineRadius + ChainedMines.Bob)) return false;
+                        extras.Add(new ObstacleSpot(kind, distance, across: side, period: Quick(dice.Range(2.6f, 3.4f)), offset: dice.Range(0f, 4f), size: mines));
+                        break;
+                    }
+                    case ObstacleKind.WreckingBall:
+                        across = side * dice.Range(0f, Mathf.Max(0f, half - 3.2f));
+                        if (!ClearAlong(distance - WreckingBall.Reach, distance + WreckingBall.Reach, across, WreckingBall.Ball)) return false;
+                        extras.Add(new ObstacleSpot(kind, distance, across: across, period: Quick(dice.Range(3.6f, 4.4f)), offset: dice.Range(0f, 4f)));
+                        break;
+                    case ObstacleKind.StormCloud:
+                        extras.Add(new ObstacleSpot(kind, distance, period: Quick(dice.Range(2.2f, 2.8f), 0.9f), offset: dice.Range(0f, 3f)));
+                        break;
+                    case ObstacleKind.PaddleSteamer:
+                        // Up and back no faster than about 5 m/s (like the ferry), so it never flings a raft.
+                        across = side * (half - PaddleSteamer.Width * 0.5f - 1.2f);
+                        extras.Add(new ObstacleSpot(kind, distance, across: across, period: dice.Range(12f, 15f), offset: dice.Range(0f, 15f)));
+                        break;
+                    case ObstacleKind.MillRace:
+                        if (!ClearOfRocks(distance, side * (half - 0.6f), MillRace.WheelRadius)) return false;
+                        extras.Add(new ObstacleSpot(kind, distance, side, period: dice.Range(2.5f, 3.5f)));
+                        break;
+                    case ObstacleKind.Drawbridge:
+                        if (Mathf.Abs(at.Curvature) > 0.03f) return false; // a straight run: room to see it coming down
+                        extras.Add(new ObstacleSpot(kind, distance, period: Quick(dice.Range(7.5f, 9f)), offset: dice.Range(0f, 9f)));
+                        break;
+                    case ObstacleKind.CargoCrane:
+                        extras.Add(new ObstacleSpot(kind, distance, side, period: Quick(dice.Range(4.6f, 5.6f)), offset: dice.Range(0f, 6f)));
+                        break;
+                    case ObstacleKind.LogFlume:
+                        extras.Add(new ObstacleSpot(kind, distance, side, period: Quick(dice.Range(3.6f, 4.4f)), offset: dice.Range(0f, 5f)));
+                        break;
+                    case ObstacleKind.CalvingGlacier:
+                        extras.Add(new ObstacleSpot(kind, distance, side, period: Quick(dice.Range(7f, 8.5f)), offset: dice.Range(0f, 9f)));
+                        break;
+                    case ObstacleKind.DynamiteFloat:
+                        extras.Add(new ObstacleSpot(kind, distance, side, period: Quick(dice.Range(5.6f, 6.6f)), offset: dice.Range(0f, 7f)));
+                        break;
+                    case ObstacleKind.LeapingFrogs:
+                    {
+                        var spread = Mathf.Min(half * 0.62f, 5f);
+                        for (var i = -1; i <= 1; i++)
+                            if (!ClearOfRocks(distance, i * spread, LeapingFrogs.PadRadius)) return false;
+                        extras.Add(new ObstacleSpot(kind, distance, period: Quick(dice.Range(2f, 2.4f)), offset: dice.Range(0f, 3f)));
+                        break;
+                    }
+                    case ObstacleKind.GiantFan:
+                        extras.Add(new ObstacleSpot(kind, distance, side, period: Quick(dice.Range(6f, 7.2f)), offset: dice.Range(0f, 8f)));
+                        break;
                 }
 
                 taken.Add((from, to, Braces(kind), Lanes(kind)));
+                return true;
+            }
+
+            /// <summary>Clear of rocks all the way down a lane, from one distance to another.</summary>
+            bool ClearAlong(float from, float to, float across, float radius)
+            {
+                for (var d = from; d <= to; d += 2f)
+                    if (!ClearOfRocks(d, across, radius)) return false;
                 return true;
             }
 

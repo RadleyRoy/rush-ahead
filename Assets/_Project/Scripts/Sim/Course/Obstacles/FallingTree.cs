@@ -29,7 +29,7 @@ namespace RushAhead.Sim
         {
             this.spot = spot;
             at = River.At(spot.distance);
-            Length = 1.15f * at.HalfWidth + 0.5f; // from the lip to a little past the middle, leaving the far side open
+            Length = 0.9f * at.HalfWidth + 0.5f; // from the lip to a little short of the middle, leaving the far side open
             var body = Kinematic("Fallen tree", Middle, parent);
             body.transform.rotation = Quaternion.Euler(0f, 0f, Degrees(at.Left));
             trunk = body.gameObject.AddComponent<BoxCollider2D>();
@@ -48,6 +48,9 @@ namespace RushAhead.Sim
         public Vector2 Foot => at.Centre + at.Left * (spot.side * (at.HalfWidth + 0.5f));
 
         Vector2 Middle => Foot - at.Left * (spot.side * Length * 0.5f);
+
+        /// <summary>Where its crown ends, across the river (positive is the left).</summary>
+        public float CrownAcross => spot.side * (at.HalfWidth + 0.5f - Length);
 
         /// <summary>The middle of the open water past its crown, across the river (positive is the left).</summary>
         public float GapCentre => -spot.side * (at.HalfWidth - 0.5f * (2f * at.HalfWidth + 0.5f - Length));
@@ -125,12 +128,20 @@ namespace RushAhead.Sim
             return !double.IsNaN(falls) && seconds + lookahead >= falls && seconds < LandsAt + 0.15;
         }
 
-        /// <summary>Once it's creaking (or down), make for the gap past its crown.</summary>
+        /// <summary>
+        /// Once it's creaking (or down), make for the gap past its crown, lining up well before it (fast water leaves no
+        /// time to cross the river at the last moment).
+        /// </summary>
         public override float SteerAcross(float from, float to, float across, double seconds, float limit)
         {
-            if (!Between(spot.distance, TrunkWidth + RaftRadius + 1f, from, to)) return across;
+            const float LineUp = 40f; // metres ahead, three seconds or so at speed
+            var ahead = spot.distance - from;
+            if (ahead < -(TrunkWidth + RaftRadius + 1f) || ahead > Mathf.Max(LineUp, to - from + TrunkWidth + RaftRadius + 1f)) return across;
             var falls = FallsAt;
-            return !double.IsNaN(falls) && seconds + 1.0 >= falls - CreakSeconds ? Mathf.Clamp(GapCentre, -limit, limit) : across;
+            if (double.IsNaN(falls) || seconds + 1.0 < falls - CreakSeconds) return across;
+            // Just past the crown, not out by the far edge: there's no bank there to stop a raft going over.
+            var safe = CrownAcross - spot.side * (RaftRadius + 1.2f);
+            return (across - safe) * spot.side > 0f ? Mathf.Clamp(safe, -limit, limit) : across;
         }
     }
 }

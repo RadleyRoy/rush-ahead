@@ -145,18 +145,32 @@ namespace RushAhead.Tests
                 Assert.That(rafts[0].race.StartTick, Is.EqualTo(rafts[1].race.StartTick));
 
                 var limit = rafts[0].race.StartTick + Mathf.CeilToInt(def.ExpectedSeconds * 1.5f * config.tickRate);
+                var losses = new List<string>();
+                var afloat = new bool[rafts.Count];
                 while (rafts.Any(r => r.race.Phase != RacePhase.Finished && r.race.Phase != RacePhase.Out) && world.Tick < limit)
                 {
                     foreach (var r in rafts) r.ai.Update(Dt);
                     course.Hazards.Step(world.Tick / (double)config.tickRate, rafts.Select(r => r.boat).ToList());
+                    for (var i = 0; i < rafts.Count; i++) afloat[i] = rafts[i].boat.State == BoatState.Afloat;
                     world.Advance(Dt);
-                    foreach (var r in rafts) r.race.Step(world.Tick);
+                    for (var i = 0; i < rafts.Count; i++)
+                    {
+                        var (boat, _, race) = rafts[i];
+                        race.Step(world.Tick);
+                        if (!afloat[i] || boat.State == BoatState.Afloat) continue;
+                        var at = course.River.Project(boat.Body.Position);
+                        losses.Add($"{(i == 0 ? "Red" : "Blue")} {(boat.State == BoatState.Fallen ? "fell" : "capsized")} at {at.Distance:0} m, {at.Lateral:0.0} across");
+                    }
                 }
 
                 var times = rafts.Select(r => r.race.SecondsAt(world.Tick)).ToArray();
-                Debug.Log($"[RushAhead] {def.name}: AI team race, Red {times[0]:0.0} s ({rafts[0].race.Phase}), Blue {times[1]:0.0} s ({rafts[1].race.Phase}), " +
-                          $"capsizes {rafts[0].boat.CapsizeCount}/{rafts[1].boat.CapsizeCount}, lives {rafts[0].boat.Lives}/{rafts[1].boat.Lives}");
-                Assert.That(rafts.Any(r => r.race.Phase == RacePhase.Finished), Is.True, "someone gets home and wins, despite the bumping");
+                string Where(Boat b) { var at = course.River.Project(b.Body.Position); return $"{at.Distance:0} m, {at.Lateral:0.0} across"; }
+                Debug.Log($"[RushAhead] {def.name}: AI team race, Red {times[0]:0.0} s ({rafts[0].race.Phase}, {Where(rafts[0].boat)}), " +
+                          $"Blue {times[1]:0.0} s ({rafts[1].race.Phase}, {Where(rafts[1].boat)}), " +
+                          $"capsizes {rafts[0].boat.CapsizeCount}/{rafts[1].boat.CapsizeCount}, lives {rafts[0].boat.Lives}/{rafts[1].boat.Lives}" +
+                          (losses.Count > 0 ? $" (lost: {string.Join("; ", losses)})" : ""));
+                Assert.That(rafts.Any(r => r.race.Phase == RacePhase.Finished), Is.True,
+                    $"someone gets home and wins, despite the bumping (lost: {string.Join("; ", losses)})");
                 Assert.That(rafts.All(r => r.race.Phase is RacePhase.Finished or RacePhase.Out), Is.True, "and the other finishes too or runs out of lives");
             }
             finally

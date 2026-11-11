@@ -149,6 +149,10 @@ MonoBehaviour:
     weight: 1
   - kind: 22
     weight: 1
+  - kind: 27
+    weight: 1
+  - kind: 38
+    weight: 1
   minObstacles: 6
   maxObstacles: 9
   wheels: []
@@ -175,3 +179,5 @@ MonoBehaviour:
   dams: []
   pelicans: []
   netBoats: []
+  extras: []
+  boosts: []

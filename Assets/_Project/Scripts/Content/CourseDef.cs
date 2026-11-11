@@ -384,6 +384,33 @@ namespace RushAhead.Content
     }
 
 
+    /// <summary>
+    /// One of the newer obstacles (Phase 17 on: the kraken, tidal bore, jump ramp and the rest), all in one list: its
+    /// kind, where it is, and its timing and size, each kind reading the fields it needs.
+    /// </summary>
+    [Serializable]
+    public struct ObstacleSpot
+    {
+        public ObstacleKind kind;
+        [Tooltip("Metres down the river.")] public float distance;
+        [Tooltip("+1 the left bank, -1 the right, for things on a bank (0 for none).")] public float side;
+        [Tooltip("Metres across from the middle (positive the left), for things in the water.")] public float across;
+        [Tooltip("Seconds round its timetable.")] [Min(0f)] public float period;
+        [Tooltip("Seconds into its timetable at the race clock's zero.")] public float offset;
+        [Tooltip("How big, how far or how many, as the kind reads it.")] public float size;
+
+        public ObstacleSpot(ObstacleKind kind, float distance, float side = 0f, float across = 0f, float period = 4f, float offset = 0f, float size = 0f)
+        {
+            this.kind = kind;
+            this.distance = distance;
+            this.side = side;
+            this.across = across;
+            this.period = period;
+            this.offset = offset;
+            this.size = size;
+        }
+    }
+
     /// <summary>A boost lane: glowing chevrons on the water that give a raft riding them a surge of speed. Dealt with the round.</summary>
     [Serializable]
     public struct BoostSpot
@@ -468,6 +495,12 @@ namespace RushAhead.Content
 
         /// <summary>Tall grey rock, pines and white water.</summary>
         Rapids,
+
+        /// <summary>Snowfields, grey-blue rock, dark pines and turquoise meltwater.</summary>
+        Glacier,
+
+        /// <summary>Red sandstone walls, desert scrub and green-brown water.</summary>
+        Canyon,
     }
 
     /// <summary>
@@ -536,6 +569,7 @@ namespace RushAhead.Content
         public AcrossSpot[] dams = Array.Empty<AcrossSpot>();
         public SideSpot[] pelicans = Array.Empty<SideSpot>();
         public CrossingSpot[] netBoats = Array.Empty<CrossingSpot>();
+        [Tooltip("The newer obstacles (kraken, tidal bore, jump ramp...), each with its kind.")] public ObstacleSpot[] extras = Array.Empty<ObstacleSpot>();
         public BoostSpot[] boosts = Array.Empty<BoostSpot>();
 
         /// <summary>Whether every round deals a fresh random layout (otherwise the fixed lists are the layout).</summary>

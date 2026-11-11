@@ -226,9 +226,9 @@ namespace RushAhead.Tests
         // Committed wire bytes: if these change, the protocol changed. Bump Protocol.Version and re-record.
         const string InputGolden = "2002feff0080bf0107";
         const string SnapshotGolden = "10d20400000180e9ffff40030000ee32800240ff00ffec0185ff0002033412000005000400a000ff00000000e040cc010301002080990006020060bf660009030200f1ffff4dfdffff5f14cdf2ffff33feffffb8cb";
-        const string RosterGolden = "020801030300000007536b69707065720504090106c396747465720802020300";
-        const string ProfileGolden = "2108050704065261646c6579efcdab8967452301";
-        const string AdvertGolden = "5255534808efbeadde611e02040107536b6970706572";
+        const string RosterGolden = "020901030300000007536b69707065720504090106c396747465720802020300";
+        const string ProfileGolden = "2109050704065261646c6579efcdab8967452301";
+        const string AdvertGolden = "5255534809efbeadde611e02040107536b6970706572";
         const string OrderGolden = "040300800a0000c0fdffff";
         const string RaceGolden = "0302d2040000010178563412";
 

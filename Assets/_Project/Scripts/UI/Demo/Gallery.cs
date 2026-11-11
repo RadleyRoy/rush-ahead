@@ -107,7 +107,36 @@ namespace RushAhead.UI
         }
 
         /// <summary>The moment that shows an entry best: mid-action, from its own timetable where it has one.</summary>
-        static double ShowcaseSeconds(GuideEntry entry, Course course) => entry.Id switch
+        static double ShowcaseSeconds(GuideEntry entry, Course course)
+        {
+            // The newer kinds: a moment in their own timetable, whatever period and offset the dealer gave them.
+            if (entry.Kind is { } kind && NewObstacles.Covers(kind))
+                foreach (var obstacle in course.Hazards.Obstacles)
+                    if (obstacle is ISpotted { Spot: var spot } && spot.kind == kind)
+                        return Mathf.Repeat(ShowcasePhase(kind) * spot.period - spot.offset, Mathf.Max(0.01f, spot.period));
+            return OlderShowcase(entry);
+        }
+
+        /// <summary>How far round its timetable each newer kind looks its best: mid-strike, mid-leap, mid-gust.</summary>
+        static float ShowcasePhase(ObstacleKind kind) => kind switch
+        {
+            ObstacleKind.Kraken => 0.64f,
+            ObstacleKind.TidalBore => 0.36f,
+            ObstacleKind.WreckingBall => 0.04f,
+            ObstacleKind.StormCloud => 0.74f,
+            ObstacleKind.PaddleSteamer => 0.1f,
+            ObstacleKind.Drawbridge => 0.45f,
+            ObstacleKind.CargoCrane => 0.6f,
+            ObstacleKind.LogFlume => 0.45f,
+            ObstacleKind.CalvingGlacier => 0.67f,
+            ObstacleKind.DynamiteFloat => 0.6f,
+            ObstacleKind.LeapingFrogs => 0.76f,
+            ObstacleKind.GiantFan => 0.75f,
+            ObstacleKind.ChainedMines => 0.3f,
+            _ => 0f,
+        };
+
+        static double OlderShowcase(GuideEntry entry) => entry.Id switch
         {
             "Bear" or "Sweeper" or "SwingingLog" or "ElectricEels" or "Ferry" or "Waterspout" or "Barrel" => 1.5,
             "BeaverDam" or "Cannon" or "Geyser" or "IceFloes" or "Mudslide" or "Rockslide" => 0.75,
@@ -116,6 +145,7 @@ namespace RushAhead.UI
             "Pelican" => 4.5,
             _ => 0.0,
         };
+
 
         /// <summary>What to look at, and which side of the river (+1 left, -1 right) the thing stands on (0: the middle).</summary>
         static (Vector2 target, float side) Aim(GuideEntry entry, Course course)
@@ -155,7 +185,14 @@ namespace RushAhead.UI
                 return (back, Quaternion.LookRotation(new Vector3(target.x, 7f, target.y * 0.75f) - back, Vector3.up));
             }
 
-            var tall = entry.Kind is ObstacleKind.Pelican or ObstacleKind.SwingingLog or ObstacleKind.FallingTree;
+            if (entry.Kind is ObstacleKind.StormCloud or ObstacleKind.WreckingBall or ObstacleKind.CargoCrane or ObstacleKind.GiantFan or ObstacleKind.Kraken)
+            {
+                var high = new Vector3(target.x - 21f, 8.5f, target.y + away * 8f);
+                return (high, Quaternion.LookRotation(new Vector3(target.x + 1f, 3.2f, target.y * 0.6f) - high, Vector3.up));
+            }
+
+            var tall = entry.Kind is ObstacleKind.Pelican or ObstacleKind.SwingingLog or ObstacleKind.FallingTree or ObstacleKind.Drawbridge or ObstacleKind.CalvingGlacier or
+                ObstacleKind.LogFlume or ObstacleKind.MillRace or ObstacleKind.PaddleSteamer;
             var position = new Vector3(target.x - 15f, tall ? 5.5f : 6.5f, target.y + away * 5f);
             var look = new Vector3(target.x + 1f, tall ? 2.4f : 0.8f, target.y * 0.75f);
             return (position, Quaternion.LookRotation(look - position, Vector3.up));
@@ -166,7 +203,12 @@ namespace RushAhead.UI
         {
             var def = ScriptableObject.CreateInstance<CourseDef>();
             def.displayName = entry.Name;
-            def.scene = entry.Kind == ObstacleKind.CalvingGlacier ? CourseScene.Rapids : CourseScene.Creek;
+            def.scene = entry.Kind switch
+            {
+                ObstacleKind.CalvingGlacier or ObstacleKind.IceFloes => CourseScene.Glacier,
+                ObstacleKind.DynamiteFloat or ObstacleKind.CargoCrane => CourseScene.Canyon,
+                _ => CourseScene.Creek,
+            };
             def.river = new[]
             {
                 new RiverPoint(0f, 0f, Width), new RiverPoint(40f, 0f, Width), new RiverPoint(80f, 0f, Width), new RiverPoint(120f, 0f, Width),

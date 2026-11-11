@@ -110,19 +110,77 @@ namespace RushAhead.Sim
         /// <summary>
         /// Water piled up against a barrier runs along it to the way through: a raft held against <paramref name="wall"/>
         /// (lying across the river at <paramref name="at"/>) is carried along it toward <paramref name="gap"/> (metres across,
-        /// positive the left), unless it's already lined up with the gap. Keeps a raft from sitting pinned in dead water.
+        /// positive the left) at a walking pace or so, unless it's already lined up with the gap. Keeps a raft from sitting
+        /// pinned in dead water, and from sliding the wrong way: fast water pressing a raft that lies at an angle into a
+        /// wall drives it sideways like a keel, whichever way it happens to point.
         /// </summary>
         protected static void AlongTheWall(Boat boat, RiverSample at, float wall, float gap, float gapWidth, float dt)
         {
-            const float Pull = 150f; // newtons
+            const float Slide = 3f; // metres a second along the wall
+            const float Grip = 6f; // how quickly the water brings a raft up to that, per second
+            const float MaxPull = 1000f; // newtons: more than fast water pressing a raft side-on into a wall
             if (!Afloat(boat)) return;
             var offset = boat.Body.Position - at.Centre;
             var upstream = -Vector2.Dot(offset, at.Tangent);
             if (upstream < 0f || upstream > wall * 0.5f + RaftRadius + 1.2f) return;
             var across = Vector2.Dot(offset, at.Left) - gap;
             if (Mathf.Abs(across) < Mathf.Max(0.3f, gapWidth * 0.5f - RaftRadius)) return;
-            boat.Push(-Mathf.Sign(across) * at.Left * (Pull * dt));
+            var toward = -Mathf.Sign(across);
+            var short_ = toward * Slide - Vector2.Dot(boat.Body.Velocity, at.Left);
+            if (short_ * toward <= 0f) return; // already going that way at least that fast
+            var pull = Mathf.Clamp(short_ * Grip * boat.Body.Mass, -MaxPull, MaxPull);
+            boat.Push(at.Left * (pull * dt));
         }
+
+        /// <summary>
+        /// Bodies the host simulates for this obstacle that move freely (geese): sent to joined players with the barrels
+        /// and logs, after them, in this order.
+        /// </summary>
+        public virtual IReadOnlyList<Rigidbody2D> LooseBodies => System.Array.Empty<Rigidbody2D>();
+
+        /// <summary>Puts its loose bodies back where they start (a new race).</summary>
+        public virtual void ResetLoose()
+        {
+        }
+
+        /// <summary>
+        /// A number from 0 to 1 that depends only on <paramref name="a"/> and <paramref name="b"/>, the same on every
+        /// device: where the n-th tentacle or crate comes down, say.
+        /// </summary>
+        protected static float Hash(int a, int b)
+        {
+            unchecked
+            {
+                var h = (uint)a * 0x9E3779B1u ^ (uint)b * 0x85EBCA77u ^ 0x27D4EB2Fu;
+                h ^= h >> 15;
+                h *= 0x2C1B3C6Du;
+                h ^= h >> 12;
+                h *= 0x297A2D39u;
+                h ^= h >> 15;
+                return (h >> 8) / 16777216f;
+            }
+        }
+
+        /// <summary>Which round of a repeating timetable the clock is in (counting from the race clock's zero).</summary>
+        protected static int Round(double seconds, float period, float offset) => (int)System.Math.Floor((seconds + offset) / period);
+
+        /// <summary>The direction from <paramref name="from"/> to a raft, or <paramref name="fallback"/> if it's right on it.</summary>
+        protected static Vector2 Away(Vector2 from, Vector2 to, Vector2 fallback)
+        {
+            var offset = to - from;
+            return offset.sqrMagnitude > 1e-4f ? offset.normalized : fallback;
+        }
+
+        /// <summary>The point on the line from <paramref name="a"/> to <paramref name="b"/> nearest <paramref name="point"/>.</summary>
+        protected static Vector2 Nearest(Vector2 point, Vector2 a, Vector2 b)
+        {
+            var ab = b - a;
+            var t = ab.sqrMagnitude > 1e-6f ? Mathf.Clamp01(Vector2.Dot(point - a, ab) / ab.sqrMagnitude) : 0f;
+            return a + ab * t;
+        }
+
+        /// <summary>A direction turned a quarter left.</summary>
+        public static Vector2 Perpendicular(Vector2 direction) => new(-direction.y, direction.x);
 
         /// <summary>The water-plane angle, in degrees, of a direction.</summary>
         protected static float Degrees(Vector2 direction) => Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg;

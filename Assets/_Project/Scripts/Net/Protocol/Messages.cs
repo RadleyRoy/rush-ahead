@@ -178,7 +178,7 @@ namespace RushAhead.Net
     public static class Protocol
     {
         /// <summary>Bump on any wire-format change. Mismatched peers refuse each other.</summary>
-        public const byte Version = 8;
+        public const byte Version = 9;
 
         const byte FlagHasAim = 1, FlagBrace = 2;
         const byte BoatCapsized = 1, BoatFallen = 2, BoatOut = 4;

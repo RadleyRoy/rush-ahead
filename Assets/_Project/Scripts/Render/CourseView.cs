@@ -60,6 +60,7 @@ namespace RushAhead.Render
             view.course = course;
             view.palette = palette;
             view.style = BankStyle.For(course.Def.scene, palette);
+            view.SetAir(course.Def.scene);
             var random = new System.Random(StableSeed(course.Def.name)); // the same trees on every device
 
             var scenery = Shapes3D.Group(view.transform, "Scenery");
@@ -76,6 +77,7 @@ namespace RushAhead.Render
             var moving = Shapes3D.Group(view.transform, "Moving");
             for (var i = 0; i < course.Barrels.Count; i++)
             {
+                if (course.IsObstacleBody(i)) continue; // drawn by its obstacle's view
                 if (!course.IsLog(i)) CourseDressing.Barrel(moving, course.Barrels[i].transform, Course.BarrelRadius, palette);
                 else CourseDressing.Log(moving, course.Barrels[i].transform, course.Def.logs[i - course.Def.barrels.Length].length, Course.LogRadius, palette);
             }
@@ -150,6 +152,7 @@ namespace RushAhead.Render
                 new Vector2(-width, last.Distance));
             water.Widths(last.HalfWidth, last.HalfWidth, last.HalfWidth, last.HalfWidth);
             var flowing = new Material(palette.water) { name = "River water" };
+            TintWater(flowing, course.Def.scene);
             flowing.SetFloat("_RiverSpace", 1f);
             flowing.SetFloat("_FlowSpeed", course.Def.flow);
             flowing.SetFloat("_Holes", 1f); // whirlpools' funnels show through
@@ -330,9 +333,28 @@ namespace RushAhead.Render
             }
         }
 
+        /// <summary>The water's colour by place: turquoise meltwater on the glacier, green-brown in the canyon.</summary>
+        static void TintWater(Material water, CourseScene scene)
+        {
+            switch (scene)
+            {
+                case CourseScene.Glacier:
+                    water.SetColor("_BaseColor", new Color(0.1f, 0.55f, 0.6f));
+                    water.SetColor("_DeepColor", new Color(0.03f, 0.36f, 0.45f));
+                    water.SetColor("_RippleColor", new Color(0.78f, 0.96f, 0.98f));
+                    break;
+                case CourseScene.Canyon:
+                    water.SetColor("_BaseColor", new Color(0.27f, 0.42f, 0.31f));
+                    water.SetColor("_DeepColor", new Color(0.12f, 0.25f, 0.18f));
+                    water.SetColor("_RippleColor", new Color(0.72f, 0.82f, 0.66f));
+                    break;
+            }
+        }
+
         /// <summary>
         /// Woods and scree on a piece of land: trees thickest a little way out from the edge and thinning up the hills,
-        /// scanned boulders and shrubs near it. Used round the courses and the practice lagoon.
+        /// scanned boulders and shrubs near it. Used round the courses and the practice lagoon. Glacier woods are all
+        /// pines and sparser; the canyon has only a few low trees, more scrub and more boulders.
         /// </summary>
         public static void Plant(GorgeTerrain.Land land, CourseScene scene, BankStyle style, ArtPalette palette, Transform parent, System.Random random)
         {
@@ -342,7 +364,13 @@ namespace RushAhead.Render
             Vector2 Somewhere(float x, float z, float step) =>
                 new(corner.x + x + (float)random.NextDouble() * step, corner.z + z + (float)random.NextDouble() * step);
 
-            var conifers = scene switch { CourseScene.Rapids => 0.85, CourseScene.Lake => 0.2, _ => 0.3 };
+            var conifers = scene switch { CourseScene.Rapids => 0.85, CourseScene.Lake => 0.2, CourseScene.Glacier => 1.0, CourseScene.Canyon => 0.4, _ => 0.3 };
+            var (trees, shrubs, boulders, treeSize) = scene switch
+            {
+                CourseScene.Glacier => (0.6, 0.4, 1.5, 1f),
+                CourseScene.Canyon => (0.12, 2.2, 1.7, 0.6f),
+                _ => (1.0, 1.0, 1.0, 1f),
+            };
             var woods = Shapes3D.Group(parent, "Woods");
             const float treeStep = 8.5f;
             for (var z = 0f; z < size.z - treeStep; z += treeStep)
@@ -351,7 +379,7 @@ namespace RushAhead.Render
                 var spot = Somewhere(x, z, treeStep);
                 var out_ = land.FromCliff(spot);
                 var chance = out_ < 3f ? 0f : out_ < 45f ? 0.7f : out_ < 110f ? 0.3f : 0.1f;
-                if (random.NextDouble() >= chance * detail || land.Steepness(spot) > 33f) continue;
+                if (random.NextDouble() >= chance * detail * trees || land.Steepness(spot) > 33f) continue;
                 var ground = land.Height(spot) - 0.15f;
                 if (!Flora.Available(palette))
                 {
@@ -360,7 +388,7 @@ namespace RushAhead.Render
                 }
 
                 var conifer = random.NextDouble() < conifers;
-                var height = conifer ? 9f + 7f * (float)random.NextDouble() : 7f + 5f * (float)random.NextDouble();
+                var height = (conifer ? 9f + 7f * (float)random.NextDouble() : 7f + 5f * (float)random.NextDouble()) * treeSize;
                 Flora.Tree(conifer ? Flora.Kind.Conifer : Flora.Kind.Broadleaf, woods, SimSpace.ToWorld(spot, ground), height,
                     (float)random.NextDouble() * 360f, random.Next(Flora.Variants), palette);
             }
@@ -375,13 +403,13 @@ namespace RushAhead.Render
                 if (out_ < 0.5f || out_ > 40f) continue;
                 var roll = random.NextDouble();
                 var ground = SimSpace.ToWorld(spot, land.Height(spot));
-                if (out_ < 14f && roll < 0.25 * detail && palette.boulderMeshes.Length > 0)
+                if (out_ < 14f && roll < 0.25 * detail * boulders && palette.boulderMeshes.Length > 0)
                 {
                     var pick = random.Next(palette.boulderMeshes.Length);
                     Cull(Shapes3D.Model("Boulder", palette.boulderMeshes[pick], palette.boulderMaterials[pick], scree, ground,
                         1.2f + 3.4f * (float)(random.NextDouble() * random.NextDouble()), (float)random.NextDouble() * 360f, 0.25f), 0.012f);
                 }
-                else if (roll < 0.12 * detail && palette.shrubMeshes.Length > 0)
+                else if (roll < 0.12 * detail * shrubs && palette.shrubMeshes.Length > 0)
                 {
                     var pick = random.Next(palette.shrubMeshes.Length);
                     Cull(Shapes3D.Model("Shrub", palette.shrubMeshes[pick], palette.shrubMaterials[pick], scree, ground,
@@ -496,6 +524,10 @@ namespace RushAhead.Render
             Shader.SetGlobalVectorArray(WhirlpoolsId, holes);
             Shader.SetGlobalFloat(WhirlpoolCountId, Mathf.Min(spots.Length, holes.Length));
             WaterSurface.SetFunnels(spots);
+            var ramps = new List<JumpRamp>();
+            foreach (var obstacle in course.Hazards.Obstacles)
+                if (obstacle is JumpRamp ramp) ramps.Add(ramp);
+            WaterSurface.SetRamps(ramps);
 
             var bark = palette.Tinted(palette.wood, new Color(0.42f, 0.31f, 0.2f));
             var random = new System.Random(spots.Length * 31 + 5);
@@ -504,6 +536,7 @@ namespace RushAhead.Render
                 var root = Shapes3D.Group(parent, "Whirlpool", SimSpace.ToWorld(pool.position, 0f));
                 var depth = WaterSurface.FunnelDepth(pool.radius);
                 var water = new Material(palette.water) { name = "Whirlpool water" };
+                TintWater(water, course.Def.scene);
                 water.SetFloat("_Swirl", 1f);
                 water.SetVector("_SwirlCentre", new Vector4(pool.position.x, pool.position.y, 0f, 0f));
                 water.SetFloat("_SwirlRadius", pool.radius);
@@ -596,8 +629,37 @@ namespace RushAhead.Render
 
         static CourseView whirlpoolOwner;
 
+        // The scene's own haze, put back when a course that changed it goes.
+        static CourseView airOwner;
+        static (Color colour, float start, float end) sceneAir;
+
+        /// <summary>
+        /// The air by place: clear, warm desert air in the canyon so its red walls and floor show far below, and crisp
+        /// cold air on the glacier. Everywhere else keeps the scene's soft blue haze.
+        /// </summary>
+        void SetAir(CourseScene scene)
+        {
+            if (airOwner == null) sceneAir = (RenderSettings.fogColor, RenderSettings.fogStartDistance, RenderSettings.fogEndDistance);
+            var (colour, start, end) = scene switch
+            {
+                CourseScene.Canyon => (new Color(0.86f, 0.78f, 0.7f), 90f, 300f),
+                CourseScene.Glacier => (new Color(0.8f, 0.88f, 0.96f), 60f, 220f),
+                _ => sceneAir,
+            };
+            RenderSettings.fogColor = colour;
+            RenderSettings.fogStartDistance = start;
+            RenderSettings.fogEndDistance = end;
+            airOwner = this;
+        }
+
         void OnDestroy()
         {
+            if (airOwner == this)
+            {
+                airOwner = null;
+                (RenderSettings.fogColor, RenderSettings.fogStartDistance, RenderSettings.fogEndDistance) = sceneAir;
+            }
+
             if (whirlpoolOwner != this) return;
             whirlpoolOwner = null;
             WaterSurface.Clear();

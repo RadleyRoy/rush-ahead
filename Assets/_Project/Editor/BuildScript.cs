@@ -25,8 +25,15 @@ namespace RushAhead.EditorTools
     /// </summary>
     public static class BuildScript
     {
-        /// <summary>The version players see. Bump it for each release; the version code counts itself.</summary>
+        /// <summary>
+        /// The version players see, when RUSHAHEAD_VERSION doesn't say otherwise. Releases from GitHub take theirs from
+        /// the tag (see .github/workflows/release.yml); the version code counts itself.
+        /// </summary>
         public const string Version = "1.0.0";
+
+        /// <summary>RUSHAHEAD_VERSION if it's set (say to match a release tag), otherwise <see cref="Version"/>.</summary>
+        public static string VersionName =>
+            Environment.GetEnvironmentVariable("RUSHAHEAD_VERSION") is { Length: > 0 } version ? version.TrimStart('v') : Version;
 
         const string AndroidDebugPath = "Builds/Android/RushAhead-debug.apk";
         const string WindowsDevPath = "Builds/Windows/RushAhead.exe";
@@ -45,14 +52,15 @@ namespace RushAhead.EditorTools
 
         /// <summary>
         /// The Google Play build: an Android App Bundle (.aab), not a development build, with native debug symbols for
-        /// Play's crash reports. Version name <see cref="Version"/>; version code the number of commits, so every upload
+        /// Play's crash reports. Version name <see cref="VersionName"/>; version code the number of commits, so every upload
         /// from a newer commit counts up (set RUSHAHEAD_VERSION_CODE to override, say for a rebuild of the same commit).
         /// </summary>
         [MenuItem("Rush Ahead/Build/Android Release Bundle (Google Play)")]
         public static void AndroidRelease()
         {
             var code = VersionCode();
-            PlayerSettings.bundleVersion = Version;
+            var version = VersionName;
+            PlayerSettings.bundleVersion = version;
             PlayerSettings.Android.bundleVersionCode = code;
             EditorUserBuildSettings.buildAppBundle = true;
 #pragma warning disable CS0618 // still the way to ask for a symbols file in a batch build
@@ -61,7 +69,7 @@ namespace RushAhead.EditorTools
 
             var keystore = Environment.GetEnvironmentVariable("RUSHAHEAD_KEYSTORE");
             var signed = !string.IsNullOrEmpty(keystore) && File.Exists(keystore);
-            var path = $"Builds/Android/RushAhead-{Version}-{code}{(signed ? "" : "-NOT-FOR-UPLOAD")}.aab";
+            var path = $"Builds/Android/RushAhead-{version}-{code}{(signed ? "" : "-NOT-FOR-UPLOAD")}.aab";
             try
             {
                 PlayerSettings.Android.useCustomKeystore = signed;
@@ -79,7 +87,7 @@ namespace RushAhead.EditorTools
 
                 if (!Build(BuildTarget.Android, BuildTargetGroup.Android, path, out var seconds, BuildOptions.None)) return;
                 var megabytes = new FileInfo(path).Length / (1024f * 1024f);
-                Debug.Log($"[RushAhead] Android release bundle: {path} (version {Version}, code {code}, {megabytes:F1} MB, " +
+                Debug.Log($"[RushAhead] Android release bundle: {path} (version {version}, code {code}, {megabytes:F1} MB, " +
                           $"{(signed ? "signed with the upload key" : "debug-signed")}, {seconds:F0}s)");
             }
             finally

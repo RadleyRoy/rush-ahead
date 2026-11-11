@@ -42,8 +42,10 @@ namespace RushAhead.Sim
 
         public override bool BraceNeeded(Vector2 position, double seconds, float lookahead)
         {
+            // From a moment before the drop until the raft has settled after it: at speed the step comes and goes in
+            // well under a second, and the rocking after the landing is what turns a raft over.
             var distance = River.Project(position).Distance;
-            return distance > spot.distance - 4f && distance < spot.distance + 1f;
+            return distance > spot.distance - 6f && distance < spot.distance + 7f;
         }
     }
 }

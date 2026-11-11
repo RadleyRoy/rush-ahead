@@ -34,9 +34,25 @@ $env:RUSHAHEAD_KEY_PASS = Read-Host "Key password"
 ```
 
 It writes `Builds/Android/RushAhead-1.0.0-<code>.aab` (and a `.symbols.zip` beside it). The version name is
-`BuildScript.Version`; the version code is the number of commits, so commit before each upload (Play refuses a code
-it has seen). Without the key variables it still builds, but signs with Unity's debug key and names the file
-`NOT-FOR-UPLOAD`.
+`BuildScript.Version`, or `$env:RUSHAHEAD_VERSION` when set (say `1.1.0`, to match a release tag); the version code is
+the number of commits, so commit before each upload (Play refuses a code it has seen). Without the key variables it
+still builds, but signs with Unity's debug key and names the file `NOT-FOR-UPLOAD`.
+
+### Or let GitHub build it
+
+`.github/workflows/release.yml` builds the APK and the App Bundle on GitHub's machines and attaches both to a GitHub
+Release. Start it by pushing a version tag (`git tag v1.1.0`, then `git push origin v1.1.0`) or from the repository's
+Actions tab (Release > Run workflow, with a version: it tags the commit it built). To sign with your upload key, add
+these repository secrets (Settings > Secrets and variables > Actions); they stay on GitHub and never enter the project:
+
+- `ANDROID_KEYSTORE_BASE64`: the keystore file as base64, from
+  `[Convert]::ToBase64String([IO.File]::ReadAllBytes("$HOME\rushahead-upload.keystore"))`
+- `ANDROID_KEYSTORE_PASS`, `ANDROID_KEYALIAS_NAME` (`upload`) and `ANDROID_KEYALIAS_PASS`
+- `UNITY_LICENSE`, `UNITY_EMAIL` and `UNITY_PASSWORD`, as the CI workflow uses
+
+Without the key secrets the files are debug-signed and named `NOT-FOR-PLAY`: fine to install on a phone, refused by
+Play. Until GameCI fixes activating a Unity Personal licence on Unity 6000.3 (game-ci/unity-test-runner#336) the
+workflow stops at that step; build locally as above meanwhile.
 
 ## 4. Publish the privacy policy
 

@@ -201,7 +201,7 @@ namespace RushAhead.Render
             var falling = fallen ? Time.time - fellAt : 0f;
             Drop = 0.5f * FallGravity * falling * falling;
             var tumble = Quaternion.AngleAxis(falling * 260f, tumbleAxis.sqrMagnitude > 0.5f ? tumbleAxis : Vector3.right);
-            transform.SetPositionAndRotation(SimSpace.ToWorld(boat.RenderPosition, WaterSurface.Height(boat.RenderPosition) - Drop),
+            transform.SetPositionAndRotation(SimSpace.ToWorld(boat.RenderPosition, WaterSurface.Height(boat.RenderPosition, boat.Velocity) - Drop),
                 fallen ? tumble * SimSpace.Heading(boat.RenderAngleRad) : SimSpace.Heading(boat.RenderAngleRad));
 
             var capsized = boat.Capsized;

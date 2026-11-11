@@ -172,8 +172,16 @@ MonoBehaviour:
     weight: 1
   - kind: 18
     weight: 1
-  minObstacles: 10
-  maxObstacles: 13
+  - kind: 24
+    weight: 1
+  - kind: 25
+    weight: 1
+  - kind: 28
+    weight: 1
+  - kind: 29
+    weight: 1
+  minObstacles: 9
+  maxObstacles: 12
   wheels: []
   crocodiles: []
   swingers: []
@@ -198,3 +206,5 @@ MonoBehaviour:
   dams: []
   pelicans: []
   netBoats: []
+  extras: []
+  boosts: []

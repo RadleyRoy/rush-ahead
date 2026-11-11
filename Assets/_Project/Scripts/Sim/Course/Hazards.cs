@@ -41,6 +41,14 @@ namespace RushAhead.Sim
         readonly List<Rigidbody2D> crocs = new();
         readonly Dictionary<(Boat, object, int), double> lastHit = new();
         readonly List<Obstacle> obstacles = new();
+        readonly List<float> obstacleDistances = new();
+        readonly List<(float distance, int kind, int index)> steering = new();
+        static readonly System.Comparison<(float distance, int kind, int index)> FarthestFirst = (a, b) => b.distance.CompareTo(a.distance);
+
+        /// <summary>The order to steer round things in: behind the raft first (they matter least), then ahead from the farthest.</summary>
+        const float CrocEarly = 8f; // metres past the look-ahead at which a raft starts moving over for a crocodile
+
+        static float SteerRank(float distance, float from) => distance >= from - 2f ? distance : float.MaxValue;
         readonly List<BoostLane> boosts = new();
         readonly List<Marker> markers = new();
         double lastSeconds = double.NaN;
@@ -120,6 +128,9 @@ namespace RushAhead.Sim
             foreach (var spot in def.dams) Add(new BeaverDam(course, parent, spot), ObstacleKind.BeaverDam, spot.distance);
             foreach (var spot in def.pelicans) Add(new PelicanDive(course, spot), ObstacleKind.Pelican, spot.distance, 0.5f * Bank(spot.distance, spot.side));
             foreach (var spot in def.netBoats) Add(new NetBoat(course, parent, spot), ObstacleKind.NetBoat, spot.distance);
+            foreach (var spot in def.extras)
+                if (NewObstacles.Create(course, parent, spot) is { } obstacle)
+                    Add(obstacle, spot.kind, spot.distance, spot.side != 0f ? Bank(spot.distance, spot.side) : spot.across);
             foreach (var spot in def.boosts)
             {
                 boosts.Add(new BoostLane(course, spot));
@@ -140,6 +151,7 @@ namespace RushAhead.Sim
         {
             obstacle.Owner = this;
             obstacles.Add(obstacle);
+            obstacleDistances.Add(distance);
             Mark(kind, distance, across, obstacle);
         }
 
@@ -194,6 +206,23 @@ namespace RushAhead.Sim
         public IReadOnlyList<BoostLane> Boosts => boosts;
 
         public CourseDef Def => course.Def;
+
+        /// <summary>Every obstacle's freely moving bodies (geese), in a fixed order (see <see cref="Obstacle.LooseBodies"/>).</summary>
+        public IEnumerable<Rigidbody2D> LooseBodies
+        {
+            get
+            {
+                foreach (var obstacle in obstacles)
+                    foreach (var body in obstacle.LooseBodies)
+                        yield return body;
+            }
+        }
+
+        /// <summary>Puts every obstacle's loose bodies back where they start.</summary>
+        public void ResetLoose()
+        {
+            foreach (var obstacle in obstacles) obstacle.ResetLoose();
+        }
 
         /// <summary>Every obstacle's walls across the river (see <see cref="Obstacle.Barriers"/>).</summary>
         public IEnumerable<Collider2D> Barriers
@@ -349,6 +378,23 @@ namespace RushAhead.Sim
                 if (spouting || warning > 0f || GeyserWarning(i, seconds, out _) > 0f) return true;
             }
 
+            // A crocodile about to lunge at a raft that couldn't get past its reach in time: braced, the bite is a lurch.
+            if (Layout.crocodiles.Length > 0)
+            {
+                var here = course.River.Project(position);
+                for (var i = 0; i < Layout.crocodiles.Length; i++)
+                {
+                    var croc = Layout.crocodiles[i];
+                    var ahead = croc.distance - here.Distance;
+                    if (ahead < -(RaftRadius + 1f) || ahead > RaftRadius + 4f) continue;
+                    var at = course.River.At(croc.distance);
+                    var snout = croc.side * (at.HalfWidth - croc.reach * 2f * at.HalfWidth) - croc.side * (CrocLength * 0.5f);
+                    if ((here.Lateral - snout) * croc.side < -(RaftRadius + CrocRadius + 0.3f)) continue; // beyond its jaws
+                    for (var t = 0f; t <= lookahead; t += 0.1f)
+                        if (Croc(i, seconds + t).lunging) return true;
+                }
+            }
+
             foreach (var obstacle in obstacles)
                 if (obstacle.BraceNeeded(position, seconds, lookahead)) return true;
             return false;
@@ -394,35 +440,53 @@ namespace RushAhead.Sim
             // A boost lane first, so anything to keep clear of afterwards wins.
             foreach (var boost in boosts) across = boost.SteerAcross(from, across, limit);
 
-            for (var i = 0; i < wheelSpots.Count; i++)
+            // Then everything else: what the raft is past first, then what's ahead from the farthest to the nearest, so the
+            // nearest has the final say. A dodge for something further on must never steer it into what's about to hit it.
+            steering.Clear();
+            for (var i = 0; i < wheelSpots.Count; i++) steering.Add((SteerRank(wheelSpots[i].distance, from), 0, i));
+            for (var i = 0; i < geyserSpots.Count; i++) steering.Add((SteerRank(geyserSpots[i].distance, from), 1, i));
+            for (var i = 0; i < Layout.crocodiles.Length; i++) steering.Add((SteerRank(Layout.crocodiles[i].distance, from), 2, i));
+            for (var i = 0; i < obstacles.Count; i++) steering.Add((SteerRank(obstacleDistances[i], from), 3, i));
+            steering.Sort(FarthestFirst);
+            foreach (var (_, kind, i) in steering)
             {
-                var (d, lateral) = wheelSpots[i];
-                var radius = Layout.wheels[i].radius;
-                if (Near(d, radius + RaftRadius + 1.5f)) across = Clear(across, lateral, radius + RaftRadius + 1.2f, limit);
+                switch (kind)
+                {
+                    case 0:
+                    {
+                        var (d, lateral) = wheelSpots[i];
+                        var radius = Layout.wheels[i].radius;
+                        if (Near(d, radius + RaftRadius + 1.5f)) across = Clear(across, lateral, radius + RaftRadius + 1.2f, limit);
+                        break;
+                    }
+                    case 1:
+                    {
+                        var (d, lateral) = geyserSpots[i];
+                        var radius = Layout.geysers[i].radius;
+                        if (!Near(d, radius + RaftRadius + 1f)) break;
+                        if (GeyserWarning(i, seconds + 1.0, out var soon) > 0f || soon || GeyserWarning(i, seconds, out _) > 0f)
+                            across = Clear(across, lateral, radius + RaftRadius + 0.3f, limit);
+                        break;
+                    }
+                    case 2:
+                    {
+                        // Passing a crocodile: keep to the far side of where its jaws get to, whatever it's doing.
+                        // It lunges a third of the time, too often to time at this speed, and getting across takes a
+                        // raft longer than the lunge gives warning, so start a few metres early.
+                        var croc = Layout.crocodiles[i];
+                        if (croc.distance + CrocRadius + RaftRadius + 1f < from || croc.distance - CrocEarly > to) break;
+                        var here = course.River.At(croc.distance);
+                        var body = croc.side * (here.HalfWidth - croc.reach * 2f * here.HalfWidth); // its middle at full stretch
+                        var safe = body - croc.side * (CrocLength * 0.5f + RaftRadius + CrocRadius + 0.8f); // past its bite
+                        if ((across - safe) * croc.side > 0f) across = safe;
+                        break;
+                    }
+                    default:
+                        across = obstacles[i].SteerAcross(from, to, across, seconds, limit);
+                        break;
+                }
             }
 
-            for (var i = 0; i < geyserSpots.Count; i++)
-            {
-                var (d, lateral) = geyserSpots[i];
-                var radius = Layout.geysers[i].radius;
-                if (!Near(d, radius + RaftRadius + 1f)) continue;
-                if (GeyserWarning(i, seconds + 1.0, out var soon) > 0f || soon || GeyserWarning(i, seconds, out _) > 0f)
-                    across = Clear(across, lateral, radius + RaftRadius + 0.3f, limit);
-            }
-
-            for (var i = 0; i < Layout.crocodiles.Length; i++)
-            {
-                var croc = Layout.crocodiles[i];
-                if (!Near(croc.distance, CrocRadius + RaftRadius + 1f)) continue;
-                var phase = Phase(seconds + 1.0, croc.period, croc.offset);
-                if (phase < 0.4f || phase > 0.9f) continue;
-                var here = course.River.At(croc.distance);
-                var body = croc.side * (here.HalfWidth - croc.reach * 2f * here.HalfWidth); // its middle at full stretch
-                var safe = body - croc.side * (CrocLength * 0.5f + RaftRadius + 0.6f); // clear of its snout
-                if ((across - safe) * croc.side > 0f) across = safe;
-            }
-
-            foreach (var obstacle in obstacles) across = obstacle.SteerAcross(from, to, across, seconds, limit);
             return Mathf.Clamp(across, -limit, limit);
         }
 

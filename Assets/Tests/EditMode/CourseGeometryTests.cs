@@ -101,6 +101,30 @@ namespace RushAhead.Tests
         }
 
         [Test]
+        public void EveryNewerKind_CanBeDealtOnAWideStraightRiver()
+        {
+            var def = ScriptableObject.CreateInstance<CourseDef>();
+            def.river = new[] { new RiverPoint(0f, 0f, 16f), new RiverPoint(80f, 0f, 16f), new RiverPoint(160f, 0f, 16f) };
+            def.startDistance = 8f;
+            def.gates = new[] { 140f };
+            var river = new River(def.river);
+            try
+            {
+                for (var kind = ObstacleKind.Kraken; kind <= ObstacleKind.GiantFan; kind++)
+                {
+                    var layout = LayoutGenerator.Single(def, river, kind, 70f);
+                    Assert.That(layout, Is.Not.Null, $"{kind} goes somewhere");
+                    Assert.That(layout.extras.Select(e => e.kind), Is.EqualTo(new[] { kind }), $"{kind} is dealt into the extras");
+                    Assert.That(ObstacleGuide.ById(kind.ToString()), Is.Not.Null, $"{kind} is in the Field Guide");
+                }
+            }
+            finally
+            {
+                Object.DestroyImmediate(def);
+            }
+        }
+
+        [Test]
         public void TheSameSeed_DealsTheSameLayout_AndAnotherSeedADifferentOne()
         {
             var def = CourseAssets.All().Last();
@@ -351,6 +375,49 @@ namespace RushAhead.Tests
                         ClearOfRespawns(Middle(pelican.distance), PelicanDive.Splash, $"pelican at {pelican.distance:0} m");
                     }
 
+                    // The Phase 17 kinds, all in one list.
+                    foreach (var extra in layout.extras)
+                    {
+                        var what = $"{extra.kind} at {extra.distance:0} m";
+                        var at = river.At(extra.distance);
+                        OnCourse(extra.distance, extra.kind.ToString());
+                        Assert.That(NewObstacles.Covers(extra.kind), Is.True, $"{what}: only the newer kinds go in the extras");
+                        if (extra.side != 0f) Assert.That(Mathf.Abs(extra.side), Is.EqualTo(1f), $"{what} stands on one bank or the other");
+                        var reach = 2f;
+                        switch (extra.kind)
+                        {
+                            case ObstacleKind.JumpRamp:
+                                Assert.That(Mathf.Abs(extra.across) + JumpRamp.HalfWidth, Is.LessThan(at.HalfWidth), $"{what} is in the water");
+                                OnCourse(extra.distance + JumpRamp.Flight, "a jump's landing");
+                                for (var d = extra.distance - JumpRamp.Length; d <= extra.distance + JumpRamp.Flight; d += 3f)
+                                    Assert.That(Mathf.Abs(river.At(d).Curvature), Is.LessThanOrEqualTo(0.03f), $"{what}: a straight run-up and flight");
+                                break;
+                            case ObstacleKind.PaddleSteamer:
+                                Assert.That(Mathf.Abs(extra.across) + PaddleSteamer.Width * 0.5f, Is.LessThan(at.HalfWidth), $"{what} is in the water");
+                                Assert.That(at.HalfWidth + Mathf.Abs(extra.across) - PaddleSteamer.Width * 0.5f - PaddleSteamer.Paddle, Is.GreaterThan(2f * raftRadius + 1f),
+                                    $"{what} leaves a way past");
+                                Assert.That(PaddleSteamer.Range * 2f * Mathf.PI / extra.period, Is.LessThan(5.5f), $"{what} never fast enough to fling a raft");
+                                NoRockAt(extra.distance, PaddleSteamer.Range + PaddleSteamer.Length * 0.5f, "paddle steamer");
+                                reach = PaddleSteamer.Range + PaddleSteamer.Length * 0.5f;
+                                break;
+                            case ObstacleKind.WreckingBall:
+                                Assert.That(Mathf.Abs(extra.across) + WreckingBall.Ball, Is.LessThan(at.HalfWidth), $"{what} swings over the water");
+                                break;
+                            case ObstacleKind.Drawbridge:
+                                Assert.That(Mathf.Abs(at.Curvature), Is.LessThanOrEqualTo(0.03f), $"{what} on a straight");
+                                NoRockAt(extra.distance, 5f, "drawbridge");
+                                break;
+                            case ObstacleKind.MillRace:
+                                NoRockAt(extra.distance, 3f, "mill wheel");
+                                break;
+                            case ObstacleKind.TidalBore:
+                                reach = TidalBore.Run;
+                                break;
+                        }
+
+                        ClearOfRespawns(at.Centre + at.Left * extra.across, reach, what);
+                    }
+
                     foreach (var chance in def.menu) dealt[chance.kind] = dealt.GetValueOrDefault(chance.kind) + CountOf(layout, chance.kind);
 
                     if (def.HasMenu) Assert.That(layout.boosts.Length, Is.GreaterThanOrEqualTo(1), "a boost lane or two in the free water");
@@ -409,6 +476,7 @@ namespace RushAhead.Tests
             ObstacleKind.BeaverDam => layout.dams.Length,
             ObstacleKind.Pelican => layout.pelicans.Length,
             ObstacleKind.NetBoat => layout.netBoats.Length,
+            _ when NewObstacles.Covers(kind) => layout.extras.Count(e => e.kind == kind),
             _ => 0,
         };
 

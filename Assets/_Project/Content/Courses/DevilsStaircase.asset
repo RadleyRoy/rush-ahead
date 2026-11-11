@@ -1,0 +1,253 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 110f1613fe645bf43965f6081c1bcce4, type: 3}
+  m_Name: DevilsStaircase
+  m_EditorClassIdentifier: RushAhead.Content::RushAhead.Content.CourseDef
+  displayName: Devil's Staircase
+  blurb: The fastest water of all, weir after weir, and every obstacle there is.
+    New obstacles every round.
+  scene: 2
+  starsToUnlock: 20
+  river:
+  - position: {x: 0, y: 0}
+    width: 16
+    lineOffset: 0
+  - position: {x: 17, y: 0}
+    width: 16
+    lineOffset: 0
+  - position: {x: 33.8, y: -2.4}
+    width: 15
+    lineOffset: 0
+  - position: {x: 49.6, y: -8.7}
+    width: 14
+    lineOffset: 0
+  - position: {x: 63.7, y: -18.2}
+    width: 13
+    lineOffset: 0.15
+  - position: {x: 77.4, y: -28.2}
+    width: 13
+    lineOffset: -0.15
+  - position: {x: 92.7, y: -35.7}
+    width: 13
+    lineOffset: 0.15
+  - position: {x: 109.5, y: -38.6}
+    width: 14
+    lineOffset: 0
+  - position: {x: 126.5, y: -38}
+    width: 16
+    lineOffset: 0
+  - position: {x: 143.4, y: -37.5}
+    width: 20
+    lineOffset: 0.5
+  - position: {x: 160.3, y: -39.8}
+    width: 18
+    lineOffset: 0
+  - position: {x: 175.8, y: -46.7}
+    width: 14
+    lineOffset: 0
+  - position: {x: 189.6, y: -56.7}
+    width: 12
+    lineOffset: 0
+  - position: {x: 203.3, y: -66.7}
+    width: 11
+    lineOffset: 0
+  - position: {x: 218.8, y: -73.6}
+    width: 11
+    lineOffset: 0
+  - position: {x: 235.7, y: -76}
+    width: 12
+    lineOffset: 0
+  - position: {x: 252.7, y: -75.4}
+    width: 14
+    lineOffset: 0
+  - position: {x: 269.7, y: -75.4}
+    width: 18
+    lineOffset: -0.5
+  - position: {x: 286.2, y: -79.5}
+    width: 16
+    lineOffset: 0
+  - position: {x: 300.9, y: -88}
+    width: 14
+    lineOffset: 0
+  - position: {x: 314.3, y: -98.5}
+    width: 13
+    lineOffset: 0
+  - position: {x: 328.4, y: -108}
+    width: 13
+    lineOffset: 0
+  - position: {x: 344.4, y: -113.8}
+    width: 14
+    lineOffset: 0
+  - position: {x: 361.3, y: -115.6}
+    width: 15
+    lineOffset: 0
+  - position: {x: 378.2, y: -116.2}
+    width: 16
+    lineOffset: 0
+  - position: {x: 395.1, y: -118.5}
+    width: 16
+    lineOffset: 0
+  - position: {x: 411.1, y: -124.4}
+    width: 15
+    lineOffset: 0
+  - position: {x: 425.8, y: -132.9}
+    width: 14
+    lineOffset: 0
+  - position: {x: 440.5, y: -141.4}
+    width: 15
+    lineOffset: 0
+  - position: {x: 456.3, y: -147.7}
+    width: 16
+    lineOffset: 0
+  - position: {x: 472.4, y: -153}
+    width: 16
+    lineOffset: 0
+  - position: {x: 488.6, y: -158.2}
+    width: 16
+    lineOffset: 0
+  - position: {x: 504.8, y: -163.5}
+    width: 16
+    lineOffset: 0
+  startDistance: 8
+  gates:
+  - 47.047077
+  - 119.20025
+  - 187.23824
+  - 255.38077
+  - 323.47983
+  - 391.60654
+  - 442.67496
+  - 493.66794
+  - 528.67816
+  flow: 12
+  rocks: []
+  barrels: []
+  logs: []
+  currents:
+  - from: 21.005573
+    to: 51.047077
+    speed: 2
+  - from: 187.23824
+    to: 221.2662
+    speed: -1.2
+  - from: 340.509
+    to: 391.60654
+    speed: 2.2
+  - from: 442.67496
+    to: 476.65005
+    speed: -1
+  whirlpools:
+  - position: {x: 143.1853, y: -41.994877}
+    radius: 6
+    spin: 2.7
+    pull: 1.35
+  - position: {x: 270.22647, y: -70.93091}
+    radius: 6
+    spin: -2.7
+    pull: 1.35
+  menu:
+  - kind: 10
+    weight: 1.4
+  - kind: 9
+    weight: 1.2
+  - kind: 24
+    weight: 1
+  - kind: 25
+    weight: 1
+  - kind: 26
+    weight: 1
+  - kind: 27
+    weight: 1
+  - kind: 28
+    weight: 1
+  - kind: 29
+    weight: 1
+  - kind: 30
+    weight: 1
+  - kind: 33
+    weight: 1
+  - kind: 32
+    weight: 1
+  - kind: 34
+    weight: 1
+  - kind: 35
+    weight: 1
+  - kind: 38
+    weight: 1
+  - kind: 39
+    weight: 1
+  - kind: 0
+    weight: 1
+  - kind: 1
+    weight: 1
+  - kind: 2
+    weight: 1
+  - kind: 3
+    weight: 1
+  - kind: 4
+    weight: 1
+  - kind: 5
+    weight: 1
+  - kind: 6
+    weight: 1
+  - kind: 7
+    weight: 1
+  - kind: 8
+    weight: 1
+  - kind: 11
+    weight: 1
+  - kind: 13
+    weight: 1
+  - kind: 14
+    weight: 1
+  - kind: 15
+    weight: 1
+  - kind: 16
+    weight: 1
+  - kind: 17
+    weight: 1
+  - kind: 18
+    weight: 1
+  - kind: 19
+    weight: 1
+  - kind: 21
+    weight: 1
+  - kind: 22
+    weight: 1
+  minObstacles: 11
+  maxObstacles: 15
+  wheels: []
+  crocodiles: []
+  swingers: []
+  geysers: []
+  rockslides: []
+  hippos: []
+  sluices: []
+  sweepers: []
+  cannons: []
+  rapids: []
+  weirs: []
+  bumpers: []
+  ferries: []
+  bears: []
+  trees: []
+  turtles: []
+  shoals: []
+  waterspouts: []
+  eels: []
+  mudslides: []
+  floes: []
+  dams: []
+  pelicans: []
+  netBoats: []
+  extras: []
+  boosts: []

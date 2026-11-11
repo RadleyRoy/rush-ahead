@@ -69,6 +69,7 @@ namespace RushAhead.AI
         const float LookEvery = 0.25f; // seconds between second looks at a hazard not yet noticed
         const float BendGrip = 7f; // metres per second squared: how hard the crew and current together can turn the raft
         const float EdgeSense = 4.5f; // metres from the edge where the crew starts steering back in (it comes up fast)
+        const float EdgeLead = 1f; // seconds: how far ahead a fast raft's crew judges the edge from its sideways speed
 
         bool hazardNoticed;
         float sinceLook;
@@ -283,10 +284,17 @@ namespace RushAhead.AI
                             if (desired.Value.magnitude > allowed) desired = desired.Value.normalized * allowed;
                         }
 
-                        // Near the edge there's nothing to stop a fall: steer back in, harder the closer it gets.
+                        // Near the edge there's nothing to stop a fall: steer back in, harder the closer it gets. On a fast
+                        // raft it's judged a moment ahead: one knocked round slides sideways at a few metres a second, and
+                        // stopping that takes longer than the last few metres give.
                         var room = at.HalfWidth - Mathf.Abs(at.Lateral);
-                        if (desired.HasValue && room < EdgeSense)
-                            desired += -Mathf.Sign(at.Lateral) * new Vector2(-at.Tangent.y, at.Tangent.x) * ((EdgeSense - room) * 2.4f);
+                        var inward = -Mathf.Sign(at.Lateral) * new Vector2(-at.Tangent.y, at.Tangent.x);
+                        var lead = EdgeLead * Mathf.Clamp01((speed - 4f) / 4f); // a slow raft has time to spare
+                        var soon = room - Mathf.Max(0f, -Vector2.Dot(boat.Body.Velocity, inward)) * lead;
+                        if (desired.HasValue && soon < EdgeSense)
+                        {
+                            desired += inward * ((EdgeSense - soon) * 2.4f);
+                        }
                         return desired;
                     }
 

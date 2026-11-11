@@ -56,7 +56,7 @@ namespace RushAhead.UI
                 runner.World.WaterVelocity = course.WaterVelocityAt;
             }
 
-            runner.World.Drifting.AddRange(barrelBodies);
+            runner.World.Drifting.AddRange(course != null ? course.DriftingBodies : barrelBodies);
             if (Mode == NetMode.Joined)
                 foreach (var barrel in barrels) PhysicsBodies.Freeze(barrel);
             recordedRun = (-1, -1);
@@ -81,7 +81,7 @@ namespace RushAhead.UI
             barrels.AddRange(course.Barrels);
             barrelBodies.AddRange(course.BarrelBodies);
             runner.World.WaterVelocity = course.WaterVelocityAt;
-            runner.World.Drifting.AddRange(barrelBodies);
+            runner.World.Drifting.AddRange(course.DriftingBodies);
             for (var i = 0; i < rafts.Count; i++)
             {
                 var boat = rafts[i].Boat;

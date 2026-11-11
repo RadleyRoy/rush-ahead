@@ -166,7 +166,7 @@ namespace RushAhead.Render
 
         public AudioClip AmbienceFor(CourseScene? scene) => scene switch
         {
-            CourseScene.Rapids => RiverRapids,
+            CourseScene.Rapids or CourseScene.Glacier or CourseScene.Canyon => RiverRapids,
             CourseScene.Lake => LakeLapping,
             CourseScene.Creek => RiverCalm,
             _ => LakeLapping, // the practice lagoon

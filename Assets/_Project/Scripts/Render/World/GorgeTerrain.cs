@@ -52,7 +52,11 @@ namespace RushAhead.Render
         }
 
         /// <summary>Ground layers by role, from the palette; a style picks four of them (one pass on phones).</summary>
-        public enum Ground { Grass, Forest, Scree, Moss, Mud, Sand }
+        /// <summary>
+        /// What the ground is. The first six are the photo layers themselves; the rest are those tinted for the glacier
+        /// and the canyon (snow and ice from sand and scree, red rock and red dust from scree and sand).
+        /// </summary>
+        public enum Ground { Grass, Forest, Scree, Moss, Mud, Sand, Snow, Ice, RedRock, Dust }
 
         /// <param name="foot">How far out from the river's edge the foot of the cliff is.</param>
         public static Land Build(Course course, BankStyle style, ArtPalette palette, Transform parent, float foot)
@@ -238,6 +242,8 @@ namespace RushAhead.Render
             {
                 CourseScene.Lake => new[] { Ground.Grass, Ground.Sand, Ground.Mud, Ground.Moss },
                 CourseScene.Rapids => new[] { Ground.Forest, Ground.Scree, Ground.Moss, Ground.Grass },
+                CourseScene.Glacier => new[] { Ground.Snow, Ground.Scree, Ground.Forest, Ground.Ice },
+                CourseScene.Canyon => new[] { Ground.Dust, Ground.RedRock, Ground.Sand, Ground.Mud },
                 _ => new[] { Ground.Grass, Ground.Forest, Ground.Scree, Ground.Mud },
             };
             var layers = new TerrainLayer[roles.Length];
@@ -264,6 +270,10 @@ namespace RushAhead.Render
                     Ground.Moss => Mathf.Clamp01((slope - 14f) / 20f) * 0.7f + hilltop * patch * 0.6f,
                     Ground.Mud => Mathf.Clamp01(patch - 0.62f) * 2.5f + scree * 0.2f,
                     Ground.Sand => Mathf.Clamp01(1f - out_ / 16f) * 1.2f + Mathf.Clamp01(patch - 0.7f) * 2f,
+                    Ground.Snow => 0.6f + 0.5f * (1f - noise) - woods * 0.25f + hilltop * 0.8f,
+                    Ground.Ice => Mathf.Clamp01(patch - 0.66f) * 2.4f + Mathf.Clamp01((slope - 30f) / 15f) * 0.4f,
+                    Ground.RedRock => scree * 1.5f + Mathf.Clamp01((slope - 16f) / 14f) * 0.9f + hilltop * patch * 0.5f,
+                    Ground.Dust => 0.55f + 0.5f * (1f - noise),
                     _ => 0f,
                 };
                 w = Mathf.Max(0f, w);

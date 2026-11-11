@@ -47,17 +47,18 @@ namespace RushAhead.UI
             starTotal.style.marginLeft = 24;
             records.Add(Ui.El("row", Ui.Text("Your best times", "h3 muted"), Ui.Grow(), starTotal));
             records.Add(Ui.Spacer("spacer-s"));
+            var compact = Game.Courses.Count > 6; // a dozen courses still fit under the name
             foreach (var course in Game.Courses)
             {
-                var stars = new StarRow(40f);
-                var time = Ui.Text("--", "h3");
-                time.style.minWidth = 200;
+                var stars = new StarRow(compact ? 28f : 40f);
+                var time = Ui.Text("--", compact ? "body" : "h3");
+                time.style.minWidth = compact ? 170 : 200;
                 time.style.unityTextAlign = UnityEngine.TextAnchor.MiddleRight;
-                var name = Ui.Text(course.displayName, "h3");
+                var name = Ui.Text(course.displayName, compact ? "body" : "h3");
                 name.style.flexGrow = 1;
                 name.style.marginRight = 32;
                 var row = Ui.El("row", name, stars, Ui.Spacer(), time);
-                row.style.marginTop = 8;
+                row.style.marginTop = compact ? 2 : 8;
                 records.Add(row);
                 bests.Add((stars, time, name));
             }
