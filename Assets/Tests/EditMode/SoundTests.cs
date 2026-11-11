@@ -6,13 +6,13 @@ namespace RushAhead.Tests
 {
     public class SoundTests
     {
-        static readonly string[] Loops = { "RiverCalm", "RiverRapids", "LakeLapping", "LeafBlower", "HairDryer", "HandFan", "ShopVac" };
+        static readonly string[] Loops = { "RiverCalm", "RiverRapids", "LakeLapping", "LeafBlower", "HairDryer", "HandFan", "ShopVac", "Rain" };
 
         [Test]
         public void EverySound_IsMade_LoudEnough_AndNeverBroken()
         {
             var sounds = SoundBank.Render();
-            Assert.That(sounds.Count, Is.EqualTo(19));
+            Assert.That(sounds.Count, Is.EqualTo(29));
             foreach (var (name, samples) in sounds)
             {
                 Assert.That(samples.Length, Is.GreaterThan(1000), name);

@@ -77,6 +77,17 @@ namespace RushAhead.Render
                 Plant = CourseDressing.Tree,
                 Fringe = CourseDressing.Reeds,
             },
+            CourseScene.Swamp => new BankStyle
+            {
+                Cliff = palette.Tinted(palette.cliff, new Color(0.38f, 0.32f, 0.24f)), // dark mud
+                Ground = palette.Tinted(palette.grass, new Color(0.36f, 0.46f, 0.24f)), // olive moss
+                Height = 0.7f,
+                HeightRange = 0.4f,
+                Drop = 14f,
+                Plant = CourseDressing.Tree,
+                Fringe = CourseDressing.Reeds,
+                LilyPads = true,
+            },
             _ => new BankStyle
             {
                 Cliff = palette.cliff,

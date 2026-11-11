@@ -60,6 +60,7 @@ namespace RushAhead.Sim
         {
             Def = def;
             River = new River(def.river);
+            Islands = new Islands(def.islands, River);
             foreach (var distance in def.gates) gates.Add(new Gate(River.At(distance)));
 
             var start = River.At(def.startDistance);
@@ -73,6 +74,9 @@ namespace RushAhead.Sim
         /// <summary>Where this round's obstacles are.</summary>
         public CourseLayout Layout { get; }
         public River River { get; }
+
+        /// <summary>The islands splitting the river, each with a fast line and a safe line.</summary>
+        public Islands Islands { get; }
 
         /// <summary>Checkpoints in order; the last is the finish line.</summary>
         public IReadOnlyList<Gate> Gates => gates;
@@ -132,6 +136,16 @@ namespace RushAhead.Sim
             EndWall(River.At(StartWallDistance), "Boulders");
             EndWall(River.At(River.Length - BoomBack), "Log boom");
             foreach (var rock in Def.rocks) PhysicsBodies.CreateRock(rock.position, rock.radius).transform.SetParent(Root.transform, true);
+            foreach (var island in Islands.All)
+            {
+                // Soft shores: a raft that runs into one slides along it rather than bouncing off or tipping over.
+                var body = new GameObject("Island");
+                body.transform.SetParent(Root.transform, false);
+                var shore = body.AddComponent<PolygonCollider2D>();
+                shore.points = island.Outline();
+                shore.sharedMaterial = BoatPhysics.Cushioned;
+            }
+
             Hazards = new Hazards(this, Root.transform);
             foreach (var spot in Def.barrels)
             {
@@ -170,18 +184,27 @@ namespace RushAhead.Sim
         /// </summary>
         public (Vector2 position, float angleRad) RespawnPose(int gatesPassed, int lane = 0, int lanes = 1)
         {
-            var at = gatesPassed <= 0 ? River.At(Def.startDistance)
-                : River.At(gates[Mathf.Min(gatesPassed, gates.Count) - 1].Distance + RespawnPastGate);
+            var distance = gatesPassed <= 0 ? Def.startDistance : gates[Mathf.Min(gatesPassed, gates.Count) - 1].Distance + RespawnPastGate;
+            var at = River.At(distance + LaneAhead(lane, lanes));
             return (at.Centre + at.Left * LaneOffset(at, lane, lanes), Mathf.Atan2(at.Tangent.y, at.Tangent.x));
         }
 
-        /// <summary>Across the river from the middle: lane 0 to the left, lane 1 to the right, clear of each other and the banks.</summary>
+        /// <summary>How far apart the two rows are when three or four rafts start together.</summary>
+        public const float RowGap = 5f;
+
+        /// <summary>
+        /// Across the river from the middle: lane 0 to the left, lane 1 to the right, clear of each other and the banks.
+        /// Three or four rafts line up two abreast, lanes 2 and 3 a row behind lanes 0 and 1.
+        /// </summary>
         public static float LaneOffset(RiverSample at, int lane, int lanes)
         {
             if (lanes <= 1) return 0f;
             var offset = Mathf.Clamp(at.HalfWidth * 0.42f, 2f, Mathf.Max(2f, at.HalfWidth - 1.9f));
-            return lane == 0 ? offset : -offset;
+            return lane % 2 == 0 ? offset : -offset;
         }
+
+        /// <summary>The front row stands a row ahead of the respawn point and the back row on it, so the back row never respawns behind a gate.</summary>
+        public static float LaneAhead(int lane, int lanes) => lanes > 2 && lane < 2 ? RowGap : 0f;
 
         /// <summary>Where the boulders across the top of the river stop things, and how far up from its end the log boom is.</summary>
         public const float StartWallDistance = 0.3f;
@@ -201,6 +224,24 @@ namespace RushAhead.Sim
             return Mathf.Abs(at.Lateral) > at.HalfWidth + EdgeMargin;
         }
 
+        /// <summary>
+        /// A shield bubble bounces a raft back from the edge: onto the water just inside it, still going down the river
+        /// and drifting back towards the middle.
+        /// </summary>
+        public void SaveFromEdge(Boat boat)
+        {
+            var at = River.Project(boat.Body.Position);
+            var room = Mathf.Max(0f, at.HalfWidth - 2.4f);
+            var across = Mathf.Clamp(at.Lateral, -room, room);
+            var sample = River.At(Mathf.Clamp(at.Distance, 1f, River.Length - 2f));
+            across = Islands.OffIsland(sample.Distance, across, sample.HalfWidth);
+            var inward = -Mathf.Sign(at.Lateral) * sample.Left;
+            var along = Mathf.Max(2f, Vector2.Dot(boat.Body.Velocity, sample.Tangent));
+            boat.Body.Teleport(sample.Centre + sample.Left * across, boat.Body.AngleRad);
+            boat.Body.SetVelocity(sample.Tangent * along + inward * 3f);
+            boat.Tilt.Reset();
+        }
+
         /// <summary>Puts back any barrel or log that has drifted over the edge, so the course never runs out of them.</summary>
         public void ResetStrays()
         {
@@ -216,20 +257,30 @@ namespace RushAhead.Sim
             }
         }
 
+        /// <summary>The wind in the rain, gusting across the river; null in any other weather.</summary>
+        public Gusts Gusts { get; set; }
+
+        /// <summary>How much faster than usual the river runs (Elimination speeds it up after each knockout).</summary>
+        public float FlowBoost { get; set; } = 1f;
+
         /// <summary>
         /// How fast the water itself moves here. The river's flow runs downstream everywhere in the channel; currents
         /// add to it or hold it back; both are strongest mid-stream, easing off toward the edges (and currents toward
-        /// their zone's ends). Whirlpools add a swirl and a pull toward their middle.
+        /// their zone's ends). Round an island each branch runs like a river of its own, the fast line harder and the
+        /// safe line slower. Whirlpools add a swirl and a pull toward their middle.
         /// </summary>
+
         public Vector2 WaterVelocityAt(Vector2 point)
         {
             var velocity = Whirlpools(point);
-            if (Def.currents.Length == 0 && Def.flow <= 0f && Layout.rapids.Length == 0 && Layout.weirs.Length == 0) return velocity;
+            if (Def.currents.Length == 0 && Def.flow <= 0f && Layout.rapids.Length == 0 && Layout.weirs.Length == 0 && Islands.Count == 0) return velocity;
 
             var at = River.Project(point);
             var across = at.HalfWidth > 0f ? at.Lateral / at.HalfWidth : 0f;
             var profile = Mathf.Clamp01(1f - across * across);
-            velocity += at.Tangent * (Def.flow * Mathf.Lerp(0.5f, 1f, profile)) * (Mathf.Abs(across) <= 1f ? 1f : 0f);
+            if (Mathf.Abs(across) <= 1f && Islands.Water(at.Distance, at.Lateral, at.HalfWidth, ref profile, out var extra, out var sideways))
+                velocity += at.Tangent * extra + new Vector2(-at.Tangent.y, at.Tangent.x) * sideways;
+            velocity += at.Tangent * (Def.flow * FlowBoost * Mathf.Lerp(0.5f, 1f, profile)) * (Mathf.Abs(across) <= 1f ? 1f : 0f);
             foreach (var zone in Def.currents)
             {
                 var ramp = Mathf.Min((at.Distance - zone.from) / CurrentRampMetres, (zone.to - at.Distance) / CurrentRampMetres);
@@ -278,6 +329,7 @@ namespace RushAhead.Sim
         public void ResetBarrels()
         {
             Hazards.ResetLoose();
+            Hazards.PowerUps.Reset();
             for (var i = 0; i < barrels.Count; i++)
             {
                 if (IsObstacleBody(i)) continue;

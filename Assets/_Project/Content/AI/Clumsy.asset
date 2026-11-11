@@ -22,3 +22,4 @@ MonoBehaviour:
   panicLean: 0.85
   burstWhenStuck: 0.2
   daydream: 0.25
+  fastLines: 0

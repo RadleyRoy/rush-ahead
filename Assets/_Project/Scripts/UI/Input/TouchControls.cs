@@ -30,12 +30,19 @@ namespace RushAhead.UI
         public const string BurstButton = "burst";
         public const string BraceButton = "brace";
 
+        /// <summary>The look stick: drag it (or, in the one-stick layout, anywhere free on the other half) to swing the camera round.</summary>
+        public const string LookButton = "look";
+
+        /// <summary>Use the raft's power-up.</summary>
+        public const string ItemButton = "item";
+
         enum Use
         {
             Ignored,
             Stick,
             Button,
             Capture,
+            Look,
         }
 
         sealed class Claim
@@ -70,6 +77,11 @@ namespace RushAhead.UI
         public readonly bool[] BurstPressed = new bool[2];
         public bool BraceHeld;
 
+        /// <summary>The look drag: -1 to 1 each way, a quarter of the screen's width for full deflection.</summary>
+        public Vector2 Look;
+
+        public bool LookActive;
+
         /// <summary>Buttons pressed this frame (other than Burst and Brace).</summary>
         public readonly List<string> Tapped = new();
 
@@ -98,6 +110,8 @@ namespace RushAhead.UI
             }
 
             BraceHeld = false;
+            Look = Vector2.zero;
+            LookActive = false;
             Tapped.Clear();
             Held.Clear();
 
@@ -135,15 +149,23 @@ namespace RushAhead.UI
         {
             if (Blocked) return new Claim { Use = Use.Ignored };
             foreach (var (id, area) in buttons)
-                if (area.Contains(touch.Start)) return new Claim { Use = Use.Button, Button = id };
+                if (area.Contains(touch.Start)) return new Claim { Use = id == LookButton ? Use.Look : Use.Button, Button = id };
             if (capture != null) return new Claim { Use = Use.Capture };
 
             var leftHalf = touch.Start.x < ScreenWidth * 0.5f;
             var stick = TwoSticks ? leftHalf ? 0 : 1 : leftHalf != LeftHanded ? 0 : -1;
-            if (stick < 0) return new Claim { Use = Use.Ignored };
+            if (stick < 0) return Looking() ? new Claim { Use = Use.Ignored } : new Claim { Use = Use.Look, Button = LookButton }; // the free half looks round
             foreach (var other in claims.Values)
                 if (other.Use == Use.Stick && other.Stick == stick) return new Claim { Use = Use.Ignored }; // that stick's taken
             return new Claim { Use = Use.Stick, Stick = stick };
+        }
+
+        /// <summary>Whether a finger is already looking round (one at a time).</summary>
+        bool Looking()
+        {
+            foreach (var other in claims.Values)
+                if (other.Use == Use.Look) return true;
+            return false;
         }
 
         void Pressed(Claim claim, TouchSample touch)
@@ -171,6 +193,12 @@ namespace RushAhead.UI
                 case Use.Button:
                     Held.Add(claim.Button);
                     if (claim.Button == BraceButton) BraceHeld = true;
+                    break;
+                case Use.Look:
+                    Held.Add(LookButton);
+                    var drag = (touch.Position - touch.Start) / Mathf.Max(1f, ScreenWidth * 0.25f);
+                    Look = new Vector2(Mathf.Clamp(drag.x, -1f, 1f), Mathf.Clamp(drag.y, -1f, 1f));
+                    LookActive = true;
                     break;
                 case Use.Stick:
                     var i = claim.Stick;

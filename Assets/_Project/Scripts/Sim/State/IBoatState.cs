@@ -43,6 +43,18 @@ namespace RushAhead.Sim
         /// <summary>0 when level, 1 at the capsize threshold.</summary>
         float TiltDanger { get; }
 
+        /// <summary>The power-up the raft carries; a turbo pushing; a shield bubble up.</summary>
+        PowerUp Item { get; }
+
+        bool Turbo { get; }
+        bool Shielded { get; }
+
+        /// <summary>Running counts the views watch for a change: a shield popping, a horn, a crate taken.</summary>
+        int ShieldPops { get; }
+
+        int HornCount { get; }
+        int Pickups { get; }
+
         int CrewCount { get; }
         ICrewState CrewAt(int seat);
     }

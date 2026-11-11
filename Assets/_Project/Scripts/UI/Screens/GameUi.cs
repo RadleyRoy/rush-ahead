@@ -151,7 +151,9 @@ namespace RushAhead.UI
 
         void Update()
         {
-            Flow.Sync(Game.Session, Game.SessionReady, Game.Phase, Game.SessionsEnded, Game.SessionEndReason);
+            // The results wait for the photo finish's replay.
+            var phase = Game.PhotoFinishPlaying && Game.Phase == Net.RoomPhase.Results ? Net.RoomPhase.Racing : Game.Phase;
+            Flow.Sync(Game.Session, Game.SessionReady, phase, Game.SessionsEnded, Game.SessionEndReason);
             var wanted = screens.TryGetValue(Flow.Screen, out var screen) ? screen : null;
             if (wanted != shown)
             {
@@ -257,7 +259,7 @@ namespace RushAhead.UI
 
         public bool ModalOpen => modalLayer.childCount > 0;
 
-        void CloseModal() => modalLayer.Clear();
+        internal void CloseModal() => modalLayer.Clear();
 
         public void Toast(string text, float seconds = 2.5f)
         {

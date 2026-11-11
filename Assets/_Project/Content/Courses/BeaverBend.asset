@@ -61,16 +61,16 @@ MonoBehaviour:
     width: 13
     lineOffset: 0
   - position: {x: 166, y: 74}
-    width: 14
+    width: 26
     lineOffset: 0
   - position: {x: 182, y: 72}
-    width: 14
+    width: 26
     lineOffset: 0
   - position: {x: 196, y: 72}
-    width: 14
+    width: 26
     lineOffset: 0
   - position: {x: 212, y: 70}
-    width: 14
+    width: 26
     lineOffset: 0
   - position: {x: 228, y: 64}
     width: 13
@@ -142,6 +142,12 @@ MonoBehaviour:
     to: 212.79008
     speed: 0.9
   whirlpools: []
+  islands:
+  - distance: 238.79008
+    length: 30.403976
+    across: -2
+    halfWidth: 3.5
+    fastSide: -1
   menu:
   - kind: 4
     weight: 1
@@ -207,3 +213,6 @@ MonoBehaviour:
   netBoats: []
   extras: []
   boosts: []
+  crates: []
+  boss: 0
+  extraCrates: 0

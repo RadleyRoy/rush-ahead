@@ -27,7 +27,7 @@ what's round the next bend.
 
 *How to beat it:* Ride the ones going your way; cut across the others at an angle.
 
-*Where:* Otter Creek, Beaver Bend, Reed Marsh, Whirlpool Reach, Whitewater Run, Glacier Gate, Red Rock Run, Thunder Rapids, Icefall Chute, Dynamite Gulch, Devil's Staircase.
+*Where:* Otter Creek, Beaver Bend, Reed Marsh, Whirlpool Reach, Whitewater Run, Glacier Gate, Red Rock Run, Thunder Rapids, Icefall Chute, Dynamite Gulch, Devil's Staircase, Snapjaw Swamp.
 
 ### Whirlpool
 
@@ -57,7 +57,7 @@ what's round the next bend.
 
 *How to beat it:* Steer round; bounce off the foam ring, not the stone.
 
-*Where:* Otter Creek, Mirror Lake, Beaver Bend, Reed Marsh, Whirlpool Reach, Whitewater Run, Glacier Gate, Red Rock Run, Icefall Chute, Dynamite Gulch.
+*Where:* Otter Creek, Mirror Lake, Beaver Bend, Reed Marsh, Whirlpool Reach, Whitewater Run.
 
 ### Barrels
 
@@ -77,7 +77,97 @@ what's round the next bend.
 
 *How to beat it:* Blow them aside, or slip past their ends.
 
-*Where:* Beaver Bend, Whirlpool Reach, Whitewater Run, Red Rock Run, Dynamite Gulch.
+*Where:* Beaver Bend, Whirlpool Reach, Whitewater Run.
+
+### Islands
+
+![Islands](guide/Island.jpg)
+
+**Go round.** An island splits the river in two. The narrow side is the fast line: quicker water and a boost lane, but something in the way. The wide side is the safe line: calmer and clear.
+
+*How to beat it:* Choose your side well before the island's nose, and keep off its beach.
+
+*Where:* Otter Creek, Mirror Lake, Beaver Bend, Whitewater Run, Glacier Gate, Red Rock Run, Icefall Chute, Dynamite Gulch, Snapjaw Swamp.
+
+### ? crates
+
+![? crates](guide/Crate.jpg)
+
+**Use it.** Glowing crates with a question mark, bobbing in open water. Touch one with nothing in hand and your raft gets an item. It comes back a few seconds later.
+
+*How to beat it:* Steer through them, then press ITEM. Anyone on the raft can.
+
+*Where:* every course.
+
+### Turbo can
+
+![Turbo can](guide/Turbo.jpg)
+
+**Use it.** An item: two and a half seconds of hard surge down the river, as fast as the next bend allows.
+
+*How to beat it:* Save it for a clear straight. At that speed, hitting something hurts.
+
+*Where:* every course.
+
+### Shield bubble
+
+![Shield bubble](guide/Shield.jpg)
+
+**Use it.** An item: a bubble round the raft that saves you once, from a fall off the edge or a capsize. You keep the life.
+
+*How to beat it:* Put it up straight away: it lasts until it's used.
+
+*Where:* every course.
+
+### Air horn
+
+![Air horn](guide/Horn.jpg)
+
+**Use it.** An item: a blast that shoves every other raft nearby away hard, scatters geese, barrels and logs, and sends Old Snapjaw diving.
+
+*How to beat it:* Sound it with a rival alongside, or with Snapjaw close behind.
+
+*Where:* every course.
+
+### Gusts
+
+![Gusts](guide/Gust.jpg)
+
+**Brace.** In the rain, the wind gusts across the river for a couple of seconds every few. The rain leans and an arrow shows a moment before.
+
+*How to beat it:* Blow into the wind, or brace, and hold your line.
+
+*Where:* every course.
+
+### Fog and night
+
+![Fog and night](guide/FogNight.jpg)
+
+**Go round.** Fog hides what's coming; at night only the lanterns, the gate lamps and whatever glows shows the way.
+
+*How to beat it:* Read the warnings at the top of the screen and keep to the middle.
+
+*Where:* every course.
+
+### Knockout gates
+
+![Knockout gates](guide/Knockout.jpg)
+
+**Hurry.** In an Elimination, gates under a red LAST ONE OUT banner. The last raft through each is out, and the river runs faster for those left.
+
+*How to beat it:* Never be last to a knockout gate. Watch your place at the top of the screen.
+
+*Where:* every course.
+
+### Old Snapjaw
+
+![Old Snapjaw](guide/Snapjaw.jpg)
+
+**Hurry.** The giant crocodile of Snapjaw Swamp. It rises behind you with a roar and chases the last raft down the river. When its eyes glow red it's about to lunge, and its jaws cost a life.
+
+*How to beat it:* Keep pushing and it never quite catches up. When it lunges, burst, slip to one side, or sound an air horn.
+
+*Where:* Snapjaw Swamp.
 
 ## Obstacles
 
@@ -99,7 +189,7 @@ what's round the next bend.
 
 *How to beat it:* Watch it coil back, then go behind it or wait for it to swim home. Bracing softens a bite.
 
-*Where:* Otter Creek, Mirror Lake, Beaver Bend, Reed Marsh, Whitewater Run, Red Rock Run, Thunder Rapids, Dynamite Gulch, Devil's Staircase.
+*Where:* Otter Creek, Mirror Lake, Beaver Bend, Reed Marsh, Whitewater Run, Red Rock Run, Thunder Rapids, Dynamite Gulch, Devil's Staircase, Snapjaw Swamp.
 
 ### Swinging log
 
@@ -109,7 +199,7 @@ what's round the next bend.
 
 *How to beat it:* Brace together as it comes over: a braced crew ducks under it.
 
-*Where:* Otter Creek, Mirror Lake, Beaver Bend, Reed Marsh, Whirlpool Reach, Whitewater Run, Glacier Gate, Thunder Rapids, Icefall Chute, Devil's Staircase.
+*Where:* Otter Creek, Mirror Lake, Beaver Bend, Reed Marsh, Whirlpool Reach, Whitewater Run, Glacier Gate, Thunder Rapids, Icefall Chute, Devil's Staircase, Snapjaw Swamp.
 
 ### Geyser
 
@@ -139,7 +229,7 @@ what's round the next bend.
 
 *How to beat it:* Steer round the bubbles; brace if you can't.
 
-*Where:* Otter Creek, Mirror Lake, Beaver Bend, Reed Marsh, Whitewater Run, Thunder Rapids, Devil's Staircase.
+*Where:* Otter Creek, Mirror Lake, Beaver Bend, Reed Marsh, Whitewater Run, Thunder Rapids, Devil's Staircase, Snapjaw Swamp.
 
 ### Sluice gate
 
@@ -199,7 +289,7 @@ what's round the next bend.
 
 *How to beat it:* Give them room, and never bounce off one towards the lip.
 
-*Where:* Otter Creek, Mirror Lake, Beaver Bend, Whirlpool Reach, Whitewater Run, Glacier Gate, Red Rock Run, Thunder Rapids, Icefall Chute, Dynamite Gulch, Devil's Staircase.
+*Where:* Otter Creek, Mirror Lake, Beaver Bend, Whirlpool Reach, Whitewater Run, Glacier Gate, Red Rock Run, Thunder Rapids, Icefall Chute, Dynamite Gulch, Devil's Staircase, Snapjaw Swamp.
 
 ### Ferry
 
@@ -229,7 +319,7 @@ what's round the next bend.
 
 *How to beat it:* If it's shaking, wait or race under it braced; once it's down, aim for the gap at its top.
 
-*Where:* Otter Creek, Beaver Bend, Reed Marsh, Whitewater Run, Glacier Gate, Thunder Rapids, Icefall Chute, Devil's Staircase.
+*Where:* Otter Creek, Beaver Bend, Reed Marsh, Whitewater Run, Glacier Gate, Thunder Rapids, Icefall Chute, Devil's Staircase, Snapjaw Swamp.
 
 ### Snapping turtle
 
@@ -239,7 +329,7 @@ what's round the next bend.
 
 *How to beat it:* Pass well behind it.
 
-*Where:* Otter Creek, Mirror Lake, Beaver Bend, Whitewater Run, Devil's Staircase.
+*Where:* Otter Creek, Mirror Lake, Beaver Bend, Whitewater Run, Devil's Staircase, Snapjaw Swamp.
 
 ### Piranha shoal
 
@@ -249,7 +339,7 @@ what's round the next bend.
 
 *How to beat it:* Steer round it; it moves with the water.
 
-*Where:* Mirror Lake, Whitewater Run, Devil's Staircase.
+*Where:* Mirror Lake, Whitewater Run, Devil's Staircase, Snapjaw Swamp.
 
 ### Waterspout
 
@@ -269,7 +359,7 @@ what's round the next bend.
 
 *How to beat it:* Cross between pulses, or brace through it.
 
-*Where:* Reed Marsh, Whirlpool Reach, Whitewater Run, Thunder Rapids, Devil's Staircase.
+*Where:* Reed Marsh, Whirlpool Reach, Whitewater Run, Thunder Rapids, Devil's Staircase, Snapjaw Swamp.
 
 ### Mudslide
 
@@ -279,7 +369,7 @@ what's round the next bend.
 
 *How to beat it:* Hug the far side while it flows.
 
-*Where:* Beaver Bend, Whirlpool Reach, Whitewater Run, Red Rock Run, Dynamite Gulch, Devil's Staircase.
+*Where:* Beaver Bend, Whirlpool Reach, Whitewater Run, Red Rock Run, Dynamite Gulch, Devil's Staircase, Snapjaw Swamp.
 
 ### Ice floes
 
@@ -309,7 +399,7 @@ what's round the next bend.
 
 *How to beat it:* Steer off the shadow, or brace.
 
-*Where:* Otter Creek, Mirror Lake, Reed Marsh, Whitewater Run, Red Rock Run, Thunder Rapids, Devil's Staircase.
+*Where:* Otter Creek, Mirror Lake, Reed Marsh, Whitewater Run, Red Rock Run, Thunder Rapids, Devil's Staircase, Snapjaw Swamp.
 
 ### Net boat
 
@@ -319,7 +409,7 @@ what's round the next bend.
 
 *How to beat it:* Pass behind the net, not between the boat and its float.
 
-*Where:* Mirror Lake, Whitewater Run, Dynamite Gulch.
+*Where:* Mirror Lake, Whitewater Run, Dynamite Gulch, Snapjaw Swamp.
 
 ### Kraken
 
@@ -329,7 +419,7 @@ what's round the next bend.
 
 *How to beat it:* Steer off the line of bubbles; brace if it's coming down on you.
 
-*Where:* Mirror Lake, Whirlpool Reach, Glacier Gate, Thunder Rapids, Icefall Chute, Devil's Staircase.
+*Where:* Mirror Lake, Whirlpool Reach, Glacier Gate, Thunder Rapids, Icefall Chute, Devil's Staircase, Snapjaw Swamp.
 
 ### Tidal bore
 
@@ -359,7 +449,7 @@ what's round the next bend.
 
 *How to beat it:* Blow them away with your air, or outrun them: they can't keep up with a fast raft.
 
-*Where:* Otter Creek, Mirror Lake, Reed Marsh, Glacier Gate, Thunder Rapids, Devil's Staircase.
+*Where:* Otter Creek, Mirror Lake, Reed Marsh, Glacier Gate, Thunder Rapids, Devil's Staircase, Snapjaw Swamp.
 
 ### Chained mines
 
@@ -399,7 +489,7 @@ what's round the next bend.
 
 *How to beat it:* Pass on the other half, well clear of the paddles.
 
-*Where:* Mirror Lake, Red Rock Run, Dynamite Gulch.
+*Where:* Red Rock Run, Dynamite Gulch.
 
 ### Mill race
 
@@ -469,7 +559,7 @@ what's round the next bend.
 
 *How to beat it:* Pass between hops: they crouch just before they leap.
 
-*Where:* Otter Creek, Mirror Lake, Reed Marsh, Thunder Rapids, Devil's Staircase.
+*Where:* Otter Creek, Mirror Lake, Reed Marsh, Thunder Rapids, Devil's Staircase, Snapjaw Swamp.
 
 ### Giant fan
 

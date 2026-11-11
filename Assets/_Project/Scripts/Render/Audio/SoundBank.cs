@@ -14,6 +14,7 @@ namespace RushAhead.Render
         public AudioClip Burst, Bump, Splash, Capsize, Fall, Beep, Go, Chime, Fanfare, Star, Jingle, Click;
         public AudioClip RiverCalm, RiverRapids, LakeLapping;
         public AudioClip LeafBlower, HairDryer, HandFan, ShopVac;
+        public AudioClip Horn, ShieldPop, Pickup, Turbo, Roar, Chomp, Thunder, Rain, Coins, Shutter;
 
         /// <summary>
         /// Every sound's samples, by name. Pure arithmetic, so it runs off the main thread while the title shows;
@@ -103,6 +104,92 @@ namespace RushAhead.Render
                     for (var i = 0; i < b.Length; i++) b[i] += hiss.Process(noise.White()) * 0.08f;
                 }),
                 ["LakeLapping"] = MakeLoop(6f, 0.8f, b => Water(b, noise, 350f, 0.6f, 0.08f)),
+                ["Horn"] = Make(1.1f, b =>
+                {
+                    // An air horn: two brassy notes a fourth apart, a raspy sawtooth with a quick wobble.
+                    foreach (var (hz, gain) in new[] { (233f, 0.5f), (311f, 0.38f) })
+                        for (var i = 0; i < b.Length; i++)
+                        {
+                            var t = i / (float)Synth.Rate;
+                            var envelope = Mathf.Clamp01(t / 0.03f) * Mathf.Clamp01((0.95f - t) / 0.15f);
+                            var phase = 2f * Mathf.PI * hz * t + 0.6f * Mathf.Sin(2f * Mathf.PI * 6f * t);
+                            var saw = 0f;
+                            for (var n = 1; n <= 7; n++) saw += Mathf.Sin(phase * n) / n;
+                            b[i] += saw * gain * envelope * 0.5f;
+                        }
+                }),
+                ["ShieldPop"] = Make(0.35f, b =>
+                {
+                    Synth.AddSweep(b, 0f, 420f, 1700f, 0.06f, 0.002f, 0.08f, 0.7f); // a bubble bursting
+                    Synth.AddNoise(b, 0f, Synth.Biquad.HighPass(3500f), 0.001f, 0.05f, 0.4f, noise);
+                    Synth.AddBell(b, 0.03f, 2093f, 0.2f, 0.25f);
+                }),
+                ["Pickup"] = Make(0.7f, b =>
+                {
+                    var notes = new[] { 84, 88, 91, 96 };
+                    for (var n = 0; n < notes.Length; n++) Synth.AddBell(b, n * 0.055f, Synth.Midi(notes[n]), 0.25f, 0.45f);
+                }),
+                ["Turbo"] = Make(1.6f, b =>
+                {
+                    // A fizzing can let rip: a hiss rising in pitch, and a rocket's roar under it.
+                    var hiss = Synth.Biquad.BandPass(1800f, 0.5f);
+                    var roar = Synth.Biquad.LowPass(380f);
+                    for (var i = 0; i < b.Length; i++)
+                    {
+                        var t = i / (float)Synth.Rate;
+                        var envelope = Mathf.Clamp01(t / 0.05f) * Mathf.Clamp01((1.55f - t) / 0.5f);
+                        b[i] += (hiss.Process(noise.White()) * 0.7f + roar.Process(noise.White()) * 0.9f) * envelope;
+                    }
+
+                    Synth.AddSweep(b, 0f, 300f, 900f, 1.2f, 0.05f, 1.2f, 0.18f);
+                }),
+                ["Roar"] = Make(1.6f, b =>
+                {
+                    // A giant crocodile's bellow: a low growl that swells and falls.
+                    var growl = Synth.Biquad.LowPass(420f);
+                    for (var i = 0; i < b.Length; i++)
+                    {
+                        var t = i / (float)Synth.Rate;
+                        var envelope = Mathf.Clamp01(t / 0.2f) * Mathf.Clamp01((1.55f - t) / 0.6f);
+                        var rumble = 0.6f + 0.4f * Mathf.Sin(2f * Mathf.PI * 23f * t);
+                        b[i] += growl.Process(noise.White()) * envelope * rumble * 1.4f;
+                    }
+
+                    Synth.AddSweep(b, 0f, 95f, 62f, 1.3f, 0.15f, 1.2f, 0.5f);
+                }),
+                ["Chomp"] = Make(0.6f, b =>
+                {
+                    Synth.AddSweep(b, 0f, 160f, 60f, 0.08f, 0.002f, 0.09f, 0.8f);
+                    Synth.AddNoise(b, 0f, Synth.Biquad.BandPass(1200f, 0.8f), 0.001f, 0.05f, 0.6f, noise); // the crunch
+                    Synth.AddSweep(b, 0.16f, 150f, 55f, 0.08f, 0.002f, 0.09f, 0.7f);
+                    Synth.AddNoise(b, 0.16f, Synth.Biquad.BandPass(1000f, 0.8f), 0.001f, 0.05f, 0.5f, noise);
+                }),
+                ["Thunder"] = Make(3f, b =>
+                {
+                    Synth.AddNoise(b, 0f, Synth.Biquad.HighPass(1500f), 0.002f, 0.12f, 0.5f, noise); // the crack
+                    var rumble = Synth.Biquad.LowPass(180f);
+                    for (var i = 0; i < b.Length; i++)
+                    {
+                        var t = i / (float)Synth.Rate;
+                        var envelope = Mathf.Clamp01(t / 0.08f) * Mathf.Exp(-t * 1.2f) * (0.7f + 0.3f * Mathf.Sin(t * 9f));
+                        b[i] += rumble.Process(noise.White()) * envelope * 2.2f;
+                    }
+                }),
+                ["Rain"] = MakeLoop(5f, 0.8f, b =>
+                {
+                    var patter = Synth.Biquad.HighPass(2200f);
+                    var wash = Synth.Biquad.LowPass(900f);
+                    for (var i = 0; i < b.Length; i++) b[i] += patter.Process(noise.White()) * 0.28f + wash.Process(noise.White()) * 0.12f;
+                }),
+                ["Coins"] = Make(1.1f, b =>
+                {
+                    for (var n = 0; n < 7; n++) Synth.AddBell(b, n * 0.07f, Synth.Midi(88 + (n % 3) * 4), 0.2f, 0.35f);
+                }),
+                ["Shutter"] = Make(0.3f, b =>
+                {
+                    Synth.AddNoise(b, 0f, Synth.Biquad.BandPass(2500f, 1.2f), 0.0005f, 0.012f, 0.8f, noise);
+                    Synth.AddNoise(b, 0.09f, Synth.Biquad.BandPass(1800f, 1.2f), 0.0005f, 0.015f, 0.7f, noise);
+                }),
                 ["LeafBlower"] = MakeLoop(2.2f, 0.2f, b => Engine(b, noise, 92f, 900f, 600f, 0.5f, 7f)),
                 ["HairDryer"] = MakeLoop(2.2f, 0.2f, b =>
                 {
@@ -147,6 +234,8 @@ namespace RushAhead.Render
                 Chime = Clip("Chime"), Fanfare = Clip("Fanfare"), Star = Clip("Star"), Jingle = Clip("Jingle"), Click = Clip("Click"),
                 RiverCalm = Clip("RiverCalm"), RiverRapids = Clip("RiverRapids"), LakeLapping = Clip("LakeLapping"),
                 LeafBlower = Clip("LeafBlower"), HairDryer = Clip("HairDryer"), HandFan = Clip("HandFan"), ShopVac = Clip("ShopVac"),
+                Horn = Clip("Horn"), ShieldPop = Clip("ShieldPop"), Pickup = Clip("Pickup"), Turbo = Clip("Turbo"), Roar = Clip("Roar"),
+                Chomp = Clip("Chomp"), Thunder = Clip("Thunder"), Rain = Clip("Rain"), Coins = Clip("Coins"), Shutter = Clip("Shutter"),
             };
         }
 

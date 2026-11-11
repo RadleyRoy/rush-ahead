@@ -20,7 +20,10 @@ namespace RushAhead.UI
         float lastSplitShownAt = float.NegativeInfinity;
         float previousBest;
         string opened;
+        (int venue, int start) coinedRun = (-1, -1);
+        List<CoinAward> coins;
         int lastSplitGate;
+        int shownWatched = -1;
 
         /// <summary>Where the room is in the round of play. The host decides; joined players follow.</summary>
         public RoomPhase Phase => Mode == NetMode.Joined ? client.Race.Phase : phase;
@@ -94,6 +97,7 @@ namespace RushAhead.UI
         {
             if (!CanEditRaft || rafts.Count == 0) return;
             var now = runner.World.Tick;
+            if (course != null) course.FlowBoost = 1f;
             for (var i = 0; i < rafts.Count; i++)
             {
                 var raft = rafts[i];
@@ -133,6 +137,59 @@ namespace RushAhead.UI
         /// <summary>The AI crewmates' skill as the room plays it: in a Team Race the spares are always AI, at least Clumsy.</summary>
         byte RoomAiSkill => Local.AiSetting >= 0 ? (byte)Local.AiSetting : raftCount > 1 ? (byte)0 : RaceMessage.AiOff;
 
+        /// <summary>This round's weather: the host's choice, or for Random, dealt from the round's seed. Always clear in the lagoon.</summary>
+        Weather RoundWeather => venue == 0 ? Weather.Clear : Mode == NetMode.Joined ? client.Race.Weather : WeatherDeal.For(weatherChoice, layoutSeed);
+
+        /// <summary>The lobby's weather choice: a weather, or <see cref="WeatherDeal.Random"/>. Joined, the host's round's weather.</summary>
+        public int WeatherChoice => Mode == NetMode.Joined ? (int)RoundWeather : weatherChoice;
+
+        /// <summary>The weather on the course now.</summary>
+        public Weather CurrentWeather => shownWeather;
+
+        public void SetWeatherChoice(int choice)
+        {
+            if (!CanEditRaft || phase == RoomPhase.Racing) return;
+            weatherChoice = Mathf.Clamp(choice, 0, WeatherDeal.Random);
+            PlayerPrefs.SetInt(WeatherKey, weatherChoice);
+            ApplyWeather(false);
+            SendRace();
+        }
+
+        /// <summary>Puts this round's weather on the course: its look, and in the rain its gusts. Again whenever the venue or the weather changes.</summary>
+        void ApplyWeather(bool newVenue)
+        {
+            if (weatherView == null) return;
+            var weather = RoundWeather;
+            if (course != null) course.Gusts = weather == Weather.Rain ? new Gusts(layoutSeed) : null;
+            weatherView.Show(weather, course != null ? course.Def.scene : null, newVenue);
+            if (courseView != null) courseView.SetNight(weather == Weather.Night);
+            shownWeather = weather;
+        }
+
+        /// <summary>Old Snapjaw now: the host's, or a joined player's from the snapshots. Not up on any other course.</summary>
+        (bool present, Vector2 position, float angleRad, BossMood mood, int chomps) BossState()
+        {
+            if (course?.Hazards?.Boss == null) return default;
+            if (Mode == NetMode.Joined)
+            {
+                if (client.Boats.Count == 0) return default;
+                var seen = client.Boats[0].Boss;
+                return (seen.Present, seen.Position, seen.AngleRad, (BossMood)seen.Mood, seen.Chomps);
+            }
+
+            var boss = course.Hazards.Boss;
+            return (boss.Present, boss.Position, boss.AngleRad, boss.Mood, boss.Chomps);
+        }
+
+        /// <summary>The wind where the camera's raft is, for the rain's lean.</summary>
+        (float strength, Vector2 across, float warning) GustOnScreen()
+        {
+            if (course == null || course.Gusts == null) return (0f, Vector2.zero, 0f);
+            var (strength, side, warning) = course.Hazards.Gust(ClockSeconds());
+            var at = course.River.Project(ViewedBoat.RenderPosition);
+            return (strength, new Vector2(-at.Tangent.y, at.Tangent.x) * side, warning);
+        }
+
         /// <summary>Tells joined players what's on: the venue, the race start, the room's phase and the AI crewmates.</summary>
         void SendRace() => host?.SetRace(new RaceMessage
         {
@@ -141,6 +198,8 @@ namespace RushAhead.UI
             Phase = phase,
             AiSkill = RoomAiSkill,
             LayoutSeed = (uint)layoutSeed,
+            Mode = raceMode,
+            Weather = RoundWeather,
         });
 
         void StepRace(int tick)
@@ -152,6 +211,7 @@ namespace RushAhead.UI
             }
 
             if (course == null || Mode == NetMode.Joined) return;
+            if (raceMode == GameMode.Elimination && phase == RoomPhase.Racing) Knockouts(tick);
             course.ResetStrays();
             boatsOnCourse.Clear();
             foreach (var raft in rafts) boatsOnCourse.Add(raft.Boat);
@@ -159,12 +219,38 @@ namespace RushAhead.UI
         }
 
         readonly List<Boat> boatsOnCourse = new();
+        readonly List<int> knockPassed = new();
+        readonly List<bool> knockOuts = new();
+        readonly List<int> knocked = new();
+
+        /// <summary>Elimination, host: the last rafts through each knockout gate go out, and the river speeds up for each raft out.</summary>
+        void Knockouts(int tick)
+        {
+            knockPassed.Clear();
+            knockOuts.Clear();
+            foreach (var raft in rafts)
+            {
+                if (raft.Race == null) return;
+                if (raft.Boat.Out && !raft.Boat.Sunk) raft.Race.KnockOut(tick); // out of lives: it sinks out of the way too
+                knockPassed.Add(raft.Boat.GatesPassed);
+                knockOuts.Add(raft.Boat.Out);
+            }
+
+            KnockoutRule.Decide(knockPassed, knockOuts, course.Gates.Count, knocked);
+            foreach (var i in knocked) rafts[i].Race.KnockOut(tick);
+            var outs = 0;
+            foreach (var raft in rafts)
+                if (raft.Boat.Out) outs++;
+            course.FlowBoost = KnockoutRule.FlowBoost(rafts.Count, outs);
+        }
 
         /// <summary>The race clock in seconds: the host's tick, or the tick a joined player is drawing. Obstacles run on it.</summary>
         /// <summary>The race clock in seconds, as this device poses the obstacles.</summary>
         public double ObstacleClock => ClockSeconds();
 
-        double ClockSeconds() => exhibitClock?.Invoke() ?? (Mode == NetMode.Joined ? PlaybackTick : runner.World.Tick) / config.tickRate;
+        double ClockSeconds() =>
+            PhotoStage != PhotoFinishStage.None ? photoClock // the obstacles posed as they were, for the photo finish
+            : exhibitClock?.Invoke() ?? (Mode == NetMode.Joined ? PlaybackTick : runner.World.Tick) / config.tickRate;
 
         /// <summary>For the AI: where across the river to aim to keep clear of the wheels, geysers and crocodiles there.</summary>
         float SteerAcross(float from, float to, float across) =>
@@ -186,7 +272,7 @@ namespace RushAhead.UI
                 outTicks.Add(raft.Boat.OutTick);
             }
 
-            if (!ResultsRule.Due(finishTicks, outTicks, runner.World.Tick, config.tickRate)) return;
+            if (!ResultsRule.Due(finishTicks, outTicks, runner.World.Tick, config.tickRate, raceMode == GameMode.Elimination)) return;
             phase = RoomPhase.Results;
             SendRace();
         }
@@ -197,15 +283,36 @@ namespace RushAhead.UI
             CheckForResults();
             if (course != null && exhibitClock == null)
                 course.Hazards.RaceStart = Phase == RoomPhase.Lobby ? double.NaN : (Mode == NetMode.Joined ? clientRaceStart : StartTick) / (double)config.tickRate;
-            var boat = ViewedBoat;
-            if (boat == null) return;
-            if (boat.TeleportCount != shownTeleports)
+            if (Phase != RoomPhase.Racing)
             {
-                shownTeleports = boat.TeleportCount; // a respawn or restart: cut the camera there, don't swoop
-                chase.SnapTo(boat.RenderPosition, boat.RenderAngleRad);
+                watchedRaft = -1; // every race starts on your own raft
+                seenOut.Clear();
+            }
+            var viewed = ViewedBoat;
+            if (viewed == null) return;
+            if (viewed.TeleportCount != shownTeleports || WatchedRaft != shownWatched)
+            {
+                shownTeleports = viewed.TeleportCount; // a respawn, a restart or a switch to another raft: cut there, don't swoop
+                shownWatched = WatchedRaft;
+                chase.SnapTo(viewed.RenderPosition, viewed.RenderAngleRad);
             }
 
-            if (courseView != null) courseView.ShowProgress(boat.GatesPassed);
+            var boat = OwnBoat;
+            if (boat == null) return;
+            var elimination = Elimination;
+            for (var raft = 0; raft < Rafts; raft++)
+                if (ViewOf(raft) is { } view)
+                {
+                    view.Sinks = elimination;
+                    view.Lantern = shownWeather == Weather.Night;
+                    if (view.Effects != null) view.Effects.Close = raft == WatchedRaft;
+                }
+            if (courseView != null)
+            {
+                if (exhibitClock == null) // the gallery sets its own banners
+                    courseView.ShowKnockouts(elimination && venue > 0 ? KnockoutRule.Gates(Rafts, courses[venue - 1].gates.Length) : null);
+                courseView.ShowProgress(viewed.GatesPassed);
+            }
             if (venue == 0)
             {
                 Run = default;
@@ -243,6 +350,7 @@ namespace RushAhead.UI
                 MyRaft = MyRaft,
                 Winner = -1,
                 MyProgress = Progress(boat),
+                Mode = RaceMode,
             };
 
             // Splits: the time at each checkpoint, against the best run's at the same one.
@@ -251,6 +359,30 @@ namespace RushAhead.UI
             {
                 lastSplitGate = tracker.LastGate;
                 if (lastSplitGate > 0) lastSplitShownAt = Time.unscaledTime;
+            }
+
+            info.BossCourse = def.boss;
+            info.BossBehind = -1f;
+            var (bossUp, bossAt, _, bossMood, _) = BossState();
+            if (racing && bossUp && bossMood is BossMood.Chasing or BossMood.Lunging or BossMood.Surging)
+            {
+                var behind = course.River.Project(ViewedBoat.RenderPosition).Distance - course.River.Project(bossAt).Distance;
+                if (behind > -2f)
+                {
+                    info.BossBehind = Mathf.Max(0f, behind - BossCroc.JawReach);
+                    info.BossLunging = bossMood is BossMood.Lunging or BossMood.Surging;
+                }
+            }
+
+            if (racing && course != null && course.Gusts != null && chase != null)
+            {
+                var (strength, side, warning) = course.Hazards.Gust(ClockSeconds());
+                var at = course.River.Project(ViewedBoat.RenderPosition);
+                var blowing = new Vector2(-at.Tangent.y, at.Tangent.x) * side;
+                var forward = chase.Forward;
+                info.GustStrength = strength;
+                info.GustWarning = warning;
+                info.GustScreenSide = Vector2.Dot(blowing, new Vector2(forward.y, -forward.x)) >= 0f ? 1 : -1;
             }
 
             info.Splits = tracker.Splits;
@@ -262,7 +394,7 @@ namespace RushAhead.UI
             // Team Race: how the other raft is doing, and who crossed the line first (ties go to the lower tick; then Red).
             if (Rafts > 1)
             {
-                var rival = RaftState(1 - MyRaft);
+                var rival = Rafts == 2 ? RaftState(1 - MyRaft) : null;
                 if (rival != null)
                 {
                     info.RivalGatesPassed = rival.GatesPassed;
@@ -283,7 +415,9 @@ namespace RushAhead.UI
                 }
             }
 
-            if (info.Finished && racing && recordedRun != (venue, start))
+            if (elimination) Standings(ref info, def, racing);
+
+            if (info.Finished && racing && !elimination && recordedRun != (venue, start))
             {
                 // Every device keeps its own best for each course, from the host's time.
                 recordedRun = (venue, start);
@@ -300,8 +434,73 @@ namespace RushAhead.UI
 
             info.PreviousBest = info.Finished && racing ? previousBest : info.Best;
             info.Opened = info.Finished && racing ? opened : null;
+
+            // Coins once the results are in, each device paying its own player (not one only watching).
+            if (Phase == RoomPhase.Results && HasOwnSeat && coinedRun != (venue, start))
+            {
+                coinedRun = (venue, start);
+                coins = CoinRules.For(info.Stars, info.TeamRace && info.Winner == info.MyRaft, elimination ? info.Place : 0, info.NewBest, def.boss && info.Finished);
+                Records.AddCoins(CoinRules.Total(coins));
+            }
+
+            info.Coins = Phase == RoomPhase.Results && coinedRun == (venue, start) ? coins : null;
             Run = info;
         }
+
+        readonly List<int> fieldFinish = new();
+        readonly List<int> fieldOutTicks = new();
+        readonly List<bool> fieldOuts = new();
+        readonly List<float> fieldProgress = new();
+
+        /// <summary>Elimination: places, who's out, the knockout gates, and the river's speed-up as every device sees it.</summary>
+        void Standings(ref RaceInfo info, Content.CourseDef def, bool racing)
+        {
+            fieldFinish.Clear();
+            fieldOutTicks.Clear();
+            fieldOuts.Clear();
+            fieldProgress.Clear();
+            var outs = 0;
+            for (var raft = 0; raft < Rafts; raft++)
+            {
+                var state = RaftState(raft);
+                var gone = state != null && state.Out;
+                fieldFinish.Add(state?.FinishTick ?? 0);
+                fieldOutTicks.Add(gone ? Mathf.Max(1, OutTickOf(raft)) : 0);
+                fieldOuts.Add(gone);
+                fieldProgress.Add(Progress(state));
+                if (gone) outs++;
+            }
+
+            info.Places = KnockoutRule.Places(fieldFinish, fieldOutTicks, fieldProgress);
+            info.Place = System.Array.IndexOf(info.Places, MyRaft) + 1;
+            info.FieldProgress = fieldProgress.ToArray();
+            info.FieldOut = fieldOuts.ToArray();
+            info.KnockoutGates = KnockoutRule.Gates(Rafts, def.gates.Length);
+            foreach (var gate in info.KnockoutGates)
+                if (gate > info.GatesPassed)
+                {
+                    info.NextKnockout = gate;
+                    break;
+                }
+
+            info.Winner = racing ? KnockoutRule.Winner(fieldFinish, fieldOuts) : -1;
+            if (course != null)
+            {
+                course.FlowBoost = racing ? KnockoutRule.FlowBoost(Rafts, outs) : 1f; // the host's own is set as it steps; the same number
+                if (courseView != null) courseView.SetFlowBoost(course.FlowBoost);
+            }
+        }
+
+        /// <summary>When a raft went out, for placing: the host knows the tick; joined players only the order they saw it in.</summary>
+        int OutTickOf(int raft)
+        {
+            if (Mode != NetMode.Joined) return raft < rafts.Count ? rafts[raft].Boat.OutTick : 0;
+            while (seenOut.Count <= raft) seenOut.Add(0);
+            if (seenOut[raft] == 0) seenOut[raft] = Mathf.Max(1, (int)PlaybackTick);
+            return seenOut[raft];
+        }
+
+        readonly List<int> seenOut = new();
 
         /// <summary>Every star this device has won, best of Co-op and Team Race on each course: they open the later courses.</summary>
         public int TotalStars => Records.TotalStars(courses);

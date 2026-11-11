@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: Ace
   m_EditorClassIdentifier: RushAhead.Content::RushAhead.Content.AiProfile
   displayName: Ace
-  blurb: "Sharp: holds a clean line, bursts when stuck, braces in time."
+  blurb: 'Sharp: holds a clean line, bursts when stuck, braces in time.'
   cruiseSpeed: 7.1
   reactionSeconds: 0.15
   aimWobbleDeg: 4
@@ -22,3 +22,4 @@ MonoBehaviour:
   panicLean: 0.6
   burstWhenStuck: 0.9
   daydream: 0
+  fastLines: 1

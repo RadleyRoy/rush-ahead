@@ -91,10 +91,6 @@ MonoBehaviour:
   - 329.3601
   flow: 4.4
   rocks:
-  - position: {x: 51.331535, y: 10.228128}
-    radius: 3.5
-  - position: {x: 91.31805, y: 18.302645}
-    radius: 4
   - position: {x: 127.779625, y: -1.9939251}
     radius: 3.2
   barrels:
@@ -106,6 +102,12 @@ MonoBehaviour:
   logs: []
   currents: []
   whirlpools: []
+  islands:
+  - distance: 58.82577
+    length: 37.105854
+    across: -2.5
+    halfWidth: 4.5
+    fastSide: -1
   menu:
   - kind: 3
     weight: 1.5
@@ -133,16 +135,14 @@ MonoBehaviour:
     weight: 1
   - kind: 17
     weight: 1
-  - kind: 31
-    weight: 1
   - kind: 38
     weight: 1
   - kind: 27
     weight: 1
   - kind: 24
     weight: 1
-  minObstacles: 8
-  maxObstacles: 11
+  minObstacles: 7
+  maxObstacles: 10
   wheels: []
   crocodiles: []
   swingers: []
@@ -169,3 +169,6 @@ MonoBehaviour:
   netBoats: []
   extras: []
   boosts: []
+  crates: []
+  boss: 0
+  extraCrates: 0

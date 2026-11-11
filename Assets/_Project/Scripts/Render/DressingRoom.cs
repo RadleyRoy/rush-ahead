@@ -16,6 +16,7 @@ namespace RushAhead.Render
         ArtPalette palette;
         CrewCatalog catalog;
         Transform stand;
+        MeshRenderer tube;
         AnimalView animal;
         AirPuffs puffs;
         Loadout shown;
@@ -37,7 +38,7 @@ namespace RushAhead.Render
 
             var water = Shapes3D.MeshObject("Water", Shapes3D.Disc(14f), root.transform, new Vector3(0f, -0.02f, 0f), palette.water);
             water.transform.localScale = Vector3.one;
-            Shapes3D.MeshObject("Tube", Shapes3D.Torus(1.25f, 0.32f), root.transform, new Vector3(0f, 0.2f, 0f), palette.raftTube);
+            room.tube = Shapes3D.MeshObject("Tube", Shapes3D.Torus(1.25f, 0.32f), root.transform, new Vector3(0f, 0.2f, 0f), palette.raftTube).GetComponent<MeshRenderer>();
             Shapes3D.Primitive(PrimitiveType.Cylinder, root.transform, new Vector3(0f, 0.08f, 0f), new Vector3(2.4f, 0.06f, 2.4f), palette.raftFloor, name: "Deck");
             room.stand = Shapes3D.Group(root.transform, "Stand", new Vector3(0f, 0.12f, 0f));
             room.stand.localRotation = Quaternion.Euler(0f, 200f, 0f);
@@ -55,7 +56,8 @@ namespace RushAhead.Render
             if (animal != null) Destroy(animal.gameObject);
 
             var blower = catalog.BlowerOf(look);
-            animal = AnimalView.Build(stand, catalog.SpeciesOf(look).shape, catalog.FurOf(look), seatColour, blower, palette);
+            animal = AnimalView.Build(stand, catalog.SpeciesOf(look).shape, catalog.FurOf(look), seatColour, blower, palette, look.Hat, look.Paint);
+            tube.sharedMaterial = RaftSkins.For(palette, look.Skin, null);
             animal.transform.localScale = Vector3.one * 1.15f;
             puffs = AirPuffs.Attach(animal.Nozzle, palette.air);
             puffs.Configure(blower);

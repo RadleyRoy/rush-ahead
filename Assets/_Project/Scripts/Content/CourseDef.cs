@@ -425,6 +425,43 @@ namespace RushAhead.Content
         }
     }
 
+    /// <summary>A power-up crate bobbing on the water, dealt with the round's layout.</summary>
+    [Serializable]
+    public struct CrateSpot
+    {
+        [Tooltip("Where it bobs, down the river.")] public float distance;
+        [Tooltip("And across it (positive is the left).")] public float across;
+
+        public CrateSpot(float distance, float across)
+        {
+            this.distance = distance;
+            this.across = across;
+        }
+    }
+
+    /// <summary>
+    /// An island splitting the river in two: a narrow fast line on one side (stronger water, a boost lane, and something
+    /// in the way) and a wider, calmer safe line on the other. Part of the course's shape, the same every round.
+    /// </summary>
+    [Serializable]
+    public struct IslandSpot
+    {
+        [Tooltip("Where its nose points up the river, in metres down it.")] public float distance;
+        [Tooltip("Nose to tail, in metres.")] [Min(10f)] public float length;
+        [Tooltip("Its middle, across the river from the river's middle (positive is the left).")] public float across;
+        [Tooltip("Half its width where it's widest.")] [Min(1f)] public float halfWidth;
+        [Tooltip("Which side the fast line runs: +1 the left, -1 the right.")] public float fastSide;
+
+        public IslandSpot(float distance, float length, float across, float halfWidth, float fastSide)
+        {
+            this.distance = distance;
+            this.length = length;
+            this.across = across;
+            this.halfWidth = halfWidth;
+            this.fastSide = fastSide;
+        }
+    }
+
     /// <summary>The kinds of obstacle a course can be dealt each round (see <see cref="CourseDef.menu"/>).</summary>
     public enum ObstacleKind
     {
@@ -501,6 +538,9 @@ namespace RushAhead.Content
 
         /// <summary>Red sandstone walls, desert scrub and green-brown water.</summary>
         Canyon,
+
+        /// <summary>Dark mud banks, mossy trees, mist and murky olive water.</summary>
+        Swamp,
     }
 
     /// <summary>
@@ -536,6 +576,7 @@ namespace RushAhead.Content
         public LogSpot[] logs = Array.Empty<LogSpot>();
         public CurrentZone[] currents = Array.Empty<CurrentZone>();
         public WhirlpoolSpot[] whirlpools = Array.Empty<WhirlpoolSpot>();
+        [Tooltip("Islands splitting the river into a fast line and a safe line.")] public IslandSpot[] islands = Array.Empty<IslandSpot>();
 
         [Header("Obstacles dealt each round")]
         [Tooltip("The kinds of obstacle this course deals a fresh random layout from every round, and how often each comes up. " +
@@ -571,6 +612,13 @@ namespace RushAhead.Content
         public CrossingSpot[] netBoats = Array.Empty<CrossingSpot>();
         [Tooltip("The newer obstacles (kraken, tidal bore, jump ramp...), each with its kind.")] public ObstacleSpot[] extras = Array.Empty<ObstacleSpot>();
         public BoostSpot[] boosts = Array.Empty<BoostSpot>();
+        [Tooltip("Power-up crates, for a fixed layout.")] public CrateSpot[] crates = Array.Empty<CrateSpot>();
+
+        [Tooltip("Old Snapjaw, a giant crocodile, chases the rafts down this river.")]
+        public bool boss;
+
+        [Tooltip("More power-up crates than usual dealt each round (the boss course).")]
+        [Min(0)] public int extraCrates;
 
         /// <summary>Whether every round deals a fresh random layout (otherwise the fixed lists are the layout).</summary>
         public bool HasMenu => menu != null && menu.Length > 0;

@@ -34,22 +34,8 @@ namespace RushAhead.EditorTools
             EditorUtility.SetDirty(material);
         }
 
-        /// <summary>One rubber panel (u along the tube, v round it): a lap seam at each end, two seams along the top, faint mottling.</summary>
-        static float Rubber(float u, float v)
-        {
-            var shade = 0.93f + 0.03f * (Mathf.PerlinNoise(u * 9f, v * 9f) - 0.5f);
-            var across = Mathf.Min(u, 1f - u) * 256f;
-            if (across < 1.5f) shade -= 0.25f; // the joint
-            else if (across < 6f) shade += 0.04f; // the overlapping lap
-            foreach (var seam in new[] { 0.14f, 0.36f })
-            {
-                var d = Mathf.Abs(v - seam) * 256f;
-                if (d < 1.2f) shade -= 0.18f;
-                else if (d < 3.5f) shade += 0.03f;
-            }
-
-            return shade;
-        }
+        /// <summary>One rubber panel (shared with the shop's raft skins, which are drawn over the same panels).</summary>
+        static float Rubber(float u, float v) => RaftSkins.RubberShade(u, v);
 
         /// <summary>A plain weave: threads over and under, a little uneven.</summary>
         static float Fabric(float u, float v)

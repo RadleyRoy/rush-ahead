@@ -34,10 +34,10 @@ namespace RushAhead.Render
         /// Builds a kind under <paramref name="root"/>. Returns where the air leaves (or, for the vac, goes in) and the
         /// part that moves: the bellows' boards and folds that squeeze, the fan that waves. Null for the rest.
         /// </summary>
-        public static (Vector3 nozzle, Transform moving) Build(BlowerKind kind, Transform root, Color colour, ArtPalette palette)
+        /// <param name="paint">A paint from the shop (<see cref="Cosmetics.Paints"/>); 0 keeps the factory colour.</param>
+        public static (Vector3 nozzle, Transform moving) Build(BlowerKind kind, Transform root, Color colour, ArtPalette palette, int paint = 0)
         {
-            var body = palette.Tinted(palette.animal, colour);
-            var light = palette.Tinted(palette.animal, Color.Lerp(colour, Color.white, 0.5f));
+            var (body, light) = BlowerPaints.Materials(paint, colour, palette);
             var trim = palette.blowerTrim;
             var dark = palette.eyeDark;
             var along = Quaternion.Euler(90f, 0f, 0f); // a cylinder's axis is its y: point it forward

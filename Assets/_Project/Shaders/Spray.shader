@@ -16,6 +16,7 @@ Shader "RushAhead/Spray"
         _Spin("Spin (turns a second)", Float) = 0
         _Rise("Rise (metres a second)", Float) = 0
         _AlongZ("Streaks along z instead of y", Float) = 0
+        _Glow("Glow: its own colour whatever the light (lamps, lanterns)", Range(0, 1)) = 0
         [Enum(UnityEngine.Rendering.CullMode)] _Cull("Cull", Float) = 2
     }
 
@@ -50,6 +51,7 @@ Shader "RushAhead/Spray"
                 float _Spin;
                 float _Rise;
                 float _AlongZ;
+                half _Glow;
             CBUFFER_END
 
             struct Attributes
@@ -108,7 +110,7 @@ Shader "RushAhead/Spray"
                 float lengthways = sin(2.0 * PI * (along - _Rise * t) / max(0.05, _Spacing));
                 half streak = saturate(0.5 + 0.5 * ring * 0.7 + 0.5 * lengthways * 0.45);
 
-                half3 colour = _BaseColor.rgb * light;
+                half3 colour = lerp(_BaseColor.rgb * light, _BaseColor.rgb, _Glow);
                 colour = lerp(colour, colour * (0.8 + 0.45 * streak), _Streaks);
                 colour += rim * 0.12;
                 half alpha = _BaseColor.a * saturate(1.0 + _Rim * rim - 0.25 * _Rim);

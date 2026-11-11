@@ -16,16 +16,19 @@ namespace RushAhead.UI
         public static bool Due(IReadOnlyList<int> finishTicks, int nowTick, int tickRate) => Due(finishTicks, null, nowTick, tickRate);
 
         /// <param name="outTicks">Each raft's tick it ran out of lives, or 0. Out counts as done; only finishers start the Team Race wait.</param>
-        public static bool Due(IReadOnlyList<int> finishTicks, IReadOnlyList<int> outTicks, int nowTick, int tickRate)
+        /// <param name="lastOneStanding">Elimination: once every raft but one is out the race is decided, finished or not.</param>
+        public static bool Due(IReadOnlyList<int> finishTicks, IReadOnlyList<int> outTicks, int nowTick, int tickRate, bool lastOneStanding = false)
         {
             var lastDone = 0;
-            var allDone = finishTicks.Count > 0;
+            var undone = 0;
             for (var i = 0; i < finishTicks.Count; i++)
             {
                 var done = finishTicks[i] > 0 ? finishTicks[i] : outTicks != null && i < outTicks.Count ? outTicks[i] : 0;
-                if (done <= 0) allDone = false;
+                if (done <= 0) undone++;
                 else if (done > lastDone) lastDone = done;
             }
+
+            var allDone = finishTicks.Count > 0 && (undone == 0 || (lastOneStanding && finishTicks.Count > 1 && undone == 1 && lastDone > 0));
 
             if (allDone && nowTick - lastDone >= AfterLastFinishSeconds * tickRate) return true;
             return TeamRaceWaitOver(finishTicks, nowTick, tickRate);

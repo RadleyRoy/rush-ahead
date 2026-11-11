@@ -13,6 +13,11 @@ namespace RushAhead.Render
         static readonly Color Pink = new(1f, 0.62f, 0.7f);
 
         Transform figure;
+        Transform head;
+        Transform hatModel;
+        AnimalShape shape;
+        int shownHat;
+        int shownPaint;
         Transform blowerRoot;
         Transform blowerModel;
         Transform moving;
@@ -35,12 +40,17 @@ namespace RushAhead.Render
         /// <summary>Just above the head (and a bunny's ears), where a name tag goes.</summary>
         public Transform TagAnchor { get; private set; }
 
-        public static AnimalView Build(Transform parent, AnimalShape shape, Color fur, Color playerColor, BlowerDef blower, ArtPalette palette)
+        /// <param name="hat">A hat from the shop (<see cref="Cosmetics.Hats"/>), 0 for none.</param>
+        /// <param name="paint">The blower's paint from the shop (<see cref="Cosmetics.Paints"/>), 0 for the factory finish.</param>
+        public static AnimalView Build(Transform parent, AnimalShape shape, Color fur, Color playerColor, BlowerDef blower, ArtPalette palette,
+                                       int hat = 0, int paint = 0)
         {
             var root = new GameObject($"{shape}").transform;
             root.SetParent(parent, false);
             var view = root.gameObject.AddComponent<AnimalView>();
             view.palette = palette;
+            view.shape = shape;
+            view.shownPaint = paint;
             view.figure = Shapes3D.Group(root, "Figure");
             view.TagAnchor = Shapes3D.Group(view.figure, "Tag anchor", new Vector3(0f, 1.5f, 0f));
             if (palette.HasSculpted((int)shape)) view.BuildSculpted(shape, fur);
@@ -50,6 +60,7 @@ namespace RushAhead.Render
                 palette.Tinted(palette.animal, playerColor), name: "Collar");
             view.BuildBlower();
             view.SetBlower(blower);
+            view.SetHat(hat);
 
             // The eyes (whites and pupils), for blinking and going wide with alarm.
             var parts = view.figure.GetComponentsInChildren<Transform>();
@@ -65,7 +76,7 @@ namespace RushAhead.Render
         {
             var body = Shapes3D.MeshObject("Body", palette.animalMeshes[(int)shape], figure, Vector3.zero, palette.Fur(fur, Color.Lerp(fur, Color.white, 0.5f), Pink));
             body.GetComponent<MeshRenderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On;
-            var head = Shapes3D.Group(figure, "Head", AnimalSculptures.Head);
+            var head = this.head = Shapes3D.Group(figure, "Head", AnimalSculptures.Head);
             var eye = AnimalSculptures.EyeOffset;
             foreach (var side in new[] { -1f, 1f })
             {
@@ -84,7 +95,7 @@ namespace RushAhead.Render
             foreach (var side in new[] { -1f, 1f })
                 Shapes3D.Primitive(PrimitiveType.Sphere, f, new Vector3(0.13f * side, 0.05f, 0.06f), new Vector3(0.18f, 0.09f, 0.24f), furMaterial, name: "Foot");
 
-            var head = Shapes3D.Group(f, "Head", new Vector3(0f, 0.96f, 0.04f));
+            var head = this.head = Shapes3D.Group(f, "Head", new Vector3(0f, 0.96f, 0.04f));
             Shapes3D.Primitive(PrimitiveType.Sphere, head, Vector3.zero, Vector3.one * 0.5f, furMaterial, name: "Skull");
             foreach (var side in new[] { -1f, 1f })
             {
@@ -156,11 +167,30 @@ namespace RushAhead.Render
             Nozzle = Shapes3D.Group(blowerRoot, "Nozzle", new Vector3(0f, 0f, 0.6f)); // kept across blower changes: the air and its sound hang off it
         }
 
-        /// <summary>Holds this blower: its own model in its own colour, with the nozzle moved to its tip.</summary>
-        public void SetBlower(BlowerDef blower)
+        /// <summary>Wears this hat from the shop (0 for none), on top of its head.</summary>
+        public void SetHat(int hat)
         {
-            if (blower == shownBlower && blowerModel != null) return;
+            if (hat == shownHat && (hatModel != null || hat == 0)) return;
+            shownHat = hat;
+            if (hatModel != null)
+            {
+                if (Application.isPlaying) Destroy(hatModel.gameObject);
+                else DestroyImmediate(hatModel.gameObject);
+            }
+
+            hatModel = head != null ? HatModels.Build(hat, head, shape, palette) : null;
+        }
+
+        /// <summary>
+        /// Holds this blower: its own model in its own colour (or the shop paint, <paramref name="paint"/>; -1 keeps the one it
+        /// has), with the nozzle moved to its tip.
+        /// </summary>
+        public void SetBlower(BlowerDef blower, int paint = -1)
+        {
+            if (paint < 0) paint = shownPaint;
+            if (blower == shownBlower && paint == shownPaint && blowerModel != null) return;
             shownBlower = blower;
+            shownPaint = paint;
             if (blowerModel != null)
             {
                 if (Application.isPlaying) Destroy(blowerModel.gameObject);
@@ -169,7 +199,7 @@ namespace RushAhead.Render
 
             kind = BlowerModels.KindOf(blower);
             blowerModel = Shapes3D.Group(blowerRoot, "Model");
-            var (nozzle, part) = BlowerModels.Build(kind, blowerModel, blower != null ? blower.color : Color.white, palette);
+            var (nozzle, part) = BlowerModels.Build(kind, blowerModel, blower != null ? blower.color : Color.white, palette, shownPaint);
             moving = part;
             Nozzle.localPosition = nozzle;
         }

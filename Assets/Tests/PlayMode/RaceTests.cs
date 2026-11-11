@@ -337,8 +337,13 @@ namespace RushAhead.Tests
         internal static void Hook(AiCrew crew, Course course, SimWorld world, SimConfig config)
         {
             crew.Water = course.WaterVelocityAt;
+            crew.Islands = course.Islands;
+            crew.ClearAhead = course.Hazards.ClearBetween;
             crew.BraceAhead = (point, lookahead) => course.Hazards.BraceNeeded(point, world.Tick / (double)config.tickRate, lookahead);
             crew.SteerAcross = (from, to, across) => course.Hazards.SteerAcross(from, to, across, world.Tick / (double)config.tickRate);
+            if (course.Hazards.Boss == null) return;
+            crew.Threat = position => course.Hazards.Boss.Near(position, 14f);
+            crew.Hunted = course.Hazards.Boss.LungingAt;
         }
 
         internal static IEnumerable<CourseDef> AllCourses()

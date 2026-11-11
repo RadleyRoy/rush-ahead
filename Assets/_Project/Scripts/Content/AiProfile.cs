@@ -47,12 +47,19 @@ namespace RushAhead.Content
         [Tooltip("How often, per second, it drifts off and stops blowing for a couple of seconds.")]
         [Range(0f, 0.5f)] public float daydream = 0.05f;
 
+        [Tooltip("Whether it takes an island's fast line (narrow, near the edge, something in the way) rather than the safe one.")]
+        public bool fastLines;
+
+        /// <summary>The skills that go for an island's fast line.</summary>
+        public static bool TakesFastLines(AiSkill skill) => skill is AiSkill.Ace or AiSkill.Keen;
+
         /// <summary>The built-in tunings. Assets made from these can be retuned in the Inspector.</summary>
         public static AiProfile Preset(AiSkill skill)
         {
             var p = CreateInstance<AiProfile>();
             p.name = skill.ToString();
             p.displayName = skill.ToString();
+            p.fastLines = TakesFastLines(skill);
             switch (skill)
             {
                 case AiSkill.Clumsy:

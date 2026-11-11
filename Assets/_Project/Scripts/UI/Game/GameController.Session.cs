@@ -190,6 +190,13 @@ namespace RushAhead.UI
         {
             StopSearching();
             host = new HostSession(transport, roster, barrelBodies);
+            host.CratesReady = () => course != null ? course.Hazards.PowerUps.ReadyMask(runner.World.Tick / (double)config.tickRate) : 0u;
+            host.Boss = () =>
+            {
+                var boss = course?.Hazards?.Boss;
+                if (boss == null || !boss.Present) return default;
+                return new BossSnapshot { Present = true, Position = boss.Position, AngleRad = boss.AngleRad, Mood = (byte)boss.Mood, Chomps = (byte)Mathf.Min(255, boss.Chomps) };
+            };
             host.OrderRequested += ApplyOrder; // any player can order the AI crew about
             runner.Ticked += host.OnTick;
             Mode = NetMode.Hosting;
@@ -282,7 +289,11 @@ namespace RushAhead.UI
             Router.SetSeats(Array.ConvertAll(client.Seats, seat => seat % crew)); // this device's controls know only its own raft
             Seats = client.Roster;
             for (var i = 0; i < joinedViews.Count; i++)
-                if (joinedViews[i] != null) joinedViews[i].Restyle(LooksOf(Seats, i, crew));
+                if (joinedViews[i] != null)
+                {
+                    joinedViews[i].Restyle(LooksOf(Seats, i, crew));
+                    joinedViews[i].SetSkin(SkinOf(Seats, i, crew));
+                }
         }
 
         void RebuildJoinedViewIfNeeded()
@@ -307,8 +318,8 @@ namespace RushAhead.UI
 
                 if (joinedViews[i] != null && joinedViewCrew[i] == boat.CrewCount) continue;
                 if (joinedViews[i] != null) Destroy(joinedViews[i].gameObject);
-                var colour = client.Rafts < 2 ? (Color?)null : i == 0 ? new Color(1f, 0.5f, 0.45f) : new Color(0.5f, 0.72f, 1f);
-                joinedViews[i] = RaftView.Build(boat, config, palette, catalog, LooksOf(Seats, i, crew), colour);
+                var colour = client.Rafts < 2 ? (Color?)null : TeamTint(i); // the same colours as the host's, for three or four rafts too
+                joinedViews[i] = RaftView.Build(boat, config, palette, catalog, LooksOf(Seats, i, crew), colour, SkinOf(Seats, i, crew));
                 joinedViewCrew[i] = boat.CrewCount;
                 if (i == client.MyRaft) chase.SnapTo(boat.RenderPosition, boat.RenderAngleRad);
             }
@@ -388,6 +399,7 @@ namespace RushAhead.UI
                 layoutSeed = (int)message.LayoutSeed; // the host's round: the same obstacles, dealt from the same seed
                 LoadVenue(message.Course);
             }
+            else if (message.Weather != shownWeather) ApplyWeather(false);
             clientRaceStart = (int)message.StartTick;
         }
     }

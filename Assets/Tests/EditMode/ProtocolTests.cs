@@ -25,12 +25,20 @@ namespace RushAhead.Tests
                 GatesPassed = 3,
                 FinishTick = 0x1234,
                 TeleportCount = 5,
+                Lives = 2,
+                Item = PowerUp.Horn,
+                Shielded = true,
+                ShieldPops = 1,
+                HornCount = 2,
+                Pickups = 3,
             };
             for (var i = 0; i < 4; i++)
                 boat.Crew.Add(new CrewSnapshot { LocalAimDeg = 45f + 90f * i - 180f, Spool = 0.25f * i, Air = 1f - 0.2f * i, Braced = i == 1, BurstCount = (byte)(i * 3), BlowerIndex = (byte)i });
             s.Boats.Add(boat);
             s.Props.Add(new PropSnapshot { Position = new Vector2(-15f, -2.7f), AngleRad = 0.5f });
             s.Props.Add(new PropSnapshot { Position = new Vector2(-13.2f, -1.8f), AngleRad = 5f });
+            s.CratesReady = 0xA5u;
+            s.Boss = new BossSnapshot { Present = true, Position = new Vector2(40.5f, -3.25f), AngleRad = 0.75f, Mood = 3, Chomps = 1 };
             return s;
         }
 
@@ -95,17 +103,22 @@ namespace RushAhead.Tests
 
             Assert.That(read.Props.Count, Is.EqualTo(2));
             Assert.That(Vector2.Distance(read.Props[1].Position, original.Props[1].Position), Is.LessThan(0.005f));
-            Assert.That(bytes.Length, Is.LessThan(100), "a 4-crew snapshot with two props should stay well under 100 bytes");
+            Assert.That((b.Lives, b.Item, b.Shielded, b.ShieldPops, b.HornCount, b.Pickups), Is.EqualTo(((byte)2, PowerUp.Horn, true, (byte)1, (byte)2, (byte)3)));
+            Assert.That(read.CratesReady, Is.EqualTo(0xA5u));
+            Assert.That(read.Boss.Present, Is.True);
+            Assert.That(Vector2.Distance(read.Boss.Position, original.Boss.Position), Is.LessThan(0.01f));
+            Assert.That((read.Boss.Mood, read.Boss.Chomps), Is.EqualTo(((byte)3, (byte)1)));
+            Assert.That(bytes.Length, Is.LessThan(110), "a 4-crew snapshot with two props and Old Snapjaw up should stay small");
         }
 
         static RosterSeat[] SampleRoster() => new[]
         {
-            new RosterSeat { Human = true, Host = true, Loadout = new Loadout { Species = 0, Fur = 0, Blower = 0, Name = "Skipper" } },
+            new RosterSeat { Human = true, Host = true, Loadout = new Loadout { Species = 0, Fur = 0, Blower = 0, Hat = 12, Skin = 8, Paint = 9, Name = "Skipper" } },
             new RosterSeat { Human = true, Yours = true, Loadout = new Loadout { Species = 4, Fur = 9, Blower = 1, Name = "Ötter" } },
             new RosterSeat { Ai = true, Loadout = new Loadout { Species = 2, Fur = 2, Blower = 3, Name = "" } },
         };
 
-        static readonly Loadout SampleProfile = new() { Species = 5, Fur = 7, Blower = 4, Name = "Radley" };
+        static readonly Loadout SampleProfile = new() { Species = 5, Fur = 7, Blower = 4, Hat = 3, Skin = 2, Paint = 1, Name = "Radley" };
         const ulong SampleDevice = 0x0123456789ABCDEF;
 
         static readonly RoomAdvert SampleAdvert = new()
@@ -224,13 +237,13 @@ namespace RushAhead.Tests
         }
 
         // Committed wire bytes: if these change, the protocol changed. Bump Protocol.Version and re-record.
-        const string InputGolden = "2002feff0080bf0107";
-        const string SnapshotGolden = "10d20400000180e9ffff40030000ee32800240ff00ffec0185ff0002033412000005000400a000ff00000000e040cc010301002080990006020060bf660009030200f1ffff4dfdffff5f14cdf2ffff33feffffb8cb";
-        const string RosterGolden = "020901030300000007536b69707065720504090106c396747465720802020300";
-        const string ProfileGolden = "2109050704065261646c6579efcdab8967452301";
-        const string AdvertGolden = "5255534809efbeadde611e02040107536b6970706572";
+        const string InputGolden = "2002feff0080bf010700";
+        const string SnapshotGolden = "10d20400000180e9ffff40030000ee32800240ff00ffec0185ff100203341200000502030102030400a000ff00000000e040cc010301002080990006020060bf660009030200f1ffff4dfdffff5f14cdf2ffff33feffffb8cba50000000180280000c0fcffff8f1e0301";
+        const string RosterGolden = "020a0103030000000c080907536b69707065720504090100000006c396747465720802020300000000";
+        const string ProfileGolden = "210a050704030201065261646c6579efcdab8967452301";
+        const string AdvertGolden = "525553480aefbeadde611e02040107536b6970706572";
         const string OrderGolden = "040300800a0000c0fdffff";
-        const string RaceGolden = "0302d2040000010178563412";
+        const string RaceGolden = "0302d20400000101785634120203";
 
         [Test]
         public void WireFormat_MatchesTheCommittedBytes()
@@ -241,7 +254,10 @@ namespace RushAhead.Tests
             var profile = Hex(Encode(w => Protocol.WriteProfile(w, SampleProfile, SampleDevice)));
             var order = Hex(Encode(w => Protocol.Write(w, new OrderMessage { Order = CrewOrder.PushHere, Point = new Vector2(10.5f, -2.25f) })));
             var advert = Hex(Encode(w => Protocol.Write(w, SampleAdvert)));
-            var race = Hex(Encode(w => Protocol.Write(w, new RaceMessage { Course = 2, StartTick = 1234, Phase = RoomPhase.Racing, AiSkill = 1, LayoutSeed = 0x12345678 })));
+            var race = Hex(Encode(w => Protocol.Write(w, new RaceMessage
+            {
+                Course = 2, StartTick = 1234, Phase = RoomPhase.Racing, AiSkill = 1, LayoutSeed = 0x12345678, Mode = GameMode.Elimination, Weather = Weather.Night,
+            })));
             var recording = $"InputGolden = \"{input}\";\nSnapshotGolden = \"{snapshot}\";\nRosterGolden = \"{roster}\";\n" +
                             $"ProfileGolden = \"{profile}\";\nAdvertGolden = \"{advert}\";\nRaceGolden = \"{race}\";\nOrderGolden = \"{order}\";";
             Assert.That(input == InputGolden && snapshot == SnapshotGolden && roster == RosterGolden && profile == ProfileGolden && advert == AdvertGolden && race == RaceGolden && order == OrderGolden,

@@ -69,20 +69,73 @@ namespace RushAhead.Render
         /// <param name="boat">The live boat on the host, or a raft rebuilt from snapshots on a client.</param>
         /// <param name="looks">Each seat's chosen animal and fur; seats beyond the list get the catalog's defaults.</param>
         /// <param name="tube">The tube's colour, to tell Team Race rafts apart; null keeps the classic peach.</param>
+        /// <param name="skin">The pattern on the tube, from the shop (<see cref="Cosmetics.Skins"/>): its captain's choice.</param>
         public static RaftView Build(IBoatState boat, SimConfig config, ArtPalette palette, CrewCatalog catalog, IReadOnlyList<Loadout> looks,
-                                     Color? tube = null)
+                                     Color? tube = null, int skin = 0)
         {
             var view = new GameObject($"Raft {boat.Index}").AddComponent<RaftView>();
             view.boat = boat;
             view.config = config;
             view.palette = palette;
             view.catalog = catalog;
-            view.BuildRaft(config.hullRadius, tube.HasValue ? palette.Tinted(palette.raftTube, tube.Value) : palette.raftTube);
+            view.tubeColour = tube;
+            view.shownSkin = skin;
+            view.BuildRaft(config.hullRadius, RaftSkins.For(palette, skin, tube));
             view.BuildSlices(config.hullRadius);
             view.BuildCrew(looks);
+            view.Effects = PowerUpEffects.Attach(view, boat, palette);
             view.shownTeleports = boat.TeleportCount;
             view.LateUpdate();
             return view;
+        }
+
+        /// <summary>Its power-ups' bubble, flames and horn.</summary>
+        public PowerUpEffects Effects { get; private set; }
+
+        /// <summary>What it draws: the live raft, or a replay of it standing in (the photo finish).</summary>
+        public IBoatState Source
+        {
+            get => boat;
+            set
+            {
+                if (value == null || value == boat) return;
+                boat = value;
+                if (Effects != null) Effects.Source = value;
+            }
+        }
+
+        GameObject lantern;
+
+        /// <summary>A lantern on a pole at the back of the raft, lit at night (a real light on the higher qualities, a glow on Low).</summary>
+        public bool Lantern
+        {
+            get => lantern != null && lantern.activeSelf;
+            set
+            {
+                if (value == Lantern) return;
+                if (lantern == null && value) BuildLantern();
+                if (lantern != null) lantern.SetActive(value);
+            }
+        }
+
+        void BuildLantern()
+        {
+            var radius = config.hullRadius;
+            var group = Shapes3D.Group(hull, "Lantern", new Vector3(0f, 0.36f, -radius + 0.2f));
+            Shapes3D.Primitive(PrimitiveType.Cylinder, group, new Vector3(0f, 0.9f, 0f), new Vector3(0.06f, 0.9f, 0.06f), palette.wood, name: "Pole");
+            var glass = Shapes3D.Primitive(PrimitiveType.Sphere, group, new Vector3(0f, 1.95f, 0f), Vector3.one * 0.34f, palette.Glow(new Color(1f, 0.82f, 0.45f, 0.95f)), name: "Flame");
+            Shapes3D.Primitive(PrimitiveType.Sphere, group, new Vector3(0f, 1.95f, 0f), Vector3.one * 0.9f, palette.Glow(new Color(1f, 0.7f, 0.3f, 0.18f)), name: "Halo");
+            if (Looks.Detail >= 0.75f)
+            {
+                var light = glass.AddComponent<Light>();
+                light.type = LightType.Point;
+                light.color = new Color(1f, 0.78f, 0.45f);
+                light.range = 14f;
+                light.intensity = 2.4f;
+                light.shadows = LightShadows.None;
+            }
+
+            lantern = group.gameObject;
         }
 
         /// <summary>Confetti, and the whole crew jumps for joy.</summary>
@@ -92,13 +145,34 @@ namespace RushAhead.Render
             foreach (var animal in animals) animal.Cheer();
         }
 
-        /// <summary>Re-dresses any animal whose species or fur changed, leaving the rest (and where they're aiming) alone.</summary>
+        Color? tubeColour;
+        int shownSkin;
+        MeshRenderer tubeRenderer;
+
+        /// <summary>Puts a different pattern on the tube (a new captain, or the captain changed it).</summary>
+        public void SetSkin(int skin)
+        {
+            if (skin == shownSkin || tubeRenderer == null) return;
+            shownSkin = skin;
+            tubeRenderer.sharedMaterial = RaftSkins.For(palette, skin, tubeColour);
+        }
+
+        /// <summary>
+        /// Re-dresses any animal whose species or fur changed, leaving the rest (and where they're aiming) alone; a new hat
+        /// or paint is put on in place.
+        /// </summary>
         public void Restyle(IReadOnlyList<Loadout> looks)
         {
             for (var seat = 0; seat < animals.Length; seat++)
             {
                 var look = LookAt(looks, seat);
-                if (look.Species == shownLook[seat].Species && look.Fur == shownLook[seat].Fur) continue;
+                if (look.Species == shownLook[seat].Species && look.Fur == shownLook[seat].Fur)
+                {
+                    animals[seat].SetHat(look.Hat);
+                    animals[seat].SetBlower(boat.CrewAt(seat).Blower, look.Paint);
+                    shownLook[seat] = look;
+                    continue;
+                }
 
                 var facing = animals[seat].transform.rotation;
                 Destroy(animals[seat].gameObject);
@@ -117,7 +191,8 @@ namespace RushAhead.Render
             hull = Shapes3D.Group(transform, "Hull");
             const float tube = 0.24f;
             Shapes3D.MeshObject("Band", Shapes3D.Torus(radius - tube, tube), hull, new Vector3(0f, 0.06f, 0f), palette.raftBand);
-            Shapes3D.MeshObject("Tube", Shapes3D.Torus(radius - tube - 0.02f, tube * 0.95f), hull, new Vector3(0f, 0.36f, 0f), tubeMaterial);
+            tubeRenderer = Shapes3D.MeshObject("Tube", Shapes3D.Torus(radius - tube - 0.02f, tube * 0.95f), hull, new Vector3(0f, 0.36f, 0f), tubeMaterial)
+                .GetComponent<MeshRenderer>();
             Shapes3D.MeshObject("Floor", Shapes3D.Disc(radius - tube), hull, new Vector3(0f, FloorHeight, 0f), palette.raftFloor);
             if (palette.rope != null) // a rope round the outside of the tube, to grab when it all goes wrong
                 Shapes3D.MeshObject("Rope", Shapes3D.Torus(radius - tube - 0.02f + tube * 0.95f + 0.012f, 0.028f, 64, 6), hull, new Vector3(0f, 0.36f, 0f), palette.rope);
@@ -152,7 +227,8 @@ namespace RushAhead.Render
         void BuildAnimal(int seat, Loadout look)
         {
             var crew = boat.CrewAt(seat);
-            var animal = animals[seat] = AnimalView.Build(hull, catalog.SpeciesOf(look).shape, catalog.FurOf(look), PlayerColor(seat), crew.Blower, palette);
+            var animal = animals[seat] = AnimalView.Build(hull, catalog.SpeciesOf(look).shape, catalog.FurOf(look), PlayerColor(seat), crew.Blower, palette,
+                look.Hat, look.Paint);
             animal.transform.localPosition = SimSpace.HullLocal(config.SeatOffset(seat, boat.CrewCount) * 0.85f, FloorHeight);
             puffs[seat] = AirPuffs.Attach(animal.Nozzle, palette.air);
             var sound = blowerSounds[seat] = animal.Nozzle.gameObject.AddComponent<AudioSource>();
@@ -187,9 +263,17 @@ namespace RushAhead.Render
             }
         }
 
+        /// <summary>Knocked out of an Elimination: the raft sinks out of the race over a couple of seconds, then is gone.</summary>
+        public bool Sinks { get; set; }
+
+        float sunk; // 0 afloat, 1 gone under
+
         void LateUpdate()
         {
             var dt = Time.deltaTime;
+            var sinking = Sinks && boat.Out;
+            sunk = sinking ? Mathf.MoveTowards(sunk, 1f, dt / 2.2f) : 0f;
+            transform.localScale = Vector3.one * (1f - Mathf.SmoothStep(0f, 1f, (sunk - 0.6f) / 0.4f)); // under, then gone
             var fallen = boat.Fallen;
             if (fallen && !wasFallen)
             {
@@ -199,7 +283,7 @@ namespace RushAhead.Render
             }
 
             var falling = fallen ? Time.time - fellAt : 0f;
-            Drop = 0.5f * FallGravity * falling * falling;
+            Drop = 0.5f * FallGravity * falling * falling + 2.6f * sunk * sunk;
             var tumble = Quaternion.AngleAxis(falling * 260f, tumbleAxis.sqrMagnitude > 0.5f ? tumbleAxis : Vector3.right);
             transform.SetPositionAndRotation(SimSpace.ToWorld(boat.RenderPosition, WaterSurface.Height(boat.RenderPosition, boat.Velocity) - Drop),
                 fallen ? tumble * SimSpace.Heading(boat.RenderAngleRad) : SimSpace.Heading(boat.RenderAngleRad));

@@ -33,6 +33,9 @@ namespace RushAhead.UI
     ///   -rushahead-name / -animal / -fur / -blower   this run's player look (not saved)
     ///   -rushahead-course &lt;n&gt;              start on course n (1 is the first course; 0 is the lagoon)
     ///   -rushahead-mode team                 Team Race: two rafts, Red against Blue
+    ///   -rushahead-mode elimination          Elimination: four rafts (-rushahead-rafts 3 for three)
+    ///   -rushahead-weather clear|rain|fog|night|random   the weather for this run (not saved)
+    ///   -rushahead-photo-any                 every Team Race and Elimination ends in a photo finish (for screenshots)
     ///   -rushahead-ai off|clumsy|keen|ace    AI crewmates in the spare seats for this run (not saved)
     ///   -rushahead-ai-all [skill]            AI drives every seat, the host's too (default: the steady autopilot)
     ///   -rushahead-autopilot                 the same as -rushahead-ai-all steady
@@ -73,6 +76,8 @@ namespace RushAhead.UI
         readonly List<RaftView> joinedViews = new(); // joined: a view over each of the host's rafts
         readonly List<int> joinedViewCrew = new();
         int raftCount = 1;
+        GameMode raceMode = GameMode.Coop;
+        int eliminationRafts = KnockoutRule.MaxRafts;
 
         // The venue: 0 is the practice lagoon, n is courses[n - 1]. Barrels are listed in an order every device agrees on.
         int venue;
@@ -85,6 +90,10 @@ namespace RushAhead.UI
         GameObject lagoon;
         Course course;
         CourseView courseView;
+        WeatherView weatherView;
+        int weatherChoice;
+        Weather shownWeather;
+        const string WeatherKey = "rushahead.weather.v1";
         AiSkill? aiDrivesEverything; // set: the AI has every seat, the host's too (demos and testing)
         int clientRaceStart;
         int shownTeleports = -1;
@@ -147,10 +156,16 @@ namespace RushAhead.UI
             }
         }
 
-        /// <summary>One raft (Co-op) or two (Team Race).</summary>
+        /// <summary>One raft (Co-op), two (Team Race) or three or four (Elimination).</summary>
         public int Rafts => Mode == NetMode.Joined ? client.Rafts : raftCount;
 
+        /// <summary>Co-op, Team Race or Elimination: the host's choice.</summary>
+        public GameMode RaceMode => Mode == NetMode.Joined ? client.Race.Mode : raceMode;
+
+        /// <summary>More than one raft: racing other rafts (Team Race or Elimination).</summary>
         public bool TeamRace => Rafts > 1;
+
+        public bool Elimination => RaceMode == GameMode.Elimination;
 
         /// <summary>Animals per raft.</summary>
         public int CrewCount => Mode == NetMode.Joined ? client.CrewCount : roster.CrewCount;
@@ -166,7 +181,16 @@ namespace RushAhead.UI
         public RaftView ViewOf(int raft) =>
             Mode == NetMode.Joined ? (raft < joinedViews.Count ? joinedViews[raft] : null) : raft < rafts.Count ? rafts[raft].View : null;
 
-        public static string TeamName(int raft) => raft == 0 ? "Red" : "Blue";
+        public static string TeamName(int raft) => raft switch { 0 => "Red", 1 => "Blue", 2 => "Green", _ => "Yellow" };
+
+        /// <summary>Each raft's colour in a race of several: Red, Blue, Green, Yellow.</summary>
+        public static Color TeamTint(int raft) => raft switch
+        {
+            0 => new Color(1f, 0.5f, 0.45f),
+            1 => new Color(0.5f, 0.72f, 1f),
+            2 => new Color(0.5f, 0.88f, 0.52f),
+            _ => new Color(1f, 0.86f, 0.38f),
+        };
         public CrewInputRouter Router { get; private set; }
 
         /// <summary>Every screen, over the world.</summary>
@@ -191,10 +215,72 @@ namespace RushAhead.UI
         /// <summary>This player's live raft. Null while joined to someone else's game: the host owns the only ones.</summary>
         public Boat Boat => MyRaft < rafts.Count ? rafts[MyRaft].Boat : null;
 
-        /// <summary>What's on screen: this player's raft, live offline or hosting, rebuilt from snapshots when joined.</summary>
-        public IBoatState ViewedBoat => Mode == NetMode.Joined ? client.Boats[client.MyRaft] : Boat;
+        /// <summary>This player's raft as drawn here: live offline or hosting, rebuilt from snapshots when joined.</summary>
+        public IBoatState OwnBoat => Mode == NetMode.Joined ? client.Boats[client.MyRaft] : Boat;
 
+        /// <summary>The raft the camera follows: this player's, or the one they chose to watch once theirs is done.</summary>
+        public IBoatState ViewedBoat => WatchedRaft == MyRaft ? OwnBoat : RaftState(WatchedRaft) ?? OwnBoat;
+
+        /// <summary>This player's raft's view (its knocks shake the camera and buzz the phone).</summary>
         public RaftView RaftView => ViewOf(MyRaft);
+
+        int watchedRaft = -1;
+
+        /// <summary>The raft being watched: <see cref="MyRaft"/> unless the player has switched to another.</summary>
+        public int WatchedRaft => watchedRaft >= 0 && watchedRaft < Rafts ? watchedRaft : MyRaft;
+
+        /// <summary>Watching some other raft than this player's own.</summary>
+        public bool WatchingOther => WatchedRaft != MyRaft;
+
+        /// <summary>The screen tour's hand on the look stick, for its screenshot; null leaves it to the player.</summary>
+        internal Vector2? TourLook;
+
+        /// <summary>Whether a raft is still on the course racing: not finished and not out.</summary>
+        bool StillRacing(int raft) => RaftState(raft) is { } state && state.FinishTick <= 0 && !state.Out;
+
+        bool HasOwnSeat => Mode != NetMode.Joined || Router.SeatForSlot(0) >= 0;
+
+        /// <summary>
+        /// Watching is on offer in a race once this player's raft has finished or is out (or they have no seat), while
+        /// another raft is still racing, or while they're already watching one.
+        /// </summary>
+        public bool CanWatch
+        {
+            get
+            {
+                if (Phase != RoomPhase.Racing || course == null || Rafts < 2) return false;
+                if (WatchingOther) return true;
+                var own = OwnBoat;
+                if (HasOwnSeat && own != null && own.FinishTick <= 0 && !own.Out) return false;
+                for (var raft = 0; raft < Rafts; raft++)
+                    if (raft != MyRaft && StillRacing(raft)) return true;
+                return false;
+            }
+        }
+
+        /// <summary>The raft a tap on Watch switches to: the next one still racing, or back to this player's own.</summary>
+        public int NextToWatch
+        {
+            get
+            {
+                for (var step = 1; step < Rafts; step++)
+                {
+                    var raft = (WatchedRaft + step) % Rafts;
+                    if (raft == MyRaft) return MyRaft;
+                    if (StillRacing(raft)) return raft;
+                }
+
+                return MyRaft;
+            }
+        }
+
+        /// <summary>Switch the camera to the next raft still racing, or back to this player's own.</summary>
+        public void WatchNext()
+        {
+            if (!CanWatch) return;
+            var next = NextToWatch;
+            watchedRaft = next == MyRaft ? -1 : next;
+        }
 
         /// <summary>What the menu camera shows: this player's raft, or in the lobby of a Team Race both rafts, and the way they face.</summary>
         public (Vector2 position, float heading) ShowcaseSubject
@@ -203,9 +289,17 @@ namespace RushAhead.UI
             {
                 var mine = ViewedBoat;
                 if (mine == null) return default;
-                var other = Rafts > 1 && Phase == RoomPhase.Lobby ? RaftState(1 - MyRaft) : null;
-                var position = other != null ? (mine.RenderPosition + other.RenderPosition) * 0.5f : mine.RenderPosition;
-                return (position, mine.RenderAngleRad);
+                if (Rafts < 2 || Phase != RoomPhase.Lobby) return (mine.RenderPosition, mine.RenderAngleRad);
+                var sum = Vector2.zero; // in the lobby of a race of several, frame them all
+                var count = 0;
+                for (var raft = 0; raft < Rafts; raft++)
+                {
+                    if (RaftState(raft) is not { } state) continue;
+                    sum += state.RenderPosition;
+                    count++;
+                }
+
+                return (count > 0 ? sum / count : mine.RenderPosition, mine.RenderAngleRad);
             }
         }
 
@@ -229,16 +323,21 @@ namespace RushAhead.UI
             runner = gameObject.AddComponent<SimRunner>();
             runner.Init(config);
             runner.Ticked += StepRace; // ahead of the host's snapshots, so each one carries that tick's progress
+            weatherChoice = Mathf.Clamp(PlayerPrefs.GetInt(WeatherKey, 0), 0, WeatherDeal.Random);
+            weatherView = WeatherView.Create(palette);
+            weatherView.Gust = GustOnScreen;
             LoadVenue(0);
 
             chase = Camera.main.gameObject.AddComponent<ChaseCamera>();
             SpeedLines.Attach(chase, palette);
             chase.TargetPosition = () => ViewedBoat.RenderPosition;
             chase.TargetVelocity = () => ViewedBoat.Velocity;
-            chase.TargetDrop = () => RaftView != null ? RaftView.Drop : 0f;
+            chase.TargetDrop = () => ViewOf(WatchedRaft) is { } watched ? watched.Drop : 0f;
 
             Router = gameObject.AddComponent<CrewInputRouter>();
             Router.CameraForward = () => chase.Forward;
+            chase.LookInput = () => TourLook ?? Router.Look;
+            chase.FreeLook = () => WatchingOther;
 
             Local = LocalCrew.Load(catalog);
             ApplyCommandLineLook();
@@ -296,6 +395,7 @@ namespace RushAhead.UI
 
             if (Mode == NetMode.Joined) UpdateJoined();
             UpdateRun();
+            UpdatePhotoFinish();
         }
 
         void OnDestroy()
@@ -308,7 +408,28 @@ namespace RushAhead.UI
         {
             if (ushort.TryParse(CommandLine.After("-rushahead-port"), out var customPort)) port = customPort;
 
-            if (CommandLine.After("-rushahead-mode") == "team") SetTeamRace(true);
+            switch (CommandLine.After("-rushahead-weather"))
+            {
+                case "clear": weatherChoice = (int)Weather.Clear; break;
+                case "rain": weatherChoice = (int)Weather.Rain; break;
+                case "fog": weatherChoice = (int)Weather.Fog; break;
+                case "night": weatherChoice = (int)Weather.Night; break;
+                case "random": weatherChoice = WeatherDeal.Random; break;
+            }
+
+            ApplyWeather(false);
+            if (CommandLine.Has("-rushahead-photo-any")) PhotoFinishRule.Within = 30f;
+            if (int.TryParse(CommandLine.After("-rushahead-rafts"), out var wanted)) eliminationRafts = Mathf.Clamp(wanted, KnockoutRule.MinRafts, KnockoutRule.MaxRafts);
+            switch (CommandLine.After("-rushahead-mode"))
+            {
+                case "team":
+                    SetTeamRace(true);
+                    break;
+                case "elimination":
+                    SetRaceMode(GameMode.Elimination);
+                    break;
+            }
+
             var raceNow = int.TryParse(CommandLine.After("-rushahead-course"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var startCourse);
             if (raceNow) ChooseVenue(startCourse);
             OnlineRooms.Profile = CommandLine.After("-rushahead-auth-profile"); // several copies on one PC need different players

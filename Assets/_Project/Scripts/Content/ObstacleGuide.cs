@@ -13,6 +13,7 @@ namespace RushAhead.Content
         BlowAway,
         RideIt,
         Use,
+        Hurry,
     }
 
     /// <summary>One page of the Field Guide: an obstacle, or something else on the river worth knowing.</summary>
@@ -48,6 +49,7 @@ namespace RushAhead.Content
             Counter.GoRound => "Go round",
             Counter.BlowAway => "Blow it away",
             Counter.RideIt => "Ride it",
+            Counter.Hurry => "Hurry",
             _ => "Use it",
         };
     }
@@ -82,6 +84,33 @@ namespace RushAhead.Content
             new("DriftingLog", "Drifting logs", null, Counter.BlowAway,
                 "Loose logs drifting with the water, turning as they go.",
                 "Blow them aside, or slip past their ends."),
+            new("Island", "Islands", null, Counter.GoRound,
+                "An island splits the river in two. The narrow side is the fast line: quicker water and a boost lane, but something in the way. The wide side is the safe line: calmer and clear.",
+                "Choose your side well before the island's nose, and keep off its beach."),
+            new("Crate", "? crates", null, Counter.Use,
+                "Glowing crates with a question mark, bobbing in open water. Touch one with nothing in hand and your raft gets an item. It comes back a few seconds later.",
+                "Steer through them, then press ITEM. Anyone on the raft can."),
+            new("Turbo", "Turbo can", null, Counter.Use,
+                "An item: two and a half seconds of hard surge down the river, as fast as the next bend allows.",
+                "Save it for a clear straight. At that speed, hitting something hurts."),
+            new("Shield", "Shield bubble", null, Counter.Use,
+                "An item: a bubble round the raft that saves you once, from a fall off the edge or a capsize. You keep the life.",
+                "Put it up straight away: it lasts until it's used."),
+            new("Horn", "Air horn", null, Counter.Use,
+                "An item: a blast that shoves every other raft nearby away hard, scatters geese, barrels and logs, and sends Old Snapjaw diving.",
+                "Sound it with a rival alongside, or with Snapjaw close behind."),
+            new("Gust", "Gusts", null, Counter.Brace,
+                "In the rain, the wind gusts across the river for a couple of seconds every few. The rain leans and an arrow shows a moment before.",
+                "Blow into the wind, or brace, and hold your line."),
+            new("FogNight", "Fog and night", null, Counter.GoRound,
+                "Fog hides what's coming; at night only the lanterns, the gate lamps and whatever glows shows the way.",
+                "Read the warnings at the top of the screen and keep to the middle."),
+            new("Knockout", "Knockout gates", null, Counter.Hurry,
+                "In an Elimination, gates under a red LAST ONE OUT banner. The last raft through each is out, and the river runs faster for those left.",
+                "Never be last to a knockout gate. Watch your place at the top of the screen."),
+            new("Snapjaw", "Old Snapjaw", null, Counter.Hurry,
+                "The giant crocodile of Snapjaw Swamp. It rises behind you with a roar and chases the last raft down the river. When its eyes glow red it's about to lunge, and its jaws cost a life.",
+                "Keep pushing and it never quite catches up. When it lunges, burst, slip to one side, or sound an air horn."),
 
             // The first four.
             new("Wheel", "Paddle wheel", ObstacleKind.Wheel, Counter.TimeIt,
@@ -239,7 +268,9 @@ namespace RushAhead.Content
                 "Rock" => course.rocks is { Length: > 0 },
                 "Barrel" => course.barrels is { Length: > 0 },
                 "DriftingLog" => course.logs is { Length: > 0 },
-                _ => true, // the edge, and boost lanes (dealt every round)
+                "Island" => course.islands is { Length: > 0 },
+                "Snapjaw" => course.boss,
+                _ => true, // the edge, boost lanes and crates (dealt every round), items, the weather and knockouts
             };
         }
     }

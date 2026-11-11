@@ -150,7 +150,12 @@ namespace RushAhead.EditorTools
         {
             var path = $"{AiFolder}/{skill}.asset";
             var profile = AssetDatabase.LoadAssetAtPath<AiProfile>(path);
-            if (profile != null) return profile;
+            if (profile != null)
+            {
+                profile.fastLines = AiProfile.TakesFastLines(skill); // added after the assets were made
+                EditorUtility.SetDirty(profile);
+                return profile;
+            }
 
             profile = AiProfile.Preset(skill);
             AssetDatabase.CreateAsset(profile, path);

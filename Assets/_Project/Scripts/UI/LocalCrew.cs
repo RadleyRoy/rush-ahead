@@ -76,20 +76,24 @@ namespace RushAhead.UI
             PlayerPrefs.Save();
         }
 
-        // "species,fur,blower,name": the name goes last because it may itself contain commas. Names never contain newlines.
-        static string Format(Loadout l) => FormattableString.Invariant($"{l.Species},{l.Fur},{l.Blower},{Loadout.CleanName(l.Name)}");
+        // "v2,species,fur,blower,hat,skin,paint,name": the name goes last because it may itself contain commas. Names never
+        // contain newlines. Saves from before the shop are "species,fur,blower,name".
+        internal static string Format(Loadout l) =>
+            FormattableString.Invariant($"v2,{l.Species},{l.Fur},{l.Blower},{l.Hat},{l.Skin},{l.Paint},{Loadout.CleanName(l.Name)}");
 
-        static Loadout Parse(string line)
+        internal static Loadout Parse(string line)
         {
+            static byte B(string s) => byte.Parse(s, CultureInfo.InvariantCulture);
+            if (line.StartsWith("v2,", StringComparison.Ordinal))
+            {
+                var v2 = line.Split(new[] { ',' }, 8);
+                if (v2.Length != 8) throw new FormatException(line);
+                return new Loadout { Species = B(v2[1]), Fur = B(v2[2]), Blower = B(v2[3]), Hat = B(v2[4]), Skin = B(v2[5]), Paint = B(v2[6]), Name = v2[7] };
+            }
+
             var parts = line.Split(new[] { ',' }, 4);
             if (parts.Length != 4) throw new FormatException(line);
-            return new Loadout
-            {
-                Species = byte.Parse(parts[0], CultureInfo.InvariantCulture),
-                Fur = byte.Parse(parts[1], CultureInfo.InvariantCulture),
-                Blower = byte.Parse(parts[2], CultureInfo.InvariantCulture),
-                Name = parts[3],
-            };
+            return new Loadout { Species = B(parts[0]), Fur = B(parts[1]), Blower = B(parts[2]), Name = parts[3] };
         }
     }
 }

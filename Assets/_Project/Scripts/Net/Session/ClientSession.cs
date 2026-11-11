@@ -15,6 +15,7 @@ namespace RushAhead.Net
         readonly Func<int, CrewInput> readLocalInput;
         readonly ByteWriter writer = new(64);
         readonly byte[] burstCounts = new byte[CrewRoster.MaxSeats];
+        readonly byte[] itemCounts = new byte[CrewRoster.MaxSeats];
         readonly OrderMessage[] orders = new OrderMessage[CrewRoster.MaxRafts];
         readonly ulong device;
         Loadout profile;
@@ -122,6 +123,7 @@ namespace RushAhead.Net
             {
                 var input = readLocalInput(seat);
                 if (input.Burst) burstCounts[seat]++;
+                if (input.UseItem) itemCounts[seat]++;
 
                 writer.Reset();
                 Protocol.Write(writer, new InputMessage
@@ -133,6 +135,7 @@ namespace RushAhead.Net
                     Throttle = input.Throttle,
                     Brace = input.Brace,
                     BurstCount = burstCounts[seat],
+                    ItemCount = itemCounts[seat],
                 });
                 transport.Send(Peers.Host, writer.Written, reliable: false);
             }

@@ -34,13 +34,13 @@ MonoBehaviour:
     width: 18
     lineOffset: 0
   - position: {x: 77.1, y: 28.7}
-    width: 22
+    width: 26
     lineOffset: 0
   - position: {x: 91.5, y: 37.7}
-    width: 22
+    width: 26
     lineOffset: 0
   - position: {x: 107.5, y: 43.5}
-    width: 22
+    width: 26
     lineOffset: 0
   - position: {x: 124.4, y: 44.7}
     width: 18
@@ -118,11 +118,7 @@ MonoBehaviour:
   - 408.5552
   - 477.61417
   flow: 9
-  rocks:
-  - position: {x: 88.8563, y: 43.086174}
-    radius: 1.3
-  - position: {x: 108.75038, y: 37.631733}
-    radius: 1.2
+  rocks: []
   barrels: []
   logs: []
   currents:
@@ -140,6 +136,12 @@ MonoBehaviour:
     radius: 5.5
     spin: 2.2
     pull: 1.1
+  islands:
+  - distance: 92.065056
+    length: 34.076424
+    across: 2
+    halfWidth: 3.5
+    fastSide: 1
   menu:
   - kind: 36
     weight: 1.4
@@ -207,3 +209,6 @@ MonoBehaviour:
   netBoats: []
   extras: []
   boosts: []
+  crates: []
+  boss: 0
+  extraCrates: 0

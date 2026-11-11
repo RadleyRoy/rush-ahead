@@ -44,6 +44,14 @@ namespace RushAhead.UI
         /// <summary>The stick points where the raft should go instead of where the blower points.</summary>
         public bool AimTheRaft { get; set; }
 
+        /// <summary>
+        /// Looking round, -1 to 1 each way: the touch look stick (or a drag on the free half), a right-mouse drag, or a lone
+        /// pad's right stick when it drives a single seat. The camera swings by it; steering keeps to the driving view.
+        /// </summary>
+        public Vector2 Look { get; private set; }
+
+        Vector2? mouseLookFrom;
+
         /// <summary>When true, device input is ignored and seats are driven through <see cref="SetScripted"/>.</summary>
         public bool Scripted { get; set; }
 
@@ -51,6 +59,7 @@ namespace RushAhead.UI
         {
             internal Vector2 Stick;
             internal bool BurstPending;
+            internal bool ItemPending;
             internal bool Brace;
             internal CrewInputRouter Owner;
 
@@ -59,8 +68,9 @@ namespace RushAhead.UI
 
             public CrewInput ReadInput()
             {
-                var input = new CrewInput { Burst = BurstPending, Brace = Brace };
+                var input = new CrewInput { Burst = BurstPending, Brace = Brace, UseItem = ItemPending };
                 BurstPending = false;
+                ItemPending = false;
 
                 var magnitude = Mathf.Min(1f, Stick.magnitude);
                 if (magnitude > Deadzone)
@@ -142,10 +152,41 @@ namespace RushAhead.UI
             }
 
             var blocked = Blocked?.Invoke() ?? false;
+            Look = Vector2.zero;
             ReadTouch(blocked);
-            if (blocked) return;
+            if (blocked)
+            {
+                mouseLookFrom = null;
+                return;
+            }
+
+            if (Touch.LookActive) Look = Touch.Look;
+            ReadMouseLook();
             ReadKeyboard();
             ReadGamepads();
+        }
+
+        /// <summary>Hold the right mouse button and drag to look round, as with the touch look stick.</summary>
+        void ReadMouseLook()
+        {
+            var mouse = Mouse.current;
+            if (mouse == null || !mouse.rightButton.isPressed)
+            {
+                mouseLookFrom = null;
+                return;
+            }
+
+            var at = mouse.position.ReadValue();
+            mouseLookFrom ??= at;
+            var drag = (at - mouseLookFrom.Value) / Mathf.Max(1f, Screen.width * 0.25f);
+            Look = new Vector2(Mathf.Clamp(drag.x, -1f, 1f), Mathf.Clamp(drag.y, -1f, 1f));
+        }
+
+        /// <summary>The seat an input slot drives uses the raft's power-up.</summary>
+        void UseItem(int slot)
+        {
+            var seat = slotSeats[slot];
+            if (seat >= 0) Seats[seat].ItemPending = true;
         }
 
         void Contribute(int slot, Vector2 stick, bool burst, bool brace)
@@ -180,7 +221,11 @@ namespace RushAhead.UI
             if (blocked) return;
 
             for (var slot = 0; slot < 2; slot++) Contribute(slot, Touch.Stick[slot], Touch.BurstPressed[slot], slot == 0 && Touch.BraceHeld);
-            foreach (var id in Touch.Tapped) ButtonTapped?.Invoke(id);
+            foreach (var id in Touch.Tapped)
+            {
+                if (id == TouchControls.ItemButton) UseItem(0);
+                ButtonTapped?.Invoke(id);
+            }
         }
 
         /// <summary>How far a thumb moves for full throttle: about a centimetre, or an eighth of the screen if the phone won't say.</summary>
@@ -195,6 +240,12 @@ namespace RushAhead.UI
             Cluster(1, kb.upArrowKey, kb.leftArrowKey, kb.downArrowKey, kb.rightArrowKey, kb.rightShiftKey, kb.rightCtrlKey);
             Cluster(2, kb.iKey, kb.jKey, kb.kKey, kb.lKey, kb.uKey, kb.oKey);
             Cluster(3, kb.numpad8Key, kb.numpad4Key, kb.numpad5Key, kb.numpad6Key, kb.numpad0Key, kb.numpadPeriodKey);
+
+            // Power-ups: E, Enter, P and numpad plus.
+            if (kb.eKey.wasPressedThisFrame) UseItem(0);
+            if (kb.enterKey.wasPressedThisFrame) UseItem(1);
+            if (kb.pKey.wasPressedThisFrame) UseItem(2);
+            if (kb.numpadPlusKey.wasPressedThisFrame) UseItem(3);
         }
 
         void Cluster(int slot, KeyControl up, KeyControl left, KeyControl down, KeyControl right, KeyControl burst, KeyControl brace)
@@ -210,8 +261,17 @@ namespace RushAhead.UI
             {
                 var pad = pads[0];
                 var brace = pad.buttonEast.isPressed;
+                if (pad.buttonNorth.wasPressedThisFrame) UseItem(0);
                 Contribute(0, pad.leftStick.ReadValue(), pad.leftShoulder.wasPressedThisFrame || pad.leftTrigger.wasPressedThisFrame, brace);
-                Contribute(1, pad.rightStick.ReadValue(), pad.rightShoulder.wasPressedThisFrame || pad.rightTrigger.wasPressedThisFrame, brace);
+                var right = pad.rightStick.ReadValue();
+                var rightBurst = pad.rightShoulder.wasPressedThisFrame || pad.rightTrigger.wasPressedThisFrame;
+                if (slotSeats[1] >= 0 && slotSeats[1] != slotSeats[0]) Contribute(1, right, rightBurst, brace);
+                else
+                {
+                    Contribute(0, Vector2.zero, rightBurst, brace); // one seat: the right stick looks round
+                    if (right.sqrMagnitude > Deadzone * Deadzone) Look = right;
+                }
+
                 return;
             }
 
@@ -219,6 +279,7 @@ namespace RushAhead.UI
             {
                 var pad = pads[i];
                 var burst = pad.buttonSouth.wasPressedThisFrame || pad.rightTrigger.wasPressedThisFrame;
+                if (pad.buttonNorth.wasPressedThisFrame) UseItem(i);
                 Contribute(i, pad.leftStick.ReadValue(), burst, pad.buttonEast.isPressed);
             }
         }

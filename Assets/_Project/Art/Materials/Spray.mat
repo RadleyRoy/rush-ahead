@@ -28,6 +28,7 @@ Material:
     - _AlongZ: 0
     - _Bands: 7
     - _Cull: 2
+    - _Glow: 0
     - _Rim: 0.8
     - _Rise: 0
     - _Spacing: 1.2

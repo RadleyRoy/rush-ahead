@@ -446,6 +446,7 @@ MonoBehaviour:
   - {fileID: 11400000, guid: 4c2afc8d1f51f7f4b8e2bf1415bc41db, type: 2}
   - {fileID: 11400000, guid: 6d9749c5b0cb55d458d66d4955db2e7a, type: 2}
   - {fileID: 11400000, guid: 0f599f024acb130488895763567b1912, type: 2}
+  - {fileID: 11400000, guid: 50495940116e78c48a4f23f9c40435e0, type: 2}
   palette: {fileID: 11400000, guid: 92d326366186d7e48bc562b8587f30fb, type: 2}
   aiProfiles:
   - {fileID: 11400000, guid: da6bb35901ffd4b43ababdab4632f1cd, type: 2}

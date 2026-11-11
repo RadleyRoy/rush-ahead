@@ -21,6 +21,7 @@ namespace RushAhead.EditorTools
             ("ReedMarsh", ReedMarsh), ("WhirlpoolReach", WhirlpoolReach), ("WhitewaterRun", WhitewaterRun),
             ("GlacierGate", GlacierGate), ("RedRockRun", RedRockRun), ("ThunderRapids", ThunderRapids),
             ("IcefallChute", IcefallChute), ("DynamiteGulch", DynamiteGulch), ("DevilsStaircase", DevilsStaircase),
+            ("SnapjawSwamp", SnapjawSwamp),
         };
 
         /// <summary>The shipped courses as they stand, in menu order (null for any not made yet).</summary>
@@ -105,9 +106,11 @@ namespace RushAhead.EditorTools
                 new RiverPoint(316f, 22f, 16f),
             };
 
+            Widen(c, 14, 17, 26f); // room for an island
             var s = new Survey(c);
             c.startDistance = 8f;
             c.gates = new[] { s.Near(3) - 6f, s.Near(6) + 4f, s.Near(9) + 12f, s.Near(13) + 4f, s.Near(18), s.Finish };
+            c.islands = new[] { s.Island(3, 40f, 3.5f, 7.5f, 1f) };
             c.rocks = new[]
             {
                 s.Rock(s.Near(3), 3.8f, 1.4f), s.Rock(s.Near(4), -3.8f, 1.5f), s.Rock(s.Near(5), 3.8f, 1.3f),
@@ -144,6 +147,12 @@ namespace RushAhead.EditorTools
 
         static RockSpot Rock(Vector2 at, float radius) => new(at.x, at.y, radius);
 
+        /// <summary>Widens the river at these control points, for an island: only the width, so its line and length stay the same.</summary>
+        static void Widen(CourseDef c, int from, int to, float width)
+        {
+            for (var i = from; i <= to; i++) c.river[i].width = Mathf.Max(c.river[i].width, width);
+        }
+
         /// <summary>Lays a course's pieces out by distance down its river and distance across it (positive is the left bank).</summary>
         sealed class Survey
         {
@@ -179,6 +188,23 @@ namespace RushAhead.EditorTools
 
             public WhirlpoolSpot Whirlpool(float distance, float across, float radius, float spin, float pull) =>
                 new(Spot(distance, across), radius, spin, pull);
+
+            /// <summary>
+            /// An island in the free water after checkpoint <paramref name="gate"/> (-1 for the start), clear of where rafts
+            /// come back and their run-up, and of the next checkpoint: as long as fits up to <paramref name="length"/>, set
+            /// across so the fast line on <paramref name="fastSide"/> (+1 left) is <paramref name="fastWidth"/> wide where
+            /// the river is narrowest along it, and the safe line takes the rest.
+            /// </summary>
+            public IslandSpot Island(int gate, float length, float halfWidth, float fastWidth, float fastSide)
+            {
+                var start = (gate < 0 ? def.startDistance : def.gates[gate]) + 24f;
+                var end = (gate + 1 < def.gates.Length ? def.gates[gate + 1] : Finish) - 10f;
+                length = Mathf.Min(length, end - start);
+                var nose = start + (end - start - length) * 0.5f;
+                var half = float.MaxValue; // set by its widest stretch: the river narrows towards its ends as the island does
+                for (var d = nose + length * 0.25f; d <= nose + length * 0.75f; d += 1f) half = Mathf.Min(half, River.At(d).HalfWidth);
+                return new IslandSpot(nose, length, fastSide * (half - fastWidth - halfWidth), halfWidth, fastSide);
+            }
         }
 
         /// <summary>Wide water with three islands to pick a way round: room for the obstacles that need it (cannons, the ferry).</summary>
@@ -217,7 +243,8 @@ namespace RushAhead.EditorTools
             var s = new Survey(c);
             c.startDistance = 8f;
             c.gates = new[] { s.Near(2) + 2f, s.Near(5) + 12f, s.Near(8), s.Near(11) + 4f, s.Near(15), s.Finish };
-            c.rocks = new[] { s.Rock(s.Near(3), -4f, 3.5f), s.Rock(s.Near(5), 4.5f, 4f), s.Rock(s.Near(7), -4f, 3.2f) };
+            c.islands = new[] { s.Island(0, 42f, 4.5f, 8f, -1f) };
+            c.rocks = new[] { s.Rock(s.Near(7), -4f, 3.2f) }; // the first two rocky islets are a real island now
             var drift = s.Near(9);
             c.barrels = new[] { s.Spot(drift + 4f, -4f), s.Spot(drift + 4f, 3f), s.Spot(drift + 9f, 0f), s.Spot(drift + 9f, -6f), s.Spot(drift + 14f, 4f) };
 
@@ -230,12 +257,12 @@ namespace RushAhead.EditorTools
                 new ObstacleChance(ObstacleKind.Bear), new ObstacleChance(ObstacleKind.SwingingLog, 0.7f),
                 new ObstacleChance(ObstacleKind.Turtle), new ObstacleChance(ObstacleKind.PiranhaShoal),
                 new ObstacleChance(ObstacleKind.Pelican), new ObstacleChance(ObstacleKind.NetBoat),
-                new ObstacleChance(ObstacleKind.Waterspout), new ObstacleChance(ObstacleKind.PaddleSteamer),
+                new ObstacleChance(ObstacleKind.Waterspout), // the paddle steamer's wide water is the island's now
                 new ObstacleChance(ObstacleKind.LeapingFrogs), new ObstacleChance(ObstacleKind.GooseGang),
                 new ObstacleChance(ObstacleKind.Kraken),
             };
-            c.minObstacles = 8;
-            c.maxObstacles = 11;
+            c.minObstacles = 7;
+            c.maxObstacles = 10;
         }
 
         /// <summary>Switchbacks through beaver country, drifting logs and a log jam in the big pool.</summary>
@@ -275,9 +302,11 @@ namespace RushAhead.EditorTools
                 new RiverPoint(316f, 62f, 14f),
             };
 
+            Widen(c, 14, 17, 26f); // room for an island
             var s = new Survey(c);
             c.startDistance = 8f;
             c.gates = new[] { s.Near(3) - 6f, s.Near(7) + 4f, s.Near(10) + 12f, s.Near(13) + 2f, s.Near(17) + 4f, s.Near(21), s.Finish };
+            c.islands = new[] { s.Island(3, 40f, 3.5f, 7.5f, -1f) };
             c.rocks = new[] { s.Rock(s.Near(6), -4.2f, 1.2f), s.Rock(s.Near(12), 3.8f, 1.1f) };
             var jam = s.Near(10);
             c.logs = new[]
@@ -479,9 +508,11 @@ namespace RushAhead.EditorTools
                 new RiverPoint(430f, 46f, 16f),
             };
 
+            Widen(c, 21, 23, 26f); // room for an island
             var s = new Survey(c);
             c.startDistance = 8f;
             c.gates = new[] { s.Near(3) - 6f, s.Near(6) + 2f, s.Near(9) + 4f, s.Near(12) + 8f, s.Near(16), s.Near(20), s.Near(24), s.Finish };
+            c.islands = new[] { s.Island(5, 38f, 3.5f, 7.5f, 1f) };
             c.rocks = new[]
             {
                 s.Rock(s.Near(3), -3f, 1.1f), s.Rock(s.Near(4), 3f, 1.1f), s.Rock(s.Near(5), -3.2f, 1.2f), s.Rock(s.Near(15), -3f, 1f),
@@ -519,8 +550,8 @@ namespace RushAhead.EditorTools
                 new ObstacleChance(ObstacleKind.StormCloud), new ObstacleChance(ObstacleKind.Drawbridge),
                 new ObstacleChance(ObstacleKind.JumpRamp), new ObstacleChance(ObstacleKind.ChainedMines),
             };
-            c.minObstacles = 12;
-            c.maxObstacles = 17;
+            c.minObstacles = 11;
+            c.maxObstacles = 16;
         }
 
         // Phase 17: six harder courses in faster water, in two new places (glacier and canyon) and the rapids.
@@ -567,10 +598,11 @@ namespace RushAhead.EditorTools
                 new RiverPoint(469.6f, 68.7f, 16f),
             };
 
+            Widen(c, 5, 7, 26f); // room for an island
             var s = new Survey(c);
             c.startDistance = 8f;
             c.gates = new[] { s.Near(4), s.Near(8), s.Near(12) + 4f, s.Near(16), s.Near(20), s.Near(24), s.Finish };
-            c.rocks = new[] { s.Rock(s.Near(6), 6f, 1.3f), s.Rock(s.Near(7), -6f, 1.2f) }; // ice boulders in the lake
+            c.islands = new[] { s.Island(0, 40f, 3.5f, 7.5f, 1f) };
             c.currents = new[]
             {
                 new CurrentZone(s.Near(1) + 4f, s.Near(3), 1.5f), new CurrentZone(s.Near(12), s.Near(15), 1.8f),
@@ -637,11 +669,11 @@ namespace RushAhead.EditorTools
                 new RiverPoint(481.3f, -108.5f, 16f),
             };
 
+            Widen(c, 9, 11, 26f); // room for an island
             var s = new Survey(c);
             c.startDistance = 8f;
             c.gates = new[] { s.Near(4), s.Near(8), s.Near(12), s.Near(16) + 4f, s.Near(20), s.Near(24), s.Finish };
-            c.rocks = new[] { s.Rock(s.Near(10), 6f, 1.3f), s.Rock(s.Near(11), -6f, 1.2f) };
-            c.logs = new[] { s.Log(s.Near(10) - 4f, -2.5f, 60f, 3.5f), s.Log(s.Near(11) + 2f, 3f, -40f, 4f) };
+            c.islands = new[] { s.Island(1, 38f, 3.5f, 7.5f, -1f) };
             c.currents = new[]
             {
                 new CurrentZone(s.Near(1) + 4f, s.Near(3), 1.6f), new CurrentZone(s.Near(14), s.Near(17), 2f),
@@ -738,6 +770,75 @@ namespace RushAhead.EditorTools
         }
 
         /// <summary>Two ice chutes either side of a meltwater lake, and a gorge under the icefall.</summary>
+        /// <summary>
+        /// The boss course: a slow, winding swamp river (about 460 m) with two islands, crocodiles, hippos and worse in
+        /// the water, plenty of power-up crates, and Old Snapjaw chasing the last raft all the way down.
+        /// </summary>
+        static void SnapjawSwamp(CourseDef c)
+        {
+            c.displayName = "Snapjaw Swamp";
+            c.blurb = "Something huge lives in this swamp, and it's hungry. Keep ahead of Old Snapjaw. New obstacles every round.";
+            c.scene = CourseScene.Swamp;
+            c.starsToUnlock = 22;
+            c.flow = 8.5f;
+            c.boss = true;
+            c.river = new[]
+            {
+                new RiverPoint(0f, 0f, 16f),
+                new RiverPoint(16f, 0f, 16f),
+                new RiverPoint(32f, 2f, 16f),
+                new RiverPoint(48f, 6f, 15f),
+                new RiverPoint(63.5f, 11f, 15f),
+                new RiverPoint(79f, 15f, 16f), // the first island
+                new RiverPoint(95f, 17f, 16f),
+                new RiverPoint(111f, 16f, 16f),
+                new RiverPoint(127f, 12f, 15f),
+                new RiverPoint(142f, 6f, 14f),
+                new RiverPoint(157f, -1f, 14f),
+                new RiverPoint(172f, -6f, 15f),
+                new RiverPoint(188f, -8f, 16f),
+                new RiverPoint(204f, -7f, 16f),
+                new RiverPoint(220f, -3f, 15f),
+                new RiverPoint(235.5f, 3f, 14f),
+                new RiverPoint(250.5f, 10f, 15f),
+                new RiverPoint(266f, 15f, 16f), // the second island
+                new RiverPoint(282f, 17f, 16f),
+                new RiverPoint(298f, 16f, 16f),
+                new RiverPoint(314f, 12f, 15f),
+                new RiverPoint(329.5f, 6f, 14f),
+                new RiverPoint(345f, 1f, 14f),
+                new RiverPoint(361f, -2f, 15f),
+                new RiverPoint(377f, -3f, 16f),
+                new RiverPoint(393f, -2f, 16f),
+                new RiverPoint(409f, 0f, 16f),
+                new RiverPoint(425f, 1f, 16f),
+                new RiverPoint(441f, 1f, 16f),
+                new RiverPoint(457f, 1f, 16f),
+                new RiverPoint(473f, 1f, 16f),
+            };
+
+            Widen(c, 5, 8, 26f); // room for the islands, and to come out of them
+            Widen(c, 17, 20, 26f);
+            var s = new Survey(c);
+            c.startDistance = 8f;
+            c.gates = new[] { s.Near(4), s.Near(8), s.Near(12), s.Near(16), s.Near(20), s.Near(24), s.Finish };
+            c.islands = new[] { s.Island(0, 40f, 3.5f, 7.5f, 1f), s.Island(3, 40f, 3.5f, 7.5f, -1f) };
+            c.currents = new[] { new CurrentZone(s.Near(9), s.Near(11), -0.9f), new CurrentZone(s.Near(21), s.Near(23), 1.2f) };
+            c.menu = new[]
+            {
+                new ObstacleChance(ObstacleKind.Crocodile, 1.6f), new ObstacleChance(ObstacleKind.Hippo, 1.4f),
+                new ObstacleChance(ObstacleKind.Turtle, 1.2f), new ObstacleChance(ObstacleKind.PiranhaShoal, 1.2f),
+                new ObstacleChance(ObstacleKind.GooseGang), new ObstacleChance(ObstacleKind.LeapingFrogs, 1.2f),
+                new ObstacleChance(ObstacleKind.Kraken), new ObstacleChance(ObstacleKind.Pelican),
+                new ObstacleChance(ObstacleKind.ElectricEels), new ObstacleChance(ObstacleKind.FallingTree),
+                new ObstacleChance(ObstacleKind.Mudslide), new ObstacleChance(ObstacleKind.SwingingLog),
+                new ObstacleChance(ObstacleKind.NetBoat), new ObstacleChance(ObstacleKind.Bumper),
+            };
+            c.minObstacles = 8;
+            c.maxObstacles = 11;
+            c.extraCrates = 3;
+        }
+
         static void IcefallChute(CourseDef c)
         {
             c.displayName = "Icefall Chute";
@@ -780,10 +881,11 @@ namespace RushAhead.EditorTools
                 new RiverPoint(479.1f, -130.9f, 16f),
             };
 
+            Widen(c, 9, 11, 26f); // room for an island
             var s = new Survey(c);
             c.startDistance = 8f;
             c.gates = new[] { s.Near(4), s.Near(8), s.Near(12), s.Near(16), s.Near(20), s.Near(24), s.Finish };
-            c.rocks = new[] { s.Rock(s.Near(10), 5.5f, 1.3f) };
+            c.islands = new[] { s.Island(1, 38f, 3.5f, 7.5f, 1f) };
             c.currents = new[]
             {
                 new CurrentZone(s.Near(4), s.Near(7), 2f), new CurrentZone(s.Near(14), s.Near(17), 2.2f),
@@ -852,11 +954,11 @@ namespace RushAhead.EditorTools
                 new RiverPoint(479.2f, 172.7f, 16f),
             };
 
+            Widen(c, 9, 11, 26f); // room for an island
             var s = new Survey(c);
             c.startDistance = 8f;
             c.gates = new[] { s.Near(4), s.Near(8), s.Near(12), s.Near(16), s.Near(20), s.Near(24), s.Near(28), s.Finish };
-            c.rocks = new[] { s.Rock(s.Near(9), -6f, 1.3f), s.Rock(s.Near(10), 6f, 1.3f) };
-            c.logs = new[] { s.Log(s.Near(9) + 4f, 2.5f, 70f, 3.5f) };
+            c.islands = new[] { s.Island(1, 38f, 3.5f, 7.5f, -1f) };
             c.currents = new[]
             {
                 new CurrentZone(s.Near(1) + 4f, s.Near(3), 1.8f), new CurrentZone(s.Near(12), s.Near(14), 2f),

@@ -82,13 +82,13 @@ MonoBehaviour:
     width: 16
     lineOffset: 0
   - position: {x: 306, y: 52}
-    width: 15
+    width: 26
     lineOffset: 0
   - position: {x: 322, y: 46}
-    width: 14
+    width: 26
     lineOffset: 0
   - position: {x: 337, y: 38}
-    width: 14
+    width: 26
     lineOffset: 0.35
   - position: {x: 352, y: 34}
     width: 15
@@ -169,6 +169,12 @@ MonoBehaviour:
     radius: 6
     spin: 2.4
     pull: 1.2
+  islands:
+  - distance: 375.1555
+    length: 31.860077
+    across: 2
+    halfWidth: 3.5
+    fastSide: 1
   menu:
   - kind: 0
     weight: 1
@@ -230,8 +236,8 @@ MonoBehaviour:
     weight: 1
   - kind: 28
     weight: 1
-  minObstacles: 12
-  maxObstacles: 17
+  minObstacles: 11
+  maxObstacles: 16
   wheels: []
   crocodiles: []
   swingers: []
@@ -258,3 +264,6 @@ MonoBehaviour:
   netBoats: []
   extras: []
   boosts: []
+  crates: []
+  boss: 0
+  extraCrates: 0

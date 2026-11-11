@@ -38,6 +38,8 @@ namespace RushAhead.UI
         VisualElement teamTrack;
         VisualElement redMarker;
         VisualElement blueMarker;
+        VisualElement greenMarker;
+        VisualElement yellowMarker;
         Label teamLabel;
         Label rivalLabel;
         HeartRow rivalHearts;
@@ -47,6 +49,16 @@ namespace RushAhead.UI
         VisualElement vignette;
         VisualElement burst;
         VisualElement brace;
+        VisualElement look;
+        VisualElement gust;
+        Label gustLabel;
+        VisualElement boss;
+        Label bossLabel;
+        VisualElement item;
+        Label itemLabel;
+        PowerUp shownItem;
+        VisualElement watch;
+        Label watchLabel;
         VisualElement orderBar;
         VisualElement sticks;
         VisualElement tagLayer;
@@ -148,7 +160,9 @@ namespace RushAhead.UI
             lane.style.borderTopLeftRadius = lane.style.borderTopRightRadius = lane.style.borderBottomLeftRadius = lane.style.borderBottomRightRadius = 9;
             redMarker = new Swatch(new Color(1f, 0.42f, 0.37f), 34f);
             blueMarker = new Swatch(new Color(0.31f, 0.64f, 1f), 34f);
-            foreach (var marker in new[] { redMarker, blueMarker })
+            greenMarker = new Swatch(new Color(0.36f, 0.88f, 0.48f), 34f);
+            yellowMarker = new Swatch(new Color(1f, 0.82f, 0.3f), 34f);
+            foreach (var marker in new[] { redMarker, blueMarker, greenMarker, yellowMarker })
             {
                 marker.style.position = Position.Absolute;
                 marker.style.top = -8;
@@ -188,6 +202,70 @@ namespace RushAhead.UI
             watching.style.bottom = 40;
             watching.style.left = 40;
             Root.Add(watching);
+
+            // Once your raft is home (or out): watch the others. A tap switches to the next raft still racing.
+            watchLabel = Ui.Text("WATCH", "h3");
+            watchLabel.pickingMode = PickingMode.Ignore;
+            watch = Ui.El("btn btn--small", watchLabel);
+            watch.style.position = Position.Absolute;
+            watch.style.top = 210;
+            watch.style.right = 36;
+            Root.Add(watch);
+
+            // The power-up your raft carries: tap to use it.
+            item = Visual("", "btn btn--round");
+            item.style.width = item.style.height = 156;
+            item.style.borderTopLeftRadius = item.style.borderTopRightRadius = item.style.borderBottomLeftRadius = item.style.borderBottomRightRadius = 78;
+            item.style.paddingLeft = item.style.paddingRight = 0;
+            item.style.minWidth = 0;
+            item.generateVisualContent += DrawItem;
+            itemLabel = Ui.Text("", "small");
+            itemLabel.pickingMode = PickingMode.Ignore;
+            itemLabel.style.position = Position.Absolute;
+            itemLabel.style.bottom = 10;
+            itemLabel.style.left = 0;
+            itemLabel.style.right = 0;
+            itemLabel.style.unityTextAlign = TextAnchor.MiddleCenter;
+            item.Add(itemLabel);
+            Root.Add(item);
+
+            // A gust of wind coming (in the rain): which way it'll blow, flashing first, then solid while it blows.
+            gustLabel = Ui.Text("", "h3");
+            gust = Ui.El("panel", gustLabel);
+            gust.pickingMode = PickingMode.Ignore;
+            gust.style.paddingLeft = gust.style.paddingRight = 18;
+            gust.style.paddingTop = gust.style.paddingBottom = 6;
+            var gustRow = Ui.El("row", gust);
+            gustRow.pickingMode = PickingMode.Ignore;
+            gustRow.style.position = Position.Absolute;
+            gustRow.style.left = 0;
+            gustRow.style.right = 0;
+            gustRow.style.top = 210;
+            gustRow.style.justifyContent = Justify.Center;
+            Root.Add(gustRow);
+
+            // Old Snapjaw close behind (the boss course).
+            bossLabel = Ui.Text("", "h3");
+            boss = Ui.El("panel", bossLabel);
+            boss.pickingMode = PickingMode.Ignore;
+            boss.style.paddingLeft = boss.style.paddingRight = 18;
+            boss.style.paddingTop = boss.style.paddingBottom = 6;
+            var bossRow = Ui.El("row", boss);
+            bossRow.pickingMode = PickingMode.Ignore;
+            bossRow.style.position = Position.Absolute;
+            bossRow.style.left = 0;
+            bossRow.style.right = 0;
+            bossRow.style.top = 270;
+            bossRow.style.justifyContent = Justify.Center;
+            Root.Add(bossRow);
+
+            // The look stick: drag it to swing the camera round the raft.
+            look = Ui.El();
+            look.pickingMode = PickingMode.Ignore;
+            look.style.position = Position.Absolute;
+            look.style.width = look.style.height = 132;
+            look.generateVisualContent += DrawLook;
+            Root.Add(look);
 
             // Bottom right (left, left-handed): Burst with its air, and Brace.
             burst = Visual("Burst", "btn btn--round");
@@ -262,6 +340,85 @@ namespace RushAhead.UI
             pauseMenu.Add(panel);
             Ui.Show(pauseMenu, false);
             Root.Add(pauseMenu);
+            BuildPhotoFinish();
+        }
+
+        VisualElement photoLayer;
+        VisualElement photoFlash;
+        Label photoCaption;
+        Label photoSkip;
+        bool photoCapture;
+
+        /// <summary>The photo finish over everything: black bars top and bottom, its title, the flash, and the margin.</summary>
+        void BuildPhotoFinish()
+        {
+            photoLayer = Ui.El("layer");
+            photoLayer.pickingMode = PickingMode.Ignore;
+            VisualElement Bar(bool top)
+            {
+                var bar = Ui.El("row");
+                bar.pickingMode = PickingMode.Ignore;
+                bar.style.position = Position.Absolute;
+                bar.style.left = bar.style.right = 0;
+                if (top) bar.style.top = 0;
+                else bar.style.bottom = 0;
+                bar.style.height = Length.Percent(13f);
+                bar.style.backgroundColor = new Color(0f, 0f, 0f, 0.92f);
+                bar.style.justifyContent = Justify.Center;
+                bar.style.alignItems = Align.Center;
+                return bar;
+            }
+
+            var topBar = Bar(true);
+            topBar.Add(Ui.Text("PHOTO FINISH", "h1 sun"));
+            var bottomBar = Bar(false);
+            photoCaption = Ui.Text("", "h2");
+            bottomBar.Add(photoCaption);
+            photoSkip = Ui.Text("TAP TO SKIP", "small muted");
+            photoSkip.style.position = Position.Absolute;
+            photoSkip.style.right = 48;
+            bottomBar.Add(photoSkip);
+            photoFlash = Ui.El("layer");
+            photoFlash.pickingMode = PickingMode.Ignore;
+            photoFlash.style.backgroundColor = Color.white;
+            photoFlash.style.opacity = 0f;
+            photoLayer.Add(topBar);
+            photoLayer.Add(bottomBar);
+            photoLayer.Add(photoFlash);
+            Ui.Show(photoLayer, false);
+            Root.Add(photoLayer);
+        }
+
+        /// <summary>While the photo finish plays, it's all that shows; a tap (or Space) skips on.</summary>
+        void RefreshPhotoFinish(TouchControls touch)
+        {
+            var stage = Game.PhotoStage;
+            var on = stage != PhotoFinishStage.None;
+            Ui.Show(photoLayer, on);
+            foreach (var child in Root.Children())
+                if (child != photoLayer) child.style.visibility = on ? Visibility.Hidden : StyleKeyword.Null;
+            if (!on)
+            {
+                if (photoCapture) touch.CancelCapture();
+                photoCapture = false;
+                return;
+            }
+
+            Ui.Set(photoCaption, stage == PhotoFinishStage.Frozen ? Game.PhotoCaption ?? "" : "");
+            Ui.Show(photoSkip, stage == PhotoFinishStage.Playing);
+            photoFlash.style.opacity = Game.PhotoFlash;
+            if (!touch.Capturing)
+            {
+                photoCapture = true;
+                touch.CaptureNextTap(_ =>
+                {
+                    photoCapture = false;
+                    Game.SkipPhotoFinish();
+                });
+            }
+
+            var keyboard = UnityEngine.InputSystem.Keyboard.current;
+            if (keyboard != null && (keyboard.spaceKey.wasPressedThisFrame || keyboard.enterKey.wasPressedThisFrame)) Game.SkipPhotoFinish();
         }
 
         bool OthersAboard()
@@ -322,6 +479,12 @@ namespace RushAhead.UI
                 return;
             }
 
+            if (id == "watch")
+            {
+                Game.WatchNext();
+                return;
+            }
+
             foreach (var (order, orderId, _) in Orders)
             {
                 if (orderId != id) continue;
@@ -337,12 +500,13 @@ namespace RushAhead.UI
         public override void Refresh()
         {
             var run = Game.Run;
-            var boat = Game.ViewedBoat;
+            var boat = Game.OwnBoat;
             var touch = Game.Router.Touch;
             var mySeat = Game.Router.SeatForSlot(0);
             var spectator = Game.Session == SessionKind.Joined && mySeat < 0;
             var twoSticks = Game.Router.SeatForSlot(1) >= 0 && Game.Router.SeatForSlot(1) != mySeat;
             touch.TwoSticks = twoSticks;
+            RefreshPhotoFinish(touch);
 
             // Clock, checkpoints and splits.
             Ui.Show(clockPanel, true);
@@ -368,10 +532,14 @@ namespace RushAhead.UI
             }
 
             var team = run.Active && run.TeamRace;
-            Ui.Show(best, run.Active && !team && run.Best > 0f);
+            var field = run.Active && run.Elimination && run.FieldProgress != null;
+            Ui.Show(best, run.Active && !team && !field && run.Best > 0f);
             if (run.Active) Ui.Set(best, $"Best {Ui.Time(run.Best)}");
-            Ui.Show(teamTrack, team);
-            if (team)
+            Ui.Show(teamTrack, team || field);
+            Ui.Show(greenMarker, field && run.Rafts > 2);
+            Ui.Show(yellowMarker, field && run.Rafts > 3);
+            if (field) ShowField(run);
+            else if (team)
             {
                 var redProgress = run.MyRaft == 0 ? run.MyProgress : run.RivalProgress;
                 var blueProgress = run.MyRaft == 0 ? run.RivalProgress : run.MyProgress;
@@ -400,19 +568,28 @@ namespace RushAhead.UI
             var words = !run.Active ? null
                 : run.Countdown > 0 ? run.Countdown.ToString()
                 : run.SinceStart < 1f ? "GO!"
-                : finishedAt >= 0f && Time.unscaledTime - finishedAt < 2.5f ? (run.TeamRace && run.Winner == run.MyRaft ? "YOU WIN!" : "FINISH!")
-                : outAt >= 0f && Time.unscaledTime - outAt < 2.5f ? "OUT!"
+                : finishedAt >= 0f && Time.unscaledTime - finishedAt < 2.5f ? ((run.TeamRace || run.Elimination) && run.Winner == run.MyRaft ? "YOU WIN!" : run.BossCourse ? "ESCAPED!" : "FINISH!")
+                : outAt >= 0f && Time.unscaledTime - outAt < 2.5f ? (run.KnockedOut ? "KNOCKED OUT!" : "OUT!")
+                : run.Elimination && run.Winner == run.MyRaft && !run.Finished ? "LAST RAFT LEFT!"
                 : null;
             Ui.Show(centre, words != null);
             if (words != null) Ui.Set(centre, words);
             var trouble = !run.Active ? null
-                : run.Out ? run.TeamRace ? "Out of lives! Waiting for the other raft..." : "Out of lives!"
+                : run.KnockedOut ? "Knocked out! Watch the others race on."
+                : run.Out ? run.TeamRace || run.Elimination ? "Out of lives! Watch the others race on." : "Out of lives!"
                 : run.Fallen ? "Overboard!"
                 : boat != null && boat.Capsized ? "Capsized! Hang on..."
                 : null;
             Ui.Show(capsized, trouble != null);
             if (trouble != null) Ui.Set(capsized, trouble);
-            Ui.Show(watching, spectator);
+            Ui.Show(watching, spectator && !Game.WatchingOther);
+            var canWatch = Game.CanWatch && !Flow.Paused;
+            Ui.Show(watch, canWatch);
+            if (canWatch)
+            {
+                var next = Game.NextToWatch;
+                Ui.Set(watchLabel, next == Game.MyRaft ? (spectator ? $"WATCH {GameController.TeamName(next).ToUpperInvariant()}  ›" : "BACK TO YOUR RAFT") : $"WATCH {GameController.TeamName(next).ToUpperInvariant()}  ›");
+            }
 
             // Leaning over: a red edge, and Brace pulses.
             var danger = boat == null ? 0f : Mathf.InverseLerp(DangerFrom, 1f, boat.TiltDanger);
@@ -429,6 +606,42 @@ namespace RushAhead.UI
             Ui.Show(brace, controls);
             Place(burst, left: leftHanded ? 40 : null, right: leftHanded ? null : 40, bottom: 40);
             Place(brace, left: leftHanded ? 290 : null, right: leftHanded ? null : 290, bottom: 34);
+            var held = run.Active && !spectator && boat != null ? boat.Item : PowerUp.None;
+            Ui.Show(item, held != PowerUp.None && !Flow.Paused);
+            Place(item, left: leftHanded ? 310 : null, right: leftHanded ? null : 310, bottom: twoSticks ? 330 : 236);
+            Ui.SetClass(item, "btn--on", touch.Held.Contains(TouchControls.ItemButton));
+            if (held != shownItem)
+            {
+                shownItem = held;
+                Ui.Set(itemLabel, held switch { PowerUp.Turbo => "TURBO", PowerUp.Shield => "SHIELD", PowerUp.Horn => "HORN", _ => "" });
+                item.MarkDirtyRepaint();
+            }
+
+            // Old Snapjaw behind the raft: how close, in red when it's about to lunge.
+            var hunted = run.Active && run.Phase == RoomPhase.Racing && run.BossBehind >= 0f && run.BossBehind < 40f && !run.Finished && !run.Out;
+            Ui.Show(boss, hunted);
+            if (hunted)
+            {
+                Ui.Set(bossLabel, run.BossLunging ? "SNAPJAW!  BLOW!" : $"SNAPJAW  {run.BossBehind:0} M BEHIND");
+                bossLabel.style.color = run.BossLunging || run.BossBehind < 12f ? new Color(1f, 0.3f, 0.22f) : new Color(0.75f, 0.9f, 0.55f);
+                boss.style.opacity = run.BossLunging && Mathf.Repeat(Time.unscaledTime * 6f, 1f) < 0.4f ? 0.5f : 1f;
+            }
+
+            var windy = run.Active && run.Phase == RoomPhase.Racing && (run.GustStrength > 0.05f || run.GustWarning > 0f);
+            Ui.Show(gust, windy);
+            if (windy)
+            {
+                var arrows = run.GustScreenSide > 0 ? "WIND  ›››" : "‹‹‹  WIND";
+                Ui.Set(gustLabel, run.GustStrength > 0.05f ? arrows : run.GustScreenSide > 0 ? "GUST COMING  ›››" : "‹‹‹  GUST COMING");
+                var flash = run.GustStrength > 0.05f || Mathf.Repeat(Time.unscaledTime * 4f, 1f) < 0.6f;
+                gust.style.opacity = flash ? 1f : 0.35f;
+                gustLabel.style.color = new Color(1f, 0.62f, 0.25f);
+            }
+
+            Ui.Show(look, run.Active && !Flow.Paused);
+            var lookOnLeft = leftHanded && !twoSticks;
+            Place(look, left: lookOnLeft ? 84 : null, right: lookOnLeft ? null : 84, bottom: controls ? 300 : twoSticks ? 330 : 60);
+            look.MarkDirtyRepaint();
             Ui.SetClass(burst, "btn--on", touch.Held.Contains(TouchControls.BurstButton));
             Ui.SetClass(brace, "btn--on", touch.Held.Contains(TouchControls.BraceButton));
             var crew = Mathf.Max(1, Game.CrewCount);
@@ -449,7 +662,7 @@ namespace RushAhead.UI
             // What's coming, and (during the countdown) a clean slate for what got you.
             if (run.Active && run.Countdown > 0) App.Culprits.Clear();
             var camera = Camera.main;
-            ahead.Refresh(Game, run, boat, world => camera != null ? PanelPoint(camera, world) : null);
+            ahead.Refresh(Game, run, Game.ViewedBoat, world => camera != null ? PanelPoint(camera, world) : null);
 
             Ui.Show(pauseMenu, Flow.Paused);
             if (Flow.Paused) RefreshPauseMenu();
@@ -460,8 +673,32 @@ namespace RushAhead.UI
             UpdateKeys();
             UpdateTags();
             sticks.MarkDirtyRepaint();
-            ReportButtons(controls && canBurst, controls, orders);
+            ReportButtons(controls && canBurst, controls, orders, canWatch, run.Active, shownItem != PowerUp.None && !spectator);
         }
+
+        /// <summary>Elimination: every raft's marker along the course, your place, and what the next knockout gate means.</summary>
+        void ShowField(RaceInfo run)
+        {
+            var markers = new[] { redMarker, blueMarker, greenMarker, yellowMarker };
+            for (var raft = 0; raft < markers.Length && raft < run.FieldProgress.Length; raft++)
+            {
+                markers[raft].style.left = new Length(run.FieldProgress[raft] * 92f, LengthUnit.Percent);
+                markers[raft].style.opacity = run.FieldOut[raft] ? 0.25f : 1f;
+            }
+
+            var left = 0;
+            foreach (var gone in run.FieldOut)
+                if (!gone) left++;
+            Ui.Set(teamLabel, run.Out ? $"You're {GameController.TeamName(run.MyRaft)}: out   {left} left"
+                : $"You're {GameController.TeamName(run.MyRaft)}   {Ordinal(run.Place)} of {run.Rafts}   {left} left");
+            var knock = run.NextKnockout;
+            Ui.Set(rivalLabel, run.Out || run.Finished ? "The river gets faster after every knockout"
+                : knock >= run.Gates ? "Finish: first over the line wins!"
+                : knock > 0 ? $"Knockout gate: checkpoint {knock}. Last one through is out!" : "");
+            rivalHearts.Count = run.Lives;
+        }
+
+        static string Ordinal(int place) => place switch { 1 => "1st", 2 => "2nd", 3 => "3rd", _ => $"{place}th" };
 
         /// <summary>Your own raft's knocks, capsizes and bursts shake the camera and buzz the phone.</summary>
         void Feel(RaftView view)
@@ -506,7 +743,7 @@ namespace RushAhead.UI
         /// <summary>Notes what got your raft, for "What hit me?" on the results.</summary>
         void Blame(bool fell)
         {
-            var boat = Game.ViewedBoat;
+            var boat = Game.OwnBoat;
             if (boat == null || !Game.Run.Active) return;
             var culprit = AheadWarning.Culprit(Game.CurrentCourse, boat.RenderPosition, fell);
             if (culprit == null) return;
@@ -571,11 +808,14 @@ namespace RushAhead.UI
         }
 
         /// <summary>Tells the touch controls where the buttons are now, in screen pixels.</summary>
-        void ReportButtons(bool withBurst, bool withBrace, bool withOrders)
+        void ReportButtons(bool withBurst, bool withBrace, bool withOrders, bool withWatch, bool withLook, bool withItem)
         {
             var touch = Game.Router.Touch;
             touch.ClearButtons();
             touch.AddButton("pause", ScreenRect(pauseButton));
+            if (withItem) touch.AddButton(TouchControls.ItemButton, ScreenRect(item));
+            if (withWatch) touch.AddButton("watch", ScreenRect(watch));
+            if (withLook) touch.AddButton(TouchControls.LookButton, ScreenRect(look));
             if (withBurst) touch.AddButton(TouchControls.BurstButton, ScreenRect(burst));
             if (withBrace) touch.AddButton(TouchControls.BraceButton, ScreenRect(brace));
             if (!withOrders) return;
@@ -627,6 +867,7 @@ namespace RushAhead.UI
                 var view = Game.ViewOf(raft);
                 var state = Game.RaftState(raft);
                 if (view == null || state == null || seat % crew >= state.CrewCount) continue;
+                if (state.Out && Game.Elimination) continue; // knocked out: the raft has sunk, so no names over empty water
                 var at = PanelPoint(camera, view.TagPosition(seat % crew));
                 if (!at.HasValue) continue;
 
@@ -718,6 +959,107 @@ namespace RushAhead.UI
                 painter.Arc(knob, radius * 0.38f, 0f, 360f);
                 painter.Fill();
             }
+        }
+
+        /// <summary>The power-up's icon: a fizzing can, a bubble, or an air horn.</summary>
+        void DrawItem(MeshGenerationContext context)
+        {
+            var rect = context.visualElement.contentRect;
+            var painter = context.painter2D;
+            var c = rect.center + new Vector2(0f, -12f);
+            var s = Mathf.Min(rect.width, rect.height) / 156f;
+            painter.lineJoin = LineJoin.Round;
+            painter.lineCap = LineCap.Round;
+            switch (shownItem)
+            {
+                case PowerUp.Turbo:
+                    painter.fillColor = new Color(1f, 0.416f, 0.169f);
+                    painter.BeginPath();
+                    painter.MoveTo(c + new Vector2(-20f, -36f) * s);
+                    painter.LineTo(c + new Vector2(20f, -36f) * s);
+                    painter.LineTo(c + new Vector2(20f, 34f) * s);
+                    painter.LineTo(c + new Vector2(-20f, 34f) * s);
+                    painter.ClosePath();
+                    painter.Fill();
+                    painter.fillColor = new Color(1f, 0.92f, 0.3f); // a lightning bolt on the can
+                    painter.BeginPath();
+                    painter.MoveTo(c + new Vector2(4f, -26f) * s);
+                    painter.LineTo(c + new Vector2(-10f, 4f) * s);
+                    painter.LineTo(c + new Vector2(1f, 4f) * s);
+                    painter.LineTo(c + new Vector2(-4f, 26f) * s);
+                    painter.LineTo(c + new Vector2(11f, -6f) * s);
+                    painter.LineTo(c + new Vector2(0f, -6f) * s);
+                    painter.ClosePath();
+                    painter.Fill();
+                    break;
+                case PowerUp.Shield:
+                    painter.fillColor = new Color(0.55f, 0.9f, 1f, 0.35f);
+                    painter.BeginPath();
+                    painter.Arc(c, 36f * s, 0f, 360f);
+                    painter.Fill();
+                    painter.strokeColor = new Color(0.7f, 0.95f, 1f);
+                    painter.lineWidth = 5f * s;
+                    painter.BeginPath();
+                    painter.Arc(c, 36f * s, 0f, 360f);
+                    painter.Stroke();
+                    painter.strokeColor = Color.white; // the shine
+                    painter.BeginPath();
+                    painter.Arc(c, 24f * s, 200f, 250f);
+                    painter.Stroke();
+                    break;
+                case PowerUp.Horn:
+                    painter.fillColor = new Color(1f, 0.82f, 0.3f);
+                    painter.BeginPath(); // the bell flaring to the right
+                    painter.MoveTo(c + new Vector2(-14f, -8f) * s);
+                    painter.LineTo(c + new Vector2(30f, -30f) * s);
+                    painter.LineTo(c + new Vector2(30f, 30f) * s);
+                    painter.LineTo(c + new Vector2(-14f, 8f) * s);
+                    painter.ClosePath();
+                    painter.Fill();
+                    painter.fillColor = new Color(0.9f, 0.25f, 0.2f); // the squeeze bulb
+                    painter.BeginPath();
+                    painter.Arc(c + new Vector2(-24f, 0f) * s, 14f * s, 0f, 360f);
+                    painter.Fill();
+                    break;
+            }
+        }
+
+        /// <summary>The look stick: a ring with an eye, its knob following the drag while looking round.</summary>
+        void DrawLook(MeshGenerationContext context)
+        {
+            var touch = Game.Router.Touch;
+            var rect = context.visualElement.contentRect;
+            var painter = context.painter2D;
+            var centre = rect.center;
+            var radius = Mathf.Min(rect.width, rect.height) * 0.5f - 4f;
+            var held = touch.Held.Contains(TouchControls.LookButton) || Game.Router.Look.sqrMagnitude > 0.0004f;
+            var alpha = held ? 1f : 0.6f;
+            painter.fillColor = new Color(0.047f, 0.055f, 0.07f, 0.45f * alpha);
+            painter.BeginPath();
+            painter.Arc(centre, radius, 0f, 360f);
+            painter.Fill();
+            painter.strokeColor = new Color(1f, 1f, 1f, 0.45f * alpha);
+            painter.lineWidth = 4f;
+            painter.BeginPath();
+            painter.Arc(centre, radius, 0f, 360f);
+            painter.Stroke();
+
+            // The eye: two arcs and a pupil, nudged the way the view is swung.
+            var look = Game.Router.Look;
+            var eye = centre + new Vector2(look.x, -look.y) * (radius * 0.45f);
+            var w = radius * 0.62f;
+            var h = radius * 0.34f;
+            painter.strokeColor = new Color(1f, 1f, 1f, 0.85f * alpha);
+            painter.lineWidth = 5f;
+            painter.BeginPath();
+            painter.MoveTo(eye + new Vector2(-w, 0f));
+            painter.QuadraticCurveTo(eye + new Vector2(0f, -h * 2f), eye + new Vector2(w, 0f));
+            painter.QuadraticCurveTo(eye + new Vector2(0f, h * 2f), eye + new Vector2(-w, 0f));
+            painter.Stroke();
+            painter.fillColor = held ? new Color(1f, 0.416f, 0.169f) : new Color(1f, 1f, 1f, 0.85f);
+            painter.BeginPath();
+            painter.Arc(eye, h * 0.75f, 0f, 360f);
+            painter.Fill();
         }
 
         /// <summary>The burst button's ring: how much air is left for bursts.</summary>

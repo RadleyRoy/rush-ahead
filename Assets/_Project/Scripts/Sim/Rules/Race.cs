@@ -83,6 +83,15 @@ namespace RushAhead.Sim
             if (Phase != RacePhase.Racing) return;
 
             var position = Boat.Body.Position;
+            if (Course.IsOffCourse(position) && Boat.Shielded && Boat.State == BoatState.Afloat)
+            {
+                Boat.Shielded = false; // the bubble pops, and bounces the raft back onto the water
+                Boat.ShieldPops++;
+                Course.SaveFromEdge(Boat);
+                lastPosition = Boat.Body.Position;
+                return;
+            }
+
             if (Course.IsOffCourse(position))
             {
                 Boat.Fall(); // over the edge: it costs a life when it comes back
@@ -104,6 +113,21 @@ namespace RushAhead.Sim
             }
 
             lastPosition = position;
+        }
+
+        /// <summary>
+        /// Out of an Elimination at <paramref name="tick"/>: knocked out at a gate (lives left) or out of lives. The raft
+        /// stops and sinks out of the way of the rest.
+        /// </summary>
+        public void KnockOut(int tick)
+        {
+            if (Phase is RacePhase.Finished) return;
+            Phase = RacePhase.Out;
+            Boat.Out = true;
+            if (Boat.OutTick <= 0) Boat.OutTick = Mathf.Max(1, tick);
+            Boat.ControlsLocked = true;
+            Boat.Moored = true;
+            Boat.Sunk = true;
         }
 
         void OnRecovered(Boat boat)

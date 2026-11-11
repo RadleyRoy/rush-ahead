@@ -78,6 +78,7 @@ namespace RushAhead.Sim
 
         public override void ResetLoose()
         {
+            scaredUntil = double.NegativeInfinity;
             for (var i = 0; i < geese.Length; i++) Home(i);
         }
 
@@ -88,11 +89,26 @@ namespace RushAhead.Sim
             geese[i].linearVelocity = Vector2.zero;
         }
 
+        double scaredUntil = double.NegativeInfinity;
+
+        /// <summary>An air horn near the gang: they flee for home for a few seconds, chasing and pecking nobody.</summary>
+        public override void Scare(Vector2 at, float radius, double seconds)
+        {
+            foreach (var goose in geese)
+                if ((goose.position - at).sqrMagnitude < radius * radius)
+                {
+                    scaredUntil = seconds + 5.0;
+                    return;
+                }
+        }
+
         public override void Step(double seconds, float dt, IReadOnlyList<Boat> boats)
         {
             near.Clear();
+            var scared = seconds < scaredUntil;
             foreach (var boat in boats)
             {
+                if (scared) break;
                 if (!Afloat(boat)) continue;
                 var distance = River.Project(boat.Body.Position).Distance;
                 if (distance > spot.distance - Upstream && distance < spot.distance + Downstream) near.Add((boat, distance));

@@ -44,6 +44,9 @@ namespace RushAhead.Net
         public float Throttle;
         public bool Brace;
         public byte BurstCount;
+
+        /// <summary>Presses of the power-up button so far: a running count, like bursts.</summary>
+        public byte ItemCount;
     }
 
     /// <summary>One seat as a particular player sees it.</summary>
@@ -124,6 +127,14 @@ namespace RushAhead.Net
         /// <summary>Wraps at 256; only ever compared for change.</summary>
         public byte TeleportCount;
 
+        /// <summary>The power-up carried, a turbo pushing, a shield up, and running counts of pops, horns and pickups.</summary>
+        public PowerUp Item;
+        public bool Turbo;
+        public bool Shielded;
+        public byte ShieldPops;
+        public byte HornCount;
+        public byte Pickups;
+
         public readonly List<CrewSnapshot> Crew = new();
     }
 
@@ -159,6 +170,12 @@ namespace RushAhead.Net
 
         /// <summary>The seed this round's obstacles were dealt from: joiners deal the same layout from it.</summary>
         public uint LayoutSeed;
+
+        /// <summary>Co-op, Team Race or Elimination.</summary>
+        public GameMode Mode;
+
+        /// <summary>This round's weather (a Random lobby choice already dealt).</summary>
+        public Weather Weather;
     }
 
     public struct PropSnapshot
@@ -167,24 +184,39 @@ namespace RushAhead.Net
         public float AngleRad;
     }
 
+    /// <summary>The boss course's giant crocodile, where it is and what it's up to (see <c>BossCroc</c>).</summary>
+    public struct BossSnapshot
+    {
+        public bool Present;
+        public Vector2 Position;
+        public float AngleRad;
+        public byte Mood;
+        public byte Chomps;
+    }
+
     /// <summary>Everything a client draws, as of one host tick. A list of boats, so Team Race needs no protocol change.</summary>
     public sealed class Snapshot
     {
         public uint Tick;
         public readonly List<BoatSnapshot> Boats = new();
         public readonly List<PropSnapshot> Props = new();
+
+        /// <summary>A bit per power-up crate, set while it's there to take.</summary>
+        public uint CratesReady;
+
+        public BossSnapshot Boss;
     }
 
     public static class Protocol
     {
         /// <summary>Bump on any wire-format change. Mismatched peers refuse each other.</summary>
-        public const byte Version = 9;
+        public const byte Version = 10;
 
         const byte FlagHasAim = 1, FlagBrace = 2;
-        const byte BoatCapsized = 1, BoatFallen = 2, BoatOut = 4;
+        const byte BoatCapsized = 1, BoatFallen = 2, BoatOut = 4, BoatTurbo = 8, BoatShielded = 16;
         const byte CrewBraced = 1;
         const byte SeatHuman = 1, SeatHost = 2, SeatYours = 4, SeatAi = 8, SeatKept = 16;
-        const int MaxBoats = 8, MaxCrew = 4, MaxRafts = 2, MaxProps = 64;
+        const int MaxBoats = 8, MaxCrew = 4, MaxRafts = 4, MaxProps = 64;
         static readonly byte[] AdvertMagic = { (byte)'R', (byte)'U', (byte)'S', (byte)'H' };
 
         public static MessageType PeekType(ArraySegment<byte> message)
@@ -202,6 +234,7 @@ namespace RushAhead.Net
             w.U8(Quantize.Unit(m.Throttle));
             w.U8((byte)((m.HasAim ? FlagHasAim : 0) | (m.Brace ? FlagBrace : 0)));
             w.U8(m.BurstCount);
+            w.U8(m.ItemCount);
         }
 
         public static InputMessage ReadInput(ByteReader r)
@@ -218,6 +251,7 @@ namespace RushAhead.Net
             m.HasAim = (flags & FlagHasAim) != 0;
             m.Brace = (flags & FlagBrace) != 0;
             m.BurstCount = r.U8();
+            m.ItemCount = r.U8();
             return m;
         }
 
@@ -276,6 +310,8 @@ namespace RushAhead.Net
             w.U8((byte)m.Phase);
             w.U8(m.AiSkill);
             w.U32(m.LayoutSeed);
+            w.U8((byte)m.Mode);
+            w.U8((byte)m.Weather);
         }
 
         public static RaceMessage ReadRace(ByteReader r)
@@ -288,6 +324,12 @@ namespace RushAhead.Net
             m.AiSkill = r.U8();
             if (m.AiSkill > 2 && m.AiSkill != RaceMessage.AiOff) throw new ProtocolException($"Unknown AI skill {m.AiSkill}.");
             m.LayoutSeed = r.U32();
+            var mode = r.U8();
+            if (mode > (byte)GameMode.Elimination) throw new ProtocolException($"Unknown game mode {mode}.");
+            m.Mode = (GameMode)mode;
+            var weather = r.U8();
+            if (weather >= WeatherDeal.Kinds) throw new ProtocolException($"Unknown weather {weather}.");
+            m.Weather = (Weather)weather;
             ExpectEnd(r, "race");
             return m;
         }
@@ -396,6 +438,9 @@ namespace RushAhead.Net
             w.U8(loadout.Species);
             w.U8(loadout.Fur);
             w.U8(loadout.Blower);
+            w.U8(loadout.Hat);
+            w.U8(loadout.Skin);
+            w.U8(loadout.Paint);
             WriteName(w, loadout.Name);
         }
 
@@ -404,6 +449,9 @@ namespace RushAhead.Net
             Species = r.U8(),
             Fur = r.U8(),
             Blower = r.U8(),
+            Hat = r.U8(),
+            Skin = r.U8(),
+            Paint = r.U8(),
             Name = ReadName(r),
         };
 
@@ -435,12 +483,17 @@ namespace RushAhead.Net
                 w.I16(Quantize.Spin(boat.AngularVelocity));
                 w.I16(Quantize.Tilt(boat.Tilt.x));
                 w.I16(Quantize.Tilt(boat.Tilt.y));
-                w.U8((byte)((boat.Capsized ? BoatCapsized : 0) | (boat.Fallen ? BoatFallen : 0) | (boat.Out ? BoatOut : 0)));
+                w.U8((byte)((boat.Capsized ? BoatCapsized : 0) | (boat.Fallen ? BoatFallen : 0) | (boat.Out ? BoatOut : 0) |
+                            (boat.Turbo ? BoatTurbo : 0) | (boat.Shielded ? BoatShielded : 0)));
                 w.U8(boat.CapsizeCount);
                 w.U8(boat.GatesPassed);
                 w.U32(boat.FinishTick);
                 w.U8(boat.TeleportCount);
                 w.U8(boat.Lives);
+                w.U8((byte)boat.Item);
+                w.U8(boat.ShieldPops);
+                w.U8(boat.HornCount);
+                w.U8(boat.Pickups);
                 w.U8((byte)boat.Crew.Count);
                 foreach (var crew in boat.Crew)
                 {
@@ -460,6 +513,15 @@ namespace RushAhead.Net
                 w.I32(Quantize.Position(prop.Position.y));
                 w.U16(Quantize.Angle(prop.AngleRad));
             }
+
+            w.U32(s.CratesReady);
+            w.U8(s.Boss.Present ? (byte)1 : (byte)0);
+            if (!s.Boss.Present) return;
+            w.I32(Quantize.Position(s.Boss.Position.x));
+            w.I32(Quantize.Position(s.Boss.Position.y));
+            w.U16(Quantize.Angle(s.Boss.AngleRad));
+            w.U8(s.Boss.Mood);
+            w.U8(s.Boss.Chomps);
         }
 
         /// <summary>Reads into <paramref name="into"/>, reusing its lists so steady-state receiving allocates nothing.</summary>
@@ -482,11 +544,19 @@ namespace RushAhead.Net
                 boat.Capsized = (state & BoatCapsized) != 0;
                 boat.Fallen = (state & BoatFallen) != 0;
                 boat.Out = (state & BoatOut) != 0;
+                boat.Turbo = (state & BoatTurbo) != 0;
+                boat.Shielded = (state & BoatShielded) != 0;
                 boat.CapsizeCount = r.U8();
                 boat.GatesPassed = r.U8();
                 boat.FinishTick = r.U32();
                 boat.TeleportCount = r.U8();
                 boat.Lives = r.U8();
+                var item = r.U8();
+                if (item > (byte)PowerUp.Horn) throw new ProtocolException($"Unknown power-up {item}.");
+                boat.Item = (PowerUp)item;
+                boat.ShieldPops = r.U8();
+                boat.HornCount = r.U8();
+                boat.Pickups = r.U8();
 
                 var crew = Bounded(r.U8(), MaxCrew, "crew count");
                 boat.Crew.Clear();
@@ -512,6 +582,20 @@ namespace RushAhead.Net
                     Position = new Vector2(Quantize.Position(r.I32()), Quantize.Position(r.I32())),
                     AngleRad = Quantize.Angle(r.U16()),
                 });
+
+            into.CratesReady = r.U32();
+            var boss = r.U8();
+            if (boss > 1) throw new ProtocolException($"Bad boss flag {boss}.");
+            into.Boss = default;
+            if (boss == 1)
+                into.Boss = new BossSnapshot
+                {
+                    Present = true,
+                    Position = new Vector2(Quantize.Position(r.I32()), Quantize.Position(r.I32())),
+                    AngleRad = Quantize.Angle(r.U16()),
+                    Mood = r.U8(),
+                    Chomps = r.U8(),
+                };
 
             ExpectEnd(r, "snapshot");
         }

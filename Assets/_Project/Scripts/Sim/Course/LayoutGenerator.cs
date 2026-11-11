@@ -21,6 +21,8 @@ namespace RushAhead.Sim
         const float LaneRoom = 16f; // between two that each send a raft to one side: room to cross over between them
         const float RespawnPastGate = 3f;
         const float RunUp = 20f; // clear water after a place a raft comes back, before the next obstacle starts
+        const float ForkBefore = 14f; // nothing dealt this far before an island's nose (crews are picking a side)...
+        const float ForkAfter = 8f; // ...or this soon after its tail
         const int TriesPerObstacle = 150;
 
         const int Redeals = 8;
@@ -67,6 +69,7 @@ namespace RushAhead.Sim
             var dice = new Dice(seed);
             var count = dice.Range(def.minObstacles, def.maxObstacles + 1);
             var deal = new Deal(def, river);
+            deal.Islands(dice);
             var from = def.startDistance + 26f;
             var to = def.FinishDistance - 6f;
             for (var tries = 0; deal.Count < count && tries < count * TriesPerObstacle; tries++)
@@ -88,6 +91,10 @@ namespace RushAhead.Sim
             // Boost lanes in the free water left between obstacles: about one per 110 m.
             var lanes = Mathf.Clamp(Mathf.RoundToInt((to - from) / 110f), 2, 5);
             for (var tries = 0; deal.Boosts < lanes && tries < 600; tries++) deal.TryBoost(dice, dice.Range(from, to - BoostLane.Length));
+
+            // Power-up crates, after everything else so they never change where the obstacles go: about one stop per 95 m.
+            var stops = Mathf.Clamp(Mathf.RoundToInt((to - from) / 95f), 2, 6) + def.extraCrates;
+            for (var tries = 0; deal.CrateStops < stops && deal.Crates < PowerUps.MaxCrates - 1 && tries < 600; tries++) deal.TryCrates(dice, dice.Range(from, to));
             return deal.Layout;
         }
 
@@ -137,14 +144,58 @@ namespace RushAhead.Sim
             readonly List<CrossingSpot> netBoats = new();
             readonly List<ObstacleSpot> extras = new();
             readonly List<BoostSpot> boosts = new();
+            readonly List<CrateSpot> crates = new();
+            readonly List<float> crateStops = new();
 
             public int Boosts => boosts.Count;
+            public int Crates => crates.Count;
+            public int CrateStops => crateStops.Count;
+
+            /// <summary>
+            /// Power-up crates at <paramref name="distance"/> if the water there is free: off every obstacle, respawn,
+            /// whirlpool and rock, and well apart from the last crates. On wide water two side by side, one for each of two rafts.
+            /// </summary>
+            public void TryCrates(Dice dice, float distance)
+            {
+                if (InFork(distance - 3f, distance + 3f)) return;
+                foreach (var (takenFrom, takenTo, _, _) in taken)
+                    if (distance > takenFrom - 4f && distance < takenTo + 4f) return;
+                foreach (var stop in crateStops)
+                    if (Mathf.Abs(stop - distance) < 30f) return;
+                foreach (var respawn in respawns)
+                    if (Mathf.Abs(respawn - distance) < 6f) return;
+                foreach (var pool in def.whirlpools)
+                    if (Mathf.Abs(river.Project(pool.position).Distance - distance) < pool.radius + 4f) return;
+
+                var at = river.At(distance);
+                var room = at.HalfWidth - 2.2f;
+                if (room < 0.5f) return;
+                var spots = new List<float>();
+                if (at.HalfWidth >= 6f)
+                {
+                    var spread = Mathf.Min(room, at.HalfWidth * 0.42f);
+                    spots.Add(spread);
+                    spots.Add(-spread);
+                }
+                else spots.Add(dice.Range(-1f, 1f) * room);
+
+                foreach (var across in spots)
+                foreach (var rock in def.rocks)
+                {
+                    var rockAt = river.Project(rock.position);
+                    if (Mathf.Abs(rockAt.Distance - distance) < rock.radius + 2.5f && Mathf.Abs(rockAt.Lateral - across) < rock.radius + 2.5f) return;
+                }
+
+                crateStops.Add(distance);
+                foreach (var across in spots) crates.Add(new CrateSpot(distance, across));
+            }
 
             /// <summary>A boost lane at <paramref name="distance"/> if the water there is free: off every obstacle, respawn, whirlpool and rock.</summary>
             public void TryBoost(Dice dice, float distance)
             {
                 var from = distance - 2f;
                 var to = distance + BoostLane.Length + 2f;
+                if (InFork(from, to)) return;
                 foreach (var (takenFrom, takenTo, _, _) in taken)
                     if (from < takenTo + 2f && to > takenFrom - 2f) return; // right up to an obstacle: the fast line is the risky one
 
@@ -182,6 +233,40 @@ namespace RushAhead.Sim
 
             public int Count => taken.Count;
 
+            /// <summary>Whether a stretch reaches into an island's (from a little before its nose to a little after its tail).</summary>
+            bool InFork(float from, float to)
+            {
+                foreach (var island in def.islands)
+                    if (from < island.distance + island.length + ForkAfter && to > island.distance - ForkBefore) return true;
+                return false;
+            }
+
+            /// <summary>
+            /// What each island's fast line holds, before anything else is dealt: a boost lane into it, a springy buoy hard
+            /// against the island's shore (pass it on the outside, near the edge), and a crate near the tail as the prize.
+            /// The buoy counts as one of the round's obstacles. Nothing else is dealt round an island.
+            /// </summary>
+            public void Islands(Dice dice)
+            {
+                foreach (var spot in def.islands)
+                {
+                    var island = new Island(spot, river);
+                    var side = island.FastSide;
+                    var boostAt = spot.distance + spot.length * 0.08f;
+                    boosts.Add(new BoostSpot(boostAt, island.Branch(side, boostAt + BoostLane.Length * 0.5f).centre));
+
+                    var bumpAt = spot.distance + spot.length * dice.Range(0.55f, 0.65f);
+                    var radius = dice.Range(0.55f, 0.7f);
+                    var across = island.Across + side * (island.HalfWidthAt(bumpAt) + radius + 0.4f);
+                    var at = river.At(bumpAt);
+                    bumpers.Add(new BumperSpot(at.Centre + at.Left * across, radius));
+                    taken.Add((bumpAt - radius, bumpAt + radius, false, true));
+
+                    var crateAt = spot.distance + spot.length * 0.86f;
+                    crates.Add(new CrateSpot(crateAt, island.Branch(side, crateAt).centre));
+                }
+            }
+
             public CourseLayout Layout => new()
             {
                 wheels = wheels.ToArray(), crocodiles = crocs.ToArray(), swingers = swingers.ToArray(), geysers = geysers.ToArray(),
@@ -190,6 +275,7 @@ namespace RushAhead.Sim
                 ferries = ferries.ToArray(), bears = bears.ToArray(), trees = trees.ToArray(), turtles = turtles.ToArray(), shoals = shoals.ToArray(),
                 waterspouts = waterspouts.ToArray(), eels = eels.ToArray(), mudslides = mudslides.ToArray(), floes = floes.ToArray(), dams = dams.ToArray(),
                 pelicans = pelicans.ToArray(), netBoats = netBoats.ToArray(), extras = extras.ToArray(), boosts = boosts.ToArray(),
+                crates = crates.ToArray(),
             };
 
             /// <summary>A kind from the menu, by weight, among those the water here suits.</summary>
@@ -276,7 +362,7 @@ namespace RushAhead.Sim
                 };
                 var from = distance - Reach(kind, half);
                 var to = distance + length + Reach(kind, half);
-                if (to > def.FinishDistance - 3f) return false;
+                if (to > def.FinishDistance - 3f || InFork(from, to)) return false;
 
                 // Clear of every checkpoint (a bridge on a gate) and every place a raft starts or comes back: by its own
                 // reach, or for a crocodile (which lunges right across) by the river's width.
@@ -320,7 +406,8 @@ namespace RushAhead.Sim
                     case ObstacleKind.Wheel:
                         radius = dice.Range(2.6f, 3f);
                         across = side * half * 0.5f;
-                        if (!ClearOfRocks(distance, across, radius)) return false;
+                        // A raft's width and more from any rock: a narrower gap between an arm and a rock pins a raft for good.
+                        if (!ClearOfRocks(distance, across, radius + RaftRadius + 1.2f)) return false;
                         // Turning so the arms that meet a raft coming downstream sweep it toward the middle.
                         wheels.Add(new WheelSpot(at.Centre + at.Left * across, radius, 4, dice.Range(110f, 145f) * side));
                         break;

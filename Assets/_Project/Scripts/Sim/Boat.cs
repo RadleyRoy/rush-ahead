@@ -145,6 +145,29 @@ namespace RushAhead.Sim
             Tilt.Reset();
         }
 
+        /// <summary>
+        /// Knocked straight over (the boss croc's bite): a capsize like any other, costing a life, unless a shield
+        /// bubble pops instead. Whether it went over.
+        /// </summary>
+        public bool KnockOver()
+        {
+            if (State != BoatState.Afloat) return false;
+            if (Shielded)
+            {
+                Shielded = false;
+                ShieldPops++;
+                Tilt.Reset();
+                CapsizeImmunitySeconds = 1f;
+                return false;
+            }
+
+            State = BoatState.Capsized;
+            CapsizeCount++;
+            recoverySecondsLeft = config.recoverySeconds;
+            CapsizedEvent?.Invoke(this);
+            return true;
+        }
+
         /// <summary>Speed along the hull's heading (negative when going backwards).</summary>
         public float ForwardSpeed => Body.LocalVector(Body.Velocity).x;
 
@@ -177,6 +200,7 @@ namespace RushAhead.Sim
                 // Always read, so presses made while the controls are locked are used up rather than firing afterwards.
                 var input = crew.Input?.ReadInput() ?? CrewInput.Idle;
                 if (!afloat || ControlsLocked) input = CrewInput.Idle;
+                if (input.UseItem) ItemRequested = true;
                 crew.Braced = afloat && input.Brace;
                 if (crew.Braced) bracedCount++;
 
@@ -308,6 +332,15 @@ namespace RushAhead.Sim
             if (!Tilt.Step(heelAccel + turnHeel, stiffness, damping, capsizeAngle, config.capsizeHoldSeconds, dt))
                 return;
 
+            if (Shielded)
+            {
+                Shielded = false; // the bubble pops and rights the raft
+                ShieldPops++;
+                Tilt.Reset();
+                CapsizeImmunitySeconds = 1f;
+                return;
+            }
+
             State = BoatState.Capsized;
             CapsizeCount++;
             recoverySecondsLeft = config.recoverySeconds;
@@ -340,9 +373,41 @@ namespace RushAhead.Sim
             }
         }
 
+        /// <summary>Knocked out of an Elimination: it sinks out of the race and out of everyone's way.</summary>
+        public bool Sunk
+        {
+            get => !Body.Solid;
+            set => Body.Solid = !value;
+        }
+
+        /// <summary>The power-up the raft carries, if any.</summary>
+        public PowerUp Item { get; set; }
+
+        /// <summary>A crewmate pressed to use the item (the AI sets it directly); the power-ups use it up.</summary>
+        public bool ItemRequested { get; set; }
+
+        /// <summary>Seconds of turbo left.</summary>
+        public float TurboSeconds { get; set; }
+
+        /// <summary>A shield bubble is up: it saves the raft from its next fall or capsize.</summary>
+        public bool Shielded { get; set; }
+
+        /// <summary>Running counts, for the views to play a pop, a horn, a pickup: they survive dropped snapshots.</summary>
+        public int ShieldPops { get; set; }
+        public int HornCount { get; set; }
+        public int Pickups { get; set; }
+        public int ItemsUsed { get; set; }
+
+        bool IBoatState.Turbo => TurboSeconds > 0f;
+
         /// <summary>Wipes the last run's progress: no checkpoints, no finish, no capsizes counted, every life back.</summary>
         public void ClearRun(int lives = 3)
         {
+            Sunk = false;
+            Item = PowerUp.None;
+            ItemRequested = false;
+            TurboSeconds = 0f;
+            Shielded = false;
             GatesPassed = 0;
             FinishTick = 0;
             CapsizeCount = 0;

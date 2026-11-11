@@ -13,6 +13,9 @@ namespace RushAhead.Render
             data.renderPostProcessing = on;
         }
 
+        public static bool HasPostProcessing(Camera camera) =>
+            camera != null && camera.TryGetComponent(out UniversalAdditionalCameraData data) && data.renderPostProcessing;
+
         /// <summary>How much scenery to plant for the graphics setting: thinner on Low, all of it on High.</summary>
         public static float Detail => QualitySettings.GetQualityLevel() switch { <= 1 => 0.5f, 2 => 0.75f, _ => 1f };
     }

@@ -1,0 +1,205 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 110f1613fe645bf43965f6081c1bcce4, type: 3}
+  m_Name: SnapjawSwamp
+  m_EditorClassIdentifier: RushAhead.Content::RushAhead.Content.CourseDef
+  displayName: Snapjaw Swamp
+  blurb: Something huge lives in this swamp, and it's hungry. Keep ahead of Old Snapjaw.
+    New obstacles every round.
+  scene: 5
+  starsToUnlock: 22
+  river:
+  - position: {x: 0, y: 0}
+    width: 16
+    lineOffset: 0
+  - position: {x: 16, y: 0}
+    width: 16
+    lineOffset: 0
+  - position: {x: 32, y: 2}
+    width: 16
+    lineOffset: 0
+  - position: {x: 48, y: 6}
+    width: 15
+    lineOffset: 0
+  - position: {x: 63.5, y: 11}
+    width: 15
+    lineOffset: 0
+  - position: {x: 79, y: 15}
+    width: 26
+    lineOffset: 0
+  - position: {x: 95, y: 17}
+    width: 26
+    lineOffset: 0
+  - position: {x: 111, y: 16}
+    width: 26
+    lineOffset: 0
+  - position: {x: 127, y: 12}
+    width: 26
+    lineOffset: 0
+  - position: {x: 142, y: 6}
+    width: 14
+    lineOffset: 0
+  - position: {x: 157, y: -1}
+    width: 14
+    lineOffset: 0
+  - position: {x: 172, y: -6}
+    width: 15
+    lineOffset: 0
+  - position: {x: 188, y: -8}
+    width: 16
+    lineOffset: 0
+  - position: {x: 204, y: -7}
+    width: 16
+    lineOffset: 0
+  - position: {x: 220, y: -3}
+    width: 15
+    lineOffset: 0
+  - position: {x: 235.5, y: 3}
+    width: 14
+    lineOffset: 0
+  - position: {x: 250.5, y: 10}
+    width: 15
+    lineOffset: 0
+  - position: {x: 266, y: 15}
+    width: 26
+    lineOffset: 0
+  - position: {x: 282, y: 17}
+    width: 26
+    lineOffset: 0
+  - position: {x: 298, y: 16}
+    width: 26
+    lineOffset: 0
+  - position: {x: 314, y: 12}
+    width: 26
+    lineOffset: 0
+  - position: {x: 329.5, y: 6}
+    width: 14
+    lineOffset: 0
+  - position: {x: 345, y: 1}
+    width: 14
+    lineOffset: 0
+  - position: {x: 361, y: -2}
+    width: 15
+    lineOffset: 0
+  - position: {x: 377, y: -3}
+    width: 16
+    lineOffset: 0
+  - position: {x: 393, y: -2}
+    width: 16
+    lineOffset: 0
+  - position: {x: 409, y: 0}
+    width: 16
+    lineOffset: 0
+  - position: {x: 425, y: 1}
+    width: 16
+    lineOffset: 0
+  - position: {x: 441, y: 1}
+    width: 16
+    lineOffset: 0
+  - position: {x: 457, y: 1}
+    width: 16
+    lineOffset: 0
+  - position: {x: 473, y: 1}
+    width: 16
+    lineOffset: 0
+  startDistance: 8
+  gates:
+  - 64.92524
+  - 129.64388
+  - 194.33928
+  - 260.0861
+  - 325.09927
+  - 390.34744
+  - 470.5456
+  flow: 8.5
+  rocks: []
+  barrels: []
+  logs: []
+  currents:
+  - from: 145.80614
+    to: 178.19054
+    speed: -0.9
+  - from: 341.7241
+    to: 374.30603
+    speed: 1.2
+  whirlpools: []
+  islands:
+  - distance: 88.92524
+    length: 30.718636
+    across: 2
+    halfWidth: 3.5
+    fastSide: 1
+  - distance: 284.0861
+    length: 31.013184
+    across: -2
+    halfWidth: 3.5
+    fastSide: -1
+  menu:
+  - kind: 1
+    weight: 1.6
+  - kind: 5
+    weight: 1.4
+  - kind: 15
+    weight: 1.2
+  - kind: 16
+    weight: 1.2
+  - kind: 27
+    weight: 1
+  - kind: 38
+    weight: 1.2
+  - kind: 24
+    weight: 1
+  - kind: 22
+    weight: 1
+  - kind: 18
+    weight: 1
+  - kind: 14
+    weight: 1
+  - kind: 19
+    weight: 1
+  - kind: 2
+    weight: 1
+  - kind: 23
+    weight: 1
+  - kind: 11
+    weight: 1
+  minObstacles: 8
+  maxObstacles: 11
+  wheels: []
+  crocodiles: []
+  swingers: []
+  geysers: []
+  rockslides: []
+  hippos: []
+  sluices: []
+  sweepers: []
+  cannons: []
+  rapids: []
+  weirs: []
+  bumpers: []
+  ferries: []
+  bears: []
+  trees: []
+  turtles: []
+  shoals: []
+  waterspouts: []
+  eels: []
+  mudslides: []
+  floes: []
+  dams: []
+  pelicans: []
+  netBoats: []
+  extras: []
+  boosts: []
+  crates: []
+  boss: 1
+  extraCrates: 3

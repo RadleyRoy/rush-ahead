@@ -141,6 +141,7 @@ MonoBehaviour:
     radius: 5.5
     spin: 2.7
     pull: 1.35
+  islands: []
   menu:
   - kind: 0
     weight: 1
@@ -208,3 +209,6 @@ MonoBehaviour:
   netBoats: []
   extras: []
   boosts: []
+  crates: []
+  boss: 0
+  extraCrates: 0

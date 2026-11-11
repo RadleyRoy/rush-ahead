@@ -1,6 +1,7 @@
 using System.Text;
 using RushAhead.Net;
 using RushAhead.Render;
+using RushAhead.Sim;
 using UnityEngine;
 using UnityEngine.UIElements;
 
@@ -24,8 +25,12 @@ namespace RushAhead.UI
         Label courseTimes;
         Button changeCourse;
         Segmented mode;
+        Segmented raftsWanted;
+        VisualElement raftsRow;
         Segmented crew;
         Segmented ai;
+        Segmented weather;
+        Label weatherBlurb;
         Label aiBlurb;
         Label chooser;
         VisualElement seats;
@@ -65,6 +70,7 @@ namespace RushAhead.UI
 
             var middle = Ui.El("row grow");
             middle.style.alignItems = Align.Stretch;
+            middle.style.flexBasis = 0; // the space left over, however long the lists inside (they scroll), so the header and buttons keep theirs
 
             // Left: the course and how it's raced.
             var left = Ui.El("panel col");
@@ -91,8 +97,18 @@ namespace RushAhead.UI
             settings.Add(course);
 
             settings.Add(Ui.Text("Mode", "small muted"));
-            mode = new Segmented(App, "lobby-mode", new[] { "Co-op", "Team Race" }, i => Game.SetTeamRace(i == 1));
+            mode = new Segmented(App, "lobby-mode", new[] { "Co-op", "Team Race", "Elimination" }, i => Game.SetRaceMode((GameMode)i));
             settings.Add(mode);
+            raftsWanted = new Segmented(App, "lobby-rafts", new[] { "3 rafts", "4 rafts" }, i => Game.SetEliminationRafts(i + KnockoutRule.MinRafts));
+            raftsRow = Ui.El("col", Ui.Spacer("spacer-s"), Ui.Text("Rafts: the last one through each knockout gate is out", "small muted"), raftsWanted);
+            settings.Add(raftsRow);
+            settings.Add(Ui.Spacer("spacer-s"));
+            settings.Add(Ui.Text("Weather", "small muted"));
+            weather = new Segmented(App, "lobby-weather", new[] { "Clear", "Rain", "Fog", "Night", "Random" }, i => Game.SetWeatherChoice(i));
+            weather.AddToClassList("segmented--tight"); // five choices across the column
+            settings.Add(weather);
+            weatherBlurb = Ui.Text("", "small muted");
+            settings.Add(weatherBlurb);
             settings.Add(Ui.Spacer("spacer-s"));
             settings.Add(Ui.Text("Animals per raft", "small muted"));
             crew = new Segmented(App, "lobby-crew", new[] { "1", "2", "3", "4" }, i => Game.SetCrewCount(i + 1));
@@ -205,9 +221,17 @@ namespace RushAhead.UI
             }
 
             Ui.Show(changeCourse, canEdit);
-            mode.Selected = team ? 1 : 0;
+            mode.Selected = (int)Game.RaceMode;
+            Ui.Show(raftsRow, Game.Elimination);
+            raftsWanted.Selected = Mathf.Clamp(Game.Rafts - KnockoutRule.MinRafts, 0, 1);
+            Ui.Enable(raftsWanted, canEdit);
             crew.Selected = Game.CrewCount - 1;
             ai.Selected = Game.AiSetting + 1;
+            weather.Selected = Game.WeatherChoice;
+            Ui.Enable(weather, canEdit && venue > 0);
+            Ui.Set(weatherBlurb, venue == 0 ? "Always fair in the practice lagoon."
+                : Game.WeatherChoice == WeatherDeal.Random ? $"Dealt each round: {WeatherName(Game.CurrentWeather)} this time."
+                : WeatherBlurb(Game.CurrentWeather));
             Ui.Enable(mode, canEdit);
             Ui.Enable(crew, canEdit);
             Ui.Enable(ai, canEdit);
@@ -251,7 +275,7 @@ namespace RushAhead.UI
             for (var raft = 0; raft < rafts; raft++)
             {
                 var heading = rafts > 1 ? $"{GameController.TeamName(raft)} raft" : "Your raft";
-                var label = Ui.Text(heading + (rafts > 1 && raft == Game.MyRaft ? " (yours)" : ""), "h3" + (rafts > 1 ? raft == 0 ? " team-red" : " team-blue" : ""));
+                var label = Ui.Text(heading + (rafts > 1 && raft == Game.MyRaft ? " (yours)" : ""), "h3" + (rafts > 1 ? " team-" + GameController.TeamName(raft).ToLowerInvariant() : ""));
                 label.style.marginTop = raft > 0 ? 18 : 0;
                 label.style.marginBottom = 10;
                 seats.Add(label);
@@ -361,5 +385,21 @@ namespace RushAhead.UI
             var facts = $"{def.scene}, {def.FinishDistance:0} m, water at {def.flow:0.#} m/s";
             return hazards.Count > 0 ? $"{facts}: {string.Join(", ", hazards)}" : facts;
         }
+
+        static string WeatherName(Weather weather) => weather switch
+        {
+            Weather.Rain => "rain",
+            Weather.Fog => "fog",
+            Weather.Night => "night",
+            _ => "clear skies",
+        };
+
+        static string WeatherBlurb(Weather weather) => weather switch
+        {
+            Weather.Rain => "Gusts blow across the river: blow into them or brace.",
+            Weather.Fog => "You won't see far. Watch the warnings.",
+            Weather.Night => "Lanterns on, gates lit. Mind the dark water.",
+            _ => "Sunshine. Nothing to blame but your crew.",
+        };
     }
 }

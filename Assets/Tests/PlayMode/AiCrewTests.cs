@@ -109,7 +109,9 @@ namespace RushAhead.Tests
                 // Clumsy may run out of lives anywhere, and Keen on the hard courses (the last three): reported, not required.
                 if (race.Phase == RacePhase.Out && (skill == AiSkill.Clumsy || (skill == AiSkill.Keen && def.starsToUnlock >= 4))) return;
                 Assert.That(race.Phase, Is.Not.EqualTo(RacePhase.Out), $"ran out of lives with {boat.GatesPassed} of {course.Gates.Count} gates after {time:0} s");
-                Assert.That(race.Phase, Is.EqualTo(RacePhase.Finished), $"stuck with {boat.GatesPassed} of {course.Gates.Count} gates after {time:0} s");
+                var stuckAt = course.River.Project(boat.Body.Position);
+                Assert.That(race.Phase, Is.EqualTo(RacePhase.Finished),
+                    $"stuck with {boat.GatesPassed} of {course.Gates.Count} gates after {time:0} s, at {stuckAt.Distance:0} m, {stuckAt.Lateral:0.0} across");
                 Assert.That(time, Is.LessThanOrEqualTo(def.ExpectedSeconds * Allowance(skill)), $"{skill} took {time:0.0} s");
             }
             finally
@@ -175,6 +177,83 @@ namespace RushAhead.Tests
             }
             finally
             {
+                course.Destroy();
+            }
+        }
+
+        static IEnumerable<TestCaseData> EliminationCourses() =>
+            CourseSolvabilityTests.AllCourses().Select(c => new TestCaseData(c).SetName($"{c.name}: an Elimination of four AI rafts knocks rafts out and ends with a winner"));
+
+        [TestCaseSource(nameof(EliminationCourses))]
+        public void AnEliminationOfFourAiRafts_KnocksRaftsOut_AndEndsWithAWinner(CourseDef def)
+        {
+            var course = Course.Build(def, 1);
+            try
+            {
+                world.WaterVelocity = course.WaterVelocityAt;
+                world.Drifting.AddRange(course.BarrelBodies);
+                var skills = new[] { AiSkill.Ace, AiSkill.Keen, AiSkill.Steady, AiSkill.Clumsy };
+                var rafts = new List<(Boat boat, AiCrew ai, Race race)>();
+                for (var lane = 0; lane < 4; lane++)
+                {
+                    var (start, heading) = course.RespawnPose(0, lane, 4);
+                    var boat = world.SpawnBoat(start, heading, new[] { blower, blower, blower, blower });
+                    var ai = new AiCrew(boat, Keep(AiProfile.Preset(skills[lane])), config.tickRate, seed: 20 + lane) { River = course.River, Lane = lane, Lanes = 4 };
+                    CourseSolvabilityTests.Hook(ai, course, world, config);
+                    ai.Drive(CrewSectors.DriveOrder(4));
+                    rafts.Add((boat, ai, new Race(course, boat, world.Tick, config.tickRate, lane, 4)));
+                }
+
+                for (var a = 0; a < 4; a++)
+                for (var b = a + 1; b < 4; b++)
+                    Assert.That(Vector2.Distance(rafts[a].boat.Body.Position, rafts[b].boat.Body.Position), Is.GreaterThan(3.4f), "two rows of two, clear of each other");
+
+                var limit = rafts[0].race.StartTick + Mathf.CeilToInt(def.ExpectedSeconds * 1.6f * config.tickRate);
+                var passed = new List<int>();
+                var outs = new List<bool>();
+                var knocked = new List<int>();
+                var log = new List<string>();
+                var winner = -1;
+                var maxBoost = 1f;
+                while (winner < 0 && rafts.Any(r => !r.boat.Out) && world.Tick < limit)
+                {
+                    foreach (var r in rafts) r.ai.Update(Dt);
+                    course.Hazards.Step(world.Tick / (double)config.tickRate, rafts.Select(r => r.boat).ToList());
+                    world.Advance(Dt);
+                    foreach (var r in rafts) r.race.Step(world.Tick);
+
+                    passed.Clear();
+                    outs.Clear();
+                    foreach (var r in rafts)
+                    {
+                        if (r.boat.Out && !r.boat.Sunk) r.race.KnockOut(world.Tick);
+                        passed.Add(r.boat.GatesPassed);
+                        outs.Add(r.boat.Out);
+                    }
+
+                    KnockoutRule.Decide(passed, outs, course.Gates.Count, knocked);
+                    foreach (var i in knocked)
+                    {
+                        rafts[i].race.KnockOut(world.Tick);
+                        log.Add($"{skills[i]} knocked out at checkpoint {rafts[i].boat.GatesPassed} ({rafts[i].race.SecondsAt(world.Tick):0.0} s)");
+                    }
+
+                    var gone = rafts.Count(r => r.boat.Out);
+                    course.FlowBoost = KnockoutRule.FlowBoost(4, gone);
+                    maxBoost = Mathf.Max(maxBoost, course.FlowBoost);
+                    winner = KnockoutRule.Winner(rafts.Select(r => r.boat.FinishTick).ToList(), rafts.Select(r => r.boat.Out).ToList());
+                }
+
+                Debug.Log($"[RushAhead] {def.name}: AI elimination, winner {(winner >= 0 ? skills[winner].ToString() : "none")} " +
+                          $"({string.Join("; ", log)}), lives {string.Join("/", rafts.Select(r => r.boat.Lives))}, river x{maxBoost:0.00}");
+                Assert.That(winner, Is.GreaterThanOrEqualTo(0), $"a raft wins ({string.Join("; ", log)})");
+                Assert.That(rafts.Count(r => r.boat.Out), Is.EqualTo(3), "and the other three are out");
+                Assert.That(rafts.Where(r => r.boat.Out).All(r => r.boat.Sunk && !r.boat.Body.Solid), Is.True, "sunk out of everyone's way");
+                Assert.That(maxBoost, Is.GreaterThan(1.3f), "the river ran faster with each knockout");
+            }
+            finally
+            {
+                course.FlowBoost = 1f;
                 course.Destroy();
             }
         }

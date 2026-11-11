@@ -20,6 +20,9 @@ namespace RushAhead.Sim
         /// <summary>Stop blowing and steady the boat against capsizing.</summary>
         public bool Brace;
 
+        /// <summary>Edge-triggered: use the raft's power-up (any of the crew may).</summary>
+        public bool UseItem;
+
         public static CrewInput Idle => default;
     }
 

@@ -59,7 +59,68 @@ namespace RushAhead.UI
             return true;
         }
 
-        /// <summary>Forgets every best time on this device.</summary>
+        const string CoinsKey = "rushahead.coins";
+        const string OwnedKey = "rushahead.owned";
+        static HashSet<string> owned;
+
+        /// <summary>This player's coins, to spend in the shop.</summary>
+        public static int Coins => Mathf.Max(0, PlayerPrefs.GetInt(CoinsKey, 0));
+
+        public static void AddCoins(int coins)
+        {
+            if (coins == 0) return;
+            PlayerPrefs.SetInt(CoinsKey, Mathf.Max(0, Coins + coins));
+            PlayerPrefs.Save();
+        }
+
+        /// <summary>Whether this player owns a shop item. The first of each kind (no hat, the classic tube, the factory paint) is free.</summary>
+        public static bool Owns(CosmeticKind kind, int index) =>
+            index == 0 || (Cosmetics.Key(kind, index) is { } key && OwnedSet().Contains(key));
+
+        /// <summary>Buys a shop item if it isn't owned yet and there are coins enough. Returns whether it's now owned.</summary>
+        public static bool Buy(CosmeticKind kind, int index)
+        {
+            if (Owns(kind, index)) return true;
+            var key = Cosmetics.Key(kind, index);
+            var price = Cosmetics.Price(kind, index);
+            if (key == null || Coins < price) return false;
+            PlayerPrefs.SetInt(CoinsKey, Coins - price);
+            OwnedSet().Add(key);
+            SaveOwned();
+            return true;
+        }
+
+        /// <summary>Developer tools: everything in the shop.</summary>
+        public static void OwnEverything()
+        {
+            foreach (CosmeticKind kind in System.Enum.GetValues(typeof(CosmeticKind)))
+                for (var i = 1; i < Cosmetics.Of(kind).Count; i++)
+                    OwnedSet().Add(Cosmetics.Key(kind, i));
+            SaveOwned();
+        }
+
+        /// <summary>For tests that put PlayerPrefs back: forget what's been read from them.</summary>
+        internal static void Reload()
+        {
+            owned = null;
+            seen = null;
+        }
+
+        static void SaveOwned()
+        {
+            PlayerPrefs.SetString(OwnedKey, string.Join(",", owned));
+            PlayerPrefs.Save();
+        }
+
+        static HashSet<string> OwnedSet()
+        {
+            if (owned != null) return owned;
+            owned = new HashSet<string>();
+            foreach (var key in PlayerPrefs.GetString(OwnedKey, "").Split(','))
+                if (key.Length > 0) owned.Add(key);
+            return owned;
+        }
+
         const string SeenKey = "guide.seen";
         static HashSet<string> seen;
 
@@ -86,6 +147,7 @@ namespace RushAhead.UI
             return seen;
         }
 
+        /// <summary>Forgets every best time on this device.</summary>
         public static void Clear(IEnumerable<CourseDef> courses)
         {
             foreach (var course in courses)

@@ -16,7 +16,27 @@ namespace RushAhead.UI
         public void SetCrewCount(int count) => SetLayout(count, raftCount);
 
         /// <summary>Co-op (one raft) or Team Race (two rafts, Red against Blue, up to 8 players).</summary>
-        public void SetTeamRace(bool on) => SetLayout(crewCount, on ? 2 : 1);
+        public void SetTeamRace(bool on) => SetRaceMode(on ? GameMode.TeamRace : GameMode.Coop);
+
+        /// <summary>Co-op (one raft), Team Race (two) or Elimination (three or four, as last chosen).</summary>
+        public void SetRaceMode(GameMode wanted)
+        {
+            if (!CanEditRaft || phase == RoomPhase.Racing) return;
+            raceMode = wanted;
+            SetLayout(crewCount, RaftsFor(wanted));
+        }
+
+        /// <summary>How many rafts race an Elimination: three or four.</summary>
+        public int EliminationRafts => eliminationRafts;
+
+        public void SetEliminationRafts(int count)
+        {
+            if (!CanEditRaft || phase == RoomPhase.Racing) return;
+            eliminationRafts = Mathf.Clamp(count, KnockoutRule.MinRafts, KnockoutRule.MaxRafts);
+            if (raceMode == GameMode.Elimination) SetLayout(crewCount, eliminationRafts);
+        }
+
+        int RaftsFor(GameMode wanted) => wanted switch { GameMode.Coop => 1, GameMode.TeamRace => 2, _ => eliminationRafts };
 
         void SetLayout(int count, int raftsWanted)
         {
@@ -30,10 +50,11 @@ namespace RushAhead.UI
             {
                 var (position, heading) = SpawnPose(raft);
                 var boat = runner.World.SpawnBoat(position, heading, roster.Blowers(raft));
+                var described = roster.Describe(Peers.Host);
                 rafts.Add(new Raft
                 {
                     Boat = boat,
-                    View = RaftView.Build(boat, config, palette, catalog, LooksOf(roster.Describe(Peers.Host), raft, count), TeamColour(raft)),
+                    View = RaftView.Build(boat, config, palette, catalog, LooksOf(described, raft, count), TeamColour(raft), SkinOf(described, raft, count)),
                     Ai = NewAiCrew(boat),
                 });
             }
@@ -59,13 +80,14 @@ namespace RushAhead.UI
         List<Boat> Boats() => rafts.ConvertAll(r => r.Boat);
 
         /// <summary>The tube colour that tells the teams apart; Co-op keeps the classic peach.</summary>
-        Color? TeamColour(int raft) => raftCount < 2 ? null : raft == 0 ? new Color(1f, 0.5f, 0.45f) : new Color(0.5f, 0.72f, 1f);
+        Color? TeamColour(int raft) => raftCount < 2 ? null : TeamTint(raft);
 
         /// <summary>Where a raft starts in this venue: the middle for one raft, side by side for two.</summary>
         (Vector2 position, float heading) SpawnPose(int raft)
         {
             if (course != null) return course.RespawnPose(0, raft, raftCount);
-            return (Spawn + (raftCount > 1 ? new Vector2(0f, raft == 0 ? 3f : -3f) : Vector2.zero), 0f);
+            if (raftCount <= 1) return (Spawn, 0f);
+            return (Spawn + new Vector2(Course.LaneAhead(raft, raftCount), raft % 2 == 0 ? 3f : -3f), 0f);
         }
 
         /// <summary>AI crewmates off (-1) or at a skill (0 Clumsy, 1 Keen, 2 Ace). Saved on this device; the host's setting rules.</summary>
@@ -103,9 +125,15 @@ namespace RushAhead.UI
             var ai = rafts[raft].Ai;
             if (ai == null) return;
             ai.River = course?.River;
+            ai.Islands = course?.Islands;
+            ai.ClearAhead = course != null ? course.Hazards.ClearBetween : null;
+            ai.Threat = course?.Hazards?.Boss != null ? position => course.Hazards.Boss.Near(position, 14f) : null;
+            ai.Hunted = course?.Hazards?.Boss != null ? course.Hazards.Boss.LungingAt : null;
+            ai.Wind = course != null ? position => course.Hazards.WindComing(position, runner.World.Tick / (double)config.tickRate) : null;
             ai.Water = course != null ? course.WaterVelocityAt : null;
             ai.BraceAhead = course != null ? BraceAhead : null;
             ai.SteerAcross = course != null ? SteerAcross : null;
+            ai.Others = () => boatsOnCourse;
             ai.Lane = raft;
             ai.Lanes = rafts.Count;
         }
@@ -168,7 +196,11 @@ namespace RushAhead.UI
             WireSeats();
             Seats = roster.Describe(Peers.Host);
             for (var i = 0; i < rafts.Count; i++)
-                if (rafts[i].View != null) rafts[i].View.Restyle(LooksOf(Seats, i, roster.CrewCount));
+                if (rafts[i].View != null)
+                {
+                    rafts[i].View.Restyle(LooksOf(Seats, i, roster.CrewCount));
+                    rafts[i].View.SetSkin(SkinOf(Seats, i, roster.CrewCount));
+                }
         }
 
         /// <summary>
@@ -192,6 +224,18 @@ namespace RushAhead.UI
         }
 
         /// <summary>One raft's looks out of a roster numbered across rafts.</summary>
+        /// <summary>A raft wears its captain's skin: the first person aboard (an all-AI raft keeps the classic tube).</summary>
+        static int SkinOf(RosterSeat[] seats, int raft, int crew)
+        {
+            for (var seat = 0; seat < crew && raft * crew + seat < seats.Length; seat++)
+            {
+                var at = seats[raft * crew + seat];
+                if (at.Human || at.Kept) return at.Loadout.Skin;
+            }
+
+            return 0;
+        }
+
         static Loadout[] LooksOf(RosterSeat[] seats, int raft, int crew)
         {
             var looks = new Loadout[Mathf.Max(0, Mathf.Min(crew, seats.Length - raft * crew))];

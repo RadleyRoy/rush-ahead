@@ -42,6 +42,17 @@ namespace RushAhead.Net
         public int Lives { get; private set; } = 3;
         public bool Out { get; private set; }
         public float TiltDanger => Mathf.Clamp01(Tilt.magnitude / config.capsizeAngle);
+        public PowerUp Item { get; private set; }
+        public bool Turbo { get; private set; }
+        public bool Shielded { get; private set; }
+        public int ShieldPops { get; private set; }
+        public int HornCount { get; private set; }
+        public int Pickups { get; private set; }
+
+        /// <summary>The world as of the snapshot drawn: which crates are there, and the boss croc (read from the first raft's copy).</summary>
+        public uint CratesReady { get; private set; }
+
+        public BossSnapshot Boss { get; private set; }
         public int CrewCount { get; private set; }
         public ICrewState CrewAt(int seat) => crew[Mathf.Clamp(seat, 0, crew.Length - 1)];
 
@@ -91,6 +102,23 @@ namespace RushAhead.Net
             Fallen = a.Fallen;
             Lives = a.Lives;
             Out = a.Out;
+            Item = a.Item;
+            Turbo = a.Turbo;
+            Shielded = a.Shielded;
+            ShieldPops = a.ShieldPops;
+            HornCount = a.HornCount;
+            Pickups = a.Pickups;
+            CratesReady = from.CratesReady;
+            var bossFrom = from.Boss;
+            var bossTo = to.Boss.Present ? to.Boss : bossFrom;
+            Boss = !bossFrom.Present ? default : new BossSnapshot
+            {
+                Present = true,
+                Position = Vector2.Lerp(bossFrom.Position, bossTo.Position, t),
+                AngleRad = bossFrom.AngleRad + Mathf.DeltaAngle(bossFrom.AngleRad * Mathf.Rad2Deg, bossTo.AngleRad * Mathf.Rad2Deg) * Mathf.Deg2Rad * t,
+                Mood = bossFrom.Mood,
+                Chomps = bossFrom.Chomps,
+            };
 
             CrewCount = Mathf.Min(a.Crew.Count, b.Crew.Count, crew.Length);
             for (var i = 0; i < CrewCount; i++)

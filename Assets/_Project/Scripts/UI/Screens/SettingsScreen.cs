@@ -12,6 +12,7 @@ namespace RushAhead.UI
         Segmented frames;
         Segmented quality;
         Segmented dev;
+        VisualElement devShop;
         Segmented sound;
         Segmented music;
         Segmented buzz;
@@ -68,6 +69,20 @@ namespace RushAhead.UI
             reset.style.alignSelf = Align.FlexStart;
             reset.style.marginTop = 12;
             body.Add(reset);
+            devShop = Ui.El("row",
+                Btn("settings-dev-coins", "+500 coins", () =>
+                {
+                    Records.AddCoins(500);
+                    App.Toast($"{Records.Coins} coins.");
+                }, "btn btn--small"),
+                Ui.Spacer(),
+                Btn("settings-dev-own", "Own everything", () =>
+                {
+                    Records.OwnEverything();
+                    App.Toast("Everything in the shop is yours.");
+                }, "btn btn--small"));
+            devShop.style.marginTop = 12;
+            body.Add(devShop);
             body.Add(Ui.Spacer());
             body.Add(Ui.Text($"Rush Ahead {Application.version}   Network protocol {Protocol.Version}   Created by Radley", "small muted"));
             panel.Add(scroll);
@@ -101,6 +116,7 @@ namespace RushAhead.UI
             frames.Selected = S.frameRate == 30 ? 0 : 1;
             quality.Selected = S.quality < 0 ? Mathf.Clamp(QualitySettings.GetQualityLevel() - 1, 0, 2) : Mathf.Clamp(S.quality - 1, 0, 2);
             dev.Selected = S.developerTools ? 1 : 0;
+            Ui.Show(devShop, Debug.isDebugBuild && S.developerTools);
             sound.Selected = Mathf.RoundToInt(S.soundVolume * 2f);
             music.Selected = Mathf.RoundToInt(S.musicVolume * 2f);
             buzz.Selected = S.vibration ? 1 : 0;

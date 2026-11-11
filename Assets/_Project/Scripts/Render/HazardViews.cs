@@ -28,6 +28,9 @@ namespace RushAhead.Render
         /// <summary>The boost lanes' glowing chevrons.</summary>
         public BoostViews Boosts { get; private set; }
 
+        /// <summary>The power-up crates.</summary>
+        public CrateViews Crates { get; private set; }
+
         public static HazardViews Build(Course course, ArtPalette palette, Transform parent)
         {
             var view = new GameObject("Obstacles").AddComponent<HazardViews>();
@@ -43,6 +46,7 @@ namespace RushAhead.Render
             foreach (var obstacle in course.Hazards.Obstacles)
                 if (ObstacleView.For(obstacle, palette, view.transform) is { } other) view.others.Add(other);
             view.Boosts = BoostViews.Build(course.Hazards.Boosts, palette, view.transform);
+            view.Crates = CrateViews.Build(course.Hazards.PowerUps, palette, view.transform);
             view.Pose(0);
             return view;
         }

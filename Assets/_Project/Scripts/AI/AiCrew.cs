@@ -47,6 +47,7 @@ namespace RushAhead.AI
             this.tickRate = tickRate;
             random = new System.Random(seed);
             seats = new AiSeat[boat.Crew.Length];
+            FastLines = profile.fastLines;
         }
 
         public AiProfile Profile => profile;
@@ -66,9 +67,33 @@ namespace RushAhead.AI
         /// </summary>
         public Func<float, float, float, float> SteerAcross { get; set; }
 
+        /// <summary>Every raft on the course (this one too), for knowing when an air horn is worth it.</summary>
+        public Func<IReadOnlyList<Boat>> Others { get; set; }
+
+        /// <summary>Which way a gust of wind is blowing or about to, and how hard (0 to 1): the crew leans into it. Null for no wind.</summary>
+        public Func<Vector2, Vector2> Wind { get; set; }
+
+        /// <summary>The course's islands, for picking a branch and keeping to it. Null for none.</summary>
+        public Islands Islands { get; set; }
+
+        /// <summary>Whether the crew takes an island's fast line rather than its safe one (from its profile).</summary>
+        public bool FastLines { get; set; }
+
+        /// <summary>Whether the river between two distances down it is free of obstacles: a turbo only goes off into clear water.</summary>
+        public Func<float, float, bool> ClearAhead { get; set; }
+
+        /// <summary>Whether something an air horn scares off (the boss croc) is close to a raft here.</summary>
+        public Func<Vector2, bool> Threat { get; set; }
+
+        /// <summary>Whether the boss croc is lunging at a raft here: the crew bursts to get clear of its jaws.</summary>
+        public Func<Vector2, bool> Hunted { get; set; }
+
+        float itemHeld;
+
         const float LookEvery = 0.25f; // seconds between second looks at a hazard not yet noticed
         const float BendGrip = 7f; // metres per second squared: how hard the crew and current together can turn the raft
         const float EdgeSense = 4.5f; // metres from the edge where the crew starts steering back in (it comes up fast)
+        const float WindLean = 2.6f; // metres per second into a full gust
         const float EdgeLead = 1f; // seconds: how far ahead a fast raft's crew judges the edge from its sideways speed
 
         bool hazardNoticed;
@@ -119,6 +144,59 @@ namespace RushAhead.AI
             orderSeconds = 0f;
         }
 
+        /// <summary>
+        /// Power-ups: a shield goes up at once; a turbo waits for a clear straight with nothing to brace for; a horn waits
+        /// for a rival raft alongside or something to scare off. Nothing waits for ever.
+        /// </summary>
+        void UseItem(float dt)
+        {
+            if (boat.Item == PowerUp.None || boat.State != BoatState.Afloat || boat.ControlsLocked)
+            {
+                itemHeld = 0f;
+                return;
+            }
+
+            itemHeld += dt;
+            if (itemHeld < profile.reactionSeconds + 0.4f) return;
+            var position = boat.Body.Position;
+            var use = boat.Item switch
+            {
+                PowerUp.Shield => true,
+                PowerUp.Turbo => ClearStraight(position),
+                PowerUp.Horn => itemHeld > 14f || RivalClose(position) || (Threat?.Invoke(position) ?? false),
+                _ => false,
+            };
+            if (use) boat.ItemRequested = true;
+        }
+
+        /// <summary>
+        /// Whether it's worth a turbo here: straight water all the way it'll carry the raft (and a little more), with
+        /// nothing in it to hit or brace for. A turbo into an obstacle at that speed costs more than it gains.
+        /// </summary>
+        bool ClearStraight(Vector2 position)
+        {
+            if (River == null) return true;
+            var at = River.Project(position);
+            var reach = Mathf.Max(35f, (boat.Body.Velocity.magnitude + 5f) * (PowerUps.TurboSeconds + 1f));
+            for (var d = at.Distance; d <= at.Distance + reach; d += 5f)
+                if (Mathf.Abs(River.At(d).Curvature) > 0.025f) return false;
+            if (ClearAhead != null && !ClearAhead(at.Distance, at.Distance + reach)) return false;
+            if (Islands != null && Islands.Count > 0)
+                foreach (var island in Islands.All)
+                    if (island.Nose - Islands.Approach < at.Distance + reach && island.Tail > at.Distance) return false;
+            return BraceAhead == null || !BraceAhead(position, PowerUps.TurboSeconds + 1f);
+        }
+
+        bool RivalClose(Vector2 position)
+        {
+            var others = Others?.Invoke();
+            if (others == null) return false;
+            foreach (var other in others)
+                if (other != boat && !other.Out && other.State == BoatState.Afloat && (other.Body.Position - position).sqrMagnitude < 7.5f * 7.5f)
+                    return true;
+            return false;
+        }
+
         /// <summary>Call once per tick. The inputs it decides are used by the simulation's following ticks, after each seat's reaction delay.</summary>
         public void Update(float dt)
         {
@@ -128,6 +206,7 @@ namespace RushAhead.AI
                 (Order == CrewOrder.PushHere && (orderSeconds > PushHereSeconds || Vector2.Distance(boat.Body.Position, PushPoint) < ArrivedMetres)))
                 Give(CrewOrder.Go);
 
+            UseItem(dt);
             var desired = DesiredVelocity();
             var velocity = boat.Body.Velocity;
             stuckFor = desired.HasValue && velocity.magnitude < StuckSpeed ? stuckFor + dt : 0f;
@@ -149,6 +228,8 @@ namespace RushAhead.AI
                 sinceLook = 0f;
                 hazardNoticed = profile.reactionSeconds <= 0f || random.NextDouble() < Mathf.Lerp(0.45f, 1f, profile.braceInstinct);
             }
+
+            var hunted = Hunted != null && boat.State == BoatState.Afloat && Hunted(boat.Body.Position);
 
             foreach (var seat in seats)
             {
@@ -196,6 +277,13 @@ namespace RushAhead.AI
                 {
                     seat.SinceBurst = 0f;
                     input.Burst = random.NextDouble() < profile.burstWhenStuck;
+                }
+
+                // Snapjaw lunging from behind: everyone who can, bursts (the sharper the crew, the more of them think to).
+                if (hunted && share > 0.5f && seat.SinceBurst > BurstCooldown && crew.Blower.CanBurst && crew.AirFraction > 0.3f)
+                {
+                    seat.SinceBurst = 0f;
+                    input.Burst = profile.reactionSeconds <= 0f || random.NextDouble() < Mathf.Lerp(0.3f, 1f, profile.braceInstinct);
                 }
 
                 seat.Push(input);
@@ -271,7 +359,10 @@ namespace RushAhead.AI
                         // trading paint, and out of each other's exhaust; the clamp keeps clear of the banks.
                         var across = Mathf.Clamp(ahead.LineOffset * ahead.HalfWidth + LaneShare * Course.LaneOffset(ahead, Lane, Lanes),
                             -0.72f * ahead.HalfWidth, 0.72f * ahead.HalfWidth);
+                        // Round an island: over to the chosen branch first, then dodge what's in it, then stay inside it.
+                        if (Islands != null) across = Islands.Steer(at.Distance, at.Lateral, ahead.Distance, across, FastLines);
                         if (SteerAcross != null) across = SteerAcross(at.Distance, ahead.Distance, across);
+                        if (Islands != null) across = Islands.Keep(at.Distance, at.Lateral, ahead.Distance, across, FastLines);
                         Target = ahead.Centre + ahead.Left * across;
                         var desired = Toward(Target.Value);
 
@@ -291,9 +382,14 @@ namespace RushAhead.AI
                         var inward = -Mathf.Sign(at.Lateral) * new Vector2(-at.Tangent.y, at.Tangent.x);
                         var lead = EdgeLead * Mathf.Clamp01((speed - 4f) / 4f); // a slow raft has time to spare
                         var soon = room - Mathf.Max(0f, -Vector2.Dot(boat.Body.Velocity, inward)) * lead;
-                        if (desired.HasValue && soon < EdgeSense)
+                        // A gust coming: blow into it before it arrives, so it pushes the raft back to its line rather than off it.
+                        var wind = Wind?.Invoke(boat.Body.Position) ?? Vector2.zero;
+                        if (desired.HasValue && wind != Vector2.zero) desired -= wind * WindLean;
+
+                        var sense = Islands != null ? Islands.EdgeSense(at.Distance, at.Lateral, at.HalfWidth, EdgeSense) : EdgeSense;
+                        if (desired.HasValue && soon < sense)
                         {
-                            desired += inward * ((EdgeSense - soon) * 2.4f);
+                            desired += inward * ((sense - soon) * 2.4f);
                         }
                         return desired;
                     }

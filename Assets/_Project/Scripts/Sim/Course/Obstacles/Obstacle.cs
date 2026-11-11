@@ -128,6 +128,15 @@ namespace RushAhead.Sim
             var toward = -Mathf.Sign(across);
             var short_ = toward * Slide - Vector2.Dot(boat.Body.Velocity, at.Left);
             if (short_ * toward <= 0f) return; // already going that way at least that fast
+            // Pinned flat against it, the water's own drag on the raft cancels any push along the wall each tick (it pulls
+            // the raft to the water's speed, which runs straight into the wall): so the raft is set sliding along at the
+            // water's pace directly. Otherwise it's drawn along with a capped pull.
+            if (Vector2.Dot(boat.Body.Velocity, at.Tangent) < 1.5f)
+            {
+                boat.Body.SetVelocity(boat.Body.Velocity + at.Left * short_);
+                return;
+            }
+
             var pull = Mathf.Clamp(short_ * Grip * boat.Body.Mass, -MaxPull, MaxPull);
             boat.Push(at.Left * (pull * dt));
         }
@@ -140,6 +149,11 @@ namespace RushAhead.Sim
 
         /// <summary>Puts its loose bodies back where they start (a new race).</summary>
         public virtual void ResetLoose()
+        {
+        }
+
+        /// <summary>An air horn went off at <paramref name="at"/>: creatures within <paramref name="radius"/> take fright.</summary>
+        public virtual void Scare(Vector2 at, float radius, double seconds)
         {
         }
 

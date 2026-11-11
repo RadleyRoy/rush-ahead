@@ -142,6 +142,45 @@ namespace RushAhead.Tests
         }
 
         [Test]
+        public void TheFreeHalf_LooksRound_WhileTheStickSteers()
+        {
+            Down(1, new Vector2(300f, 300f));
+            Down(2, new Vector2(1200f, 600f)); // the right half, off the buttons
+            Frame();
+            Move(1, new Vector2(300f, 400f));
+            Move(2, new Vector2(1200f + Width * 0.125f, 600f)); // half of a full swing to the right
+            Frame();
+            Assert.That(touch.Stick[0], Is.EqualTo(new Vector2(0f, 1f)), "still steering");
+            Assert.That(touch.LookActive, Is.True);
+            Assert.That(touch.Look.x, Is.EqualTo(0.5f).Within(1e-4f));
+            Assert.That(touch.StickActive[1], Is.False, "looking never drives a seat");
+
+            Move(2, new Vector2(0f, 600f));
+            Frame();
+            Assert.That(touch.Look.x, Is.EqualTo(-1f), "a full swing at most");
+            Up(2);
+            Frame();
+            Assert.That(touch.LookActive, Is.False);
+            Assert.That(touch.Look, Is.EqualTo(Vector2.zero));
+        }
+
+        [Test]
+        public void TheLookStick_WorksInTheTwoStickLayout_AndIsNoStick()
+        {
+            touch.TwoSticks = true;
+            touch.AddButton(TouchControls.LookButton, new Rect(1700f, 500f, 120f, 120f));
+            Down(1, new Vector2(1760f, 560f));
+            Frame();
+            Move(1, new Vector2(1760f, 560f + Width * 0.25f));
+            Frame();
+            Assert.That(touch.LookActive, Is.True);
+            Assert.That(touch.Look, Is.EqualTo(new Vector2(0f, 1f)));
+            Assert.That(touch.StickActive[1], Is.False, "the look stick isn't the right-hand stick");
+            Assert.That(touch.Held.Contains(TouchControls.LookButton), Is.True);
+            Assert.That(touch.Tapped, Is.Empty, "and it isn't a tap");
+        }
+
+        [Test]
         public void LeftHanded_PutsTheStickOnTheRight()
         {
             touch.LeftHanded = true;

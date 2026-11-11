@@ -71,6 +71,7 @@ namespace RushAhead.Render
             if (palette.HasLand) view.BuildLand(scenery, random);
             else view.BuildFloor(scenery, random);
             foreach (var rock in course.Def.rocks) CourseDressing.Rock(scenery, rock.position, rock.radius, palette, random);
+            IslandViews.Build(course, view.style, palette, scenery, random);
             if (view.style.LilyPads) view.BuildLilyPads(scenery, random);
             if (!NoBatching) StaticBatchingUtility.Combine(scenery.gameObject); // hundreds of primitives that never move: draw them in a few batches
 
@@ -91,17 +92,128 @@ namespace RushAhead.Render
         }
 
         /// <summary>Lights the next checkpoint and turns the ones already passed green.</summary>
+        Material riverWater;
+        float shownFlowBoost = 1f;
+
+        /// <summary>The river running faster (Elimination, after each knockout): its ripples speed up to match.</summary>
+        public void SetFlowBoost(float boost)
+        {
+            if (riverWater == null || Mathf.Approximately(boost, shownFlowBoost)) return;
+            shownFlowBoost = boost;
+            riverWater.SetFloat("_FlowSpeed", course.Def.flow * boost);
+        }
+
+        readonly List<GameObject> lamps = new();
+        bool night;
+
+        /// <summary>Night: the gates' lamps come on and their banners glow, so the way stays clear in the dark.</summary>
+        public void SetNight(bool on)
+        {
+            if (on == night) return;
+            night = on;
+            foreach (var lamp in lamps) lamp.SetActive(on);
+            shownProgress = -1;
+            ShowProgress(lastProgress);
+        }
+
+        int lastProgress;
+
+        static readonly Color KnockoutGate = new(1f, 0.22f, 0.18f);
+        readonly HashSet<int> knockouts = new();
+
+        /// <summary>Elimination's knockout gates (as checkpoint counts) hang red banners until they're passed; null or empty for none.</summary>
+        public void ShowKnockouts(int[] gates)
+        {
+            var count = gates?.Length ?? 0;
+            if (count == knockouts.Count && (gates == null || System.Array.TrueForAll(gates, g => knockouts.Contains(g - 1)))) return;
+            knockouts.Clear();
+            if (gates != null)
+                foreach (var gate in gates) knockouts.Add(gate - 1);
+            shownProgress = -1;
+        }
+
         public void ShowProgress(int gatesPassed)
         {
+            lastProgress = gatesPassed;
             if (gatesPassed == shownProgress) return;
             shownProgress = gatesPassed;
             for (var i = 0; i < gateBanners.Count; i++)
             {
                 var finish = i == gateBanners.Count - 1;
                 if (finish) continue; // the chequered finish keeps its pattern
-                var color = i < gatesPassed ? PassedGate : i == gatesPassed ? NextGate : LaterGate;
-                foreach (var banner in gateBanners[i]) banner.sharedMaterial = palette.Tinted(palette.sign, color);
+                var color = i < gatesPassed ? PassedGate : knockouts.Contains(i) ? KnockoutGate : i == gatesPassed ? NextGate : LaterGate;
+                var material = color == KnockoutGate ? KnockoutBanner() : night ? palette.Glow(color) : palette.Tinted(palette.sign, color);
+                foreach (var banner in gateBanners[i]) banner.sharedMaterial = material;
             }
+        }
+
+        Material knockoutDay, knockoutNight;
+
+        /// <summary>The knockout banner: "LAST ONE OUT" on red, lit like the other signs by day and glowing by night.</summary>
+        Material KnockoutBanner()
+        {
+            if (night)
+            {
+                if (knockoutNight == null)
+                {
+                    knockoutNight = new Material(palette.foam) { name = "Knockout banner (night)", color = Color.white, mainTexture = KnockoutLettering() };
+                    if (knockoutNight.HasProperty("_BaseMap")) knockoutNight.SetTexture("_BaseMap", KnockoutLettering());
+                }
+
+                return knockoutNight;
+            }
+
+            if (knockoutDay == null)
+            {
+                knockoutDay = new Material(palette.sign) { name = "Knockout banner", color = Color.white, mainTexture = KnockoutLettering() };
+                if (knockoutDay.HasProperty("_BaseMap")) knockoutDay.SetTexture("_BaseMap", KnockoutLettering());
+            }
+
+            return knockoutDay;
+        }
+
+        static Texture2D knockoutLettering;
+
+        /// <summary>"LAST ONE OUT" in white capitals on the knockout red, drawn once from a little 5x7 pixel font.</summary>
+        static Texture2D KnockoutLettering()
+        {
+            if (knockoutLettering != null) return knockoutLettering;
+            const string text = "LAST ONE OUT";
+            var font = new Dictionary<char, string>
+            {
+                ['L'] = "#....#....#....#....#....#....#####",
+                ['A'] = ".###.#...##...#######...##...##...#",
+                ['S'] = ".#####....#.....###.....#....#####.",
+                ['T'] = "#####..#....#....#....#....#....#..",
+                ['O'] = ".###.#...##...##...##...##...#.###.",
+                ['N'] = "#...###..##.#.##..###...##...##...#",
+                ['E'] = "######....#....####.#....#....#####",
+                ['U'] = "#...##...##...##...##...##...#.###.",
+            };
+            const int scale = 4, width = 320, height = 40;
+            var texture = new Texture2D(width, height, TextureFormat.RGBA32, true) { name = "Knockout lettering", wrapMode = TextureWrapMode.Clamp, anisoLevel = 4 };
+            var pixels = new Color32[width * height];
+            Color32 red = KnockoutGate, white = new(255, 255, 255, 255);
+            for (var i = 0; i < pixels.Length; i++) pixels[i] = red;
+            var x0 = (width - (text.Length * 6 - 1) * scale) / 2;
+            var y0 = (height - 7 * scale) / 2;
+            for (var k = 0; k < text.Length; k++)
+            {
+                if (!font.TryGetValue(text[k], out var glyph)) continue;
+                for (var row = 0; row < 7; row++)
+                for (var col = 0; col < 5; col++)
+                {
+                    if (glyph[row * 5 + col] != '#') continue;
+                    for (var dy = 0; dy < scale; dy++)
+                    for (var dx = 0; dx < scale; dx++)
+                        pixels[(y0 + (6 - row) * scale + dy) * width + x0 + (k * 6 + col) * scale + dx] = white;
+                }
+            }
+
+            System.Array.Reverse(pixels); // turned half round: the face the rafts see has its UVs that way up
+            texture.SetPixels32(pixels);
+            texture.Apply();
+            return knockoutLettering = texture;
         }
 
         void Update()
@@ -155,6 +267,7 @@ namespace RushAhead.Render
             TintWater(flowing, course.Def.scene);
             flowing.SetFloat("_RiverSpace", 1f);
             flowing.SetFloat("_FlowSpeed", course.Def.flow);
+            riverWater = flowing;
             flowing.SetFloat("_Holes", 1f); // whirlpools' funnels show through
             Shapes3D.MeshObject("Water", water.Build("Water"), parent, Vector3.zero, flowing);
         }
@@ -348,6 +461,11 @@ namespace RushAhead.Render
                     water.SetColor("_DeepColor", new Color(0.12f, 0.25f, 0.18f));
                     water.SetColor("_RippleColor", new Color(0.72f, 0.82f, 0.66f));
                     break;
+                case CourseScene.Swamp:
+                    water.SetColor("_BaseColor", new Color(0.24f, 0.3f, 0.16f));
+                    water.SetColor("_DeepColor", new Color(0.1f, 0.15f, 0.08f));
+                    water.SetColor("_RippleColor", new Color(0.62f, 0.7f, 0.5f));
+                    break;
             }
         }
 
@@ -364,11 +482,12 @@ namespace RushAhead.Render
             Vector2 Somewhere(float x, float z, float step) =>
                 new(corner.x + x + (float)random.NextDouble() * step, corner.z + z + (float)random.NextDouble() * step);
 
-            var conifers = scene switch { CourseScene.Rapids => 0.85, CourseScene.Lake => 0.2, CourseScene.Glacier => 1.0, CourseScene.Canyon => 0.4, _ => 0.3 };
+            var conifers = scene switch { CourseScene.Rapids => 0.85, CourseScene.Lake => 0.2, CourseScene.Glacier => 1.0, CourseScene.Canyon => 0.4, CourseScene.Swamp => 0.1, _ => 0.3 };
             var (trees, shrubs, boulders, treeSize) = scene switch
             {
                 CourseScene.Glacier => (0.6, 0.4, 1.5, 1f),
                 CourseScene.Canyon => (0.12, 2.2, 1.7, 0.6f),
+                CourseScene.Swamp => (1.3, 1.6, 0.5, 1.1f),
                 _ => (1.0, 1.0, 1.0, 1f),
             };
             var woods = Shapes3D.Group(parent, "Woods");
@@ -644,6 +763,7 @@ namespace RushAhead.Render
             {
                 CourseScene.Canyon => (new Color(0.86f, 0.78f, 0.7f), 90f, 300f),
                 CourseScene.Glacier => (new Color(0.8f, 0.88f, 0.96f), 60f, 220f),
+                CourseScene.Swamp => (new Color(0.6f, 0.65f, 0.55f), 28f, 150f), // misty
                 _ => sceneAir,
             };
             RenderSettings.fogColor = colour;
@@ -691,6 +811,23 @@ namespace RushAhead.Render
             var span = (right - left).magnitude;
             var yaw = Quaternion.LookRotation(SimSpace.Direction(gate.Downstream)); // local +X runs across the river
             Shapes3D.Primitive(PrimitiveType.Cube, arch, SimSpace.ToWorld(middle, GateHeight), new Vector3(span + 0.6f, 0.28f, 0.28f), palette.wood, yaw, "Crossbar");
+
+            // A lamp hung from the middle of the crossbar, lit at night.
+            var lamp = Shapes3D.Group(arch, "Lamp", SimSpace.ToWorld(middle, GateHeight - 0.1f));
+            Shapes3D.Primitive(PrimitiveType.Sphere, lamp, Vector3.zero, Vector3.one * 0.45f, palette.Glow(new Color(1f, 0.85f, 0.55f, 0.95f)), name: "Bulb");
+            Shapes3D.Primitive(PrimitiveType.Sphere, lamp, Vector3.zero, Vector3.one * 1.3f, palette.Glow(new Color(1f, 0.75f, 0.4f, 0.15f)), name: "Halo");
+            if (Looks.Detail >= 0.75f)
+            {
+                var light = lamp.gameObject.AddComponent<Light>();
+                light.type = LightType.Point;
+                light.color = new Color(1f, 0.8f, 0.5f);
+                light.range = 22f;
+                light.intensity = 2.6f;
+                light.shadows = LightShadows.None;
+            }
+
+            lamp.gameObject.SetActive(night);
+            lamps.Add(lamp.gameObject);
 
             var pieces = new List<Renderer>();
             if (chequered)

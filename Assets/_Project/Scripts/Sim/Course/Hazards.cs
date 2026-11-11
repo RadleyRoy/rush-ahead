@@ -64,6 +64,8 @@ namespace RushAhead.Sim
         {
             this.course = course;
             var def = course.Layout;
+            PowerUps = new PowerUps(course, def.crates, def.Seed);
+            if (course.Def.boss) Boss = new BossCroc(course);
             for (var i = 0; i < def.wheels.Length; i++)
             {
                 var wheel = def.wheels[i];
@@ -182,6 +184,26 @@ namespace RushAhead.Sim
             }
         }
 
+        /// <summary>The wind now (see <see cref="Gusts.At"/>): none without rain, or before the race starts.</summary>
+        public (float strength, int side, float warning) Gust(double seconds) =>
+            course.Gusts == null || double.IsNaN(RaceStart) ? (0f, 0, 0f) : course.Gusts.At(seconds - RaceStart);
+
+        /// <summary>For AI crews: which way the wind blows or is about to here, and how hard (zero for none).</summary>
+        public Vector2 WindComing(Vector2 position, double seconds) =>
+            course.Gusts == null || double.IsNaN(RaceStart) ? Vector2.zero : course.Gusts.Coming(course.River, position, seconds - RaceStart);
+
+        /// <summary>Whether the river between two distances down it is free of obstacles (for an AI crew deciding to turbo).</summary>
+        public bool ClearBetween(float from, float to)
+        {
+            foreach (var marker in Markers)
+            {
+                if (marker.Distance > to) break;
+                if (marker.Kind != null && marker.Distance > from - 6f) return false;
+            }
+
+            return true;
+        }
+
         /// <summary>Every obstacle this round, nearest the start first.</summary>
         public IReadOnlyList<Marker> Markers
         {
@@ -205,6 +227,19 @@ namespace RushAhead.Sim
         /// <summary>This round's boost lanes.</summary>
         public IReadOnlyList<BoostLane> Boosts => boosts;
 
+        /// <summary>This round's power-up crates, and what rafts do with what they find in them.</summary>
+        public PowerUps PowerUps { get; private set; }
+
+        /// <summary>An air horn: every creature near takes fright.</summary>
+        public void Scare(Vector2 at, float radius, double seconds)
+        {
+            foreach (var obstacle in obstacles) obstacle.Scare(at, radius, seconds);
+            Boss?.Scare(at, radius);
+        }
+
+        /// <summary>Old Snapjaw, on the boss course; null elsewhere.</summary>
+        public BossCroc Boss { get; }
+
         public CourseDef Def => course.Def;
 
         /// <summary>Every obstacle's freely moving bodies (geese), in a fixed order (see <see cref="Obstacle.LooseBodies"/>).</summary>
@@ -222,6 +257,7 @@ namespace RushAhead.Sim
         public void ResetLoose()
         {
             foreach (var obstacle in obstacles) obstacle.ResetLoose();
+            Boss?.Reset();
         }
 
         /// <summary>Every obstacle's walls across the river (see <see cref="Obstacle.Barriers"/>).</summary>
@@ -302,6 +338,12 @@ namespace RushAhead.Sim
             lastSeconds = seconds;
             foreach (var obstacle in obstacles) obstacle.Step(seconds, dt, boats);
             foreach (var boost in boosts) boost.Step(dt, boats, course.WaterVelocityAt);
+            PowerUps.Step(seconds, dt, boats);
+            Boss?.Step(seconds, dt, boats, RaceStart);
+            if (course.Gusts != null && !double.IsNaN(RaceStart))
+                foreach (var boat in boats)
+                    if (boat.State == BoatState.Afloat && !boat.Moored)
+                        boat.Push(course.Gusts.Push(course.River, boat.Body.Position, seconds - RaceStart, boat.BracedFraction) * dt);
 
             for (var i = 0; i < wheels.Count; i++) wheels[i].MoveRotation(WheelAngleDeg(i, seconds));
             for (var i = 0; i < crocs.Count; i++)

@@ -105,6 +105,8 @@
 .sun { color: var(--accent); }
 .team-red { color: var(--red); }
 .team-blue { color: var(--blue); }
+.team-green { color: #5BE07A; }
+.team-yellow { color: #FFD24D; }
 
 /* Layout helpers (UI Toolkit has no gap: spacing comes from margins) */
 
@@ -306,6 +308,11 @@
     color: var(--text);
 }
 
+.segmented--tight .segment {
+    min-width: 0;
+    padding: 0 17px;
+}
+
 .segment--on {
     color: var(--text);
     border-bottom-color: var(--accent);
@@ -343,6 +350,14 @@
     font-size: 28px;
     color: var(--muted);
 }
+
+.splits--compact .split {
+    padding: 6px 9px 8px 8px;
+    margin: 0 6px 8px 0;
+}
+
+.splits--compact .split-time { font-size: 31px; }
+.splits--compact .split-delta { font-size: 25px; }
 
 .split-delta.good { color: var(--good); }
 .split-delta.bad { color: var(--bad); }

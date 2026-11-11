@@ -18,7 +18,7 @@ namespace RushAhead.Net
     public sealed class CrewRoster
     {
         public const ulong Nobody = ulong.MaxValue;
-        public const int MaxRafts = 2;
+        public const int MaxRafts = 4;
         public const int MaxSeats = CrewSectors.MaxCrew * MaxRafts;
 
         /// <summary>How long a dropped player's seat is kept for them.</summary>
@@ -192,7 +192,7 @@ namespace RushAhead.Net
         public void SetLayout(int crewCount, int raftCount)
         {
             if (crewCount < 1 || crewCount > CrewSectors.MaxCrew) throw new ArgumentOutOfRangeException(nameof(crewCount), crewCount, "1 to 4 players");
-            if (raftCount < 1 || raftCount > MaxRafts) throw new ArgumentOutOfRangeException(nameof(raftCount), raftCount, "1 or 2 rafts");
+            if (raftCount < 1 || raftCount > MaxRafts) throw new ArgumentOutOfRangeException(nameof(raftCount), raftCount, "1 to 4 rafts");
             CrewCount = crewCount;
             RaftCount = raftCount;
             owners = new ulong[crewCount * raftCount];

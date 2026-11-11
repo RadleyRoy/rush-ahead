@@ -76,6 +76,24 @@ namespace RushAhead.Sim
         public void AddForceAtLocalPoint(Vector2 worldForce, Vector2 localPoint, bool impulse = false) =>
             body.AddForceAtPosition(worldForce, WorldPoint(localPoint), impulse ? ForceMode2D.Impulse : ForceMode2D.Force);
 
+        /// <summary>Whether the raft is in the water at all: a raft knocked out of an Elimination leaves it, so it blocks nobody.</summary>
+        public bool Solid
+        {
+            get => body.simulated;
+            set
+            {
+                if (body.simulated == value) return;
+                Stop();
+                body.simulated = value;
+            }
+        }
+
+        public void SetVelocity(Vector2 velocity)
+        {
+            body.linearVelocity = velocity;
+            body.angularVelocity = 0f;
+        }
+
         public void Stop()
         {
             body.linearVelocity = Vector2.zero;
@@ -128,7 +146,12 @@ namespace RushAhead.Sim
         /// For barriers a raft gets pressed against or runs into (a beaver dam, a fallen tree, ice, a sluice gate): it slides
         /// along them to the gap rather than sticking, and a bump stops it without rocking it over.
         /// </summary>
-        public static readonly PhysicsMaterial2D Cushioned = new("Cushioned") { friction = 0f, bounciness = 0.05f };
+        public static readonly PhysicsMaterial2D Cushioned = new("Cushioned")
+        {
+            friction = 0f,
+            bounciness = 0.05f,
+            frictionCombine = PhysicsMaterialCombine2D.Minimum, // no grip at all, whatever it touches: a raft slides along
+        };
 
         const float CushionedKick = 0.15f;
 

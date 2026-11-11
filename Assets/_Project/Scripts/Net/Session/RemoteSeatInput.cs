@@ -11,6 +11,7 @@ namespace RushAhead.Net
         InputMessage latest;
         bool received;
         byte appliedBursts;
+        byte appliedItems;
 
         public void Receive(in InputMessage input)
         {
@@ -19,7 +20,12 @@ namespace RushAhead.Net
             // The first packet sets the baseline rather than assuming the count starts at zero. Seats get re-dealt while
             // packets are in flight, so a fresh seat can first hear a count from before the re-deal; treating that as a
             // change would fire bursts nobody pressed.
-            if (!received) appliedBursts = input.BurstCount;
+            if (!received)
+            {
+                appliedBursts = input.BurstCount;
+                appliedItems = input.ItemCount;
+            }
+
             latest = input;
             received = true;
         }
@@ -30,6 +36,8 @@ namespace RushAhead.Net
 
             var burst = latest.BurstCount != appliedBursts;
             appliedBursts = latest.BurstCount;
+            var useItem = latest.ItemCount != appliedItems;
+            appliedItems = latest.ItemCount;
             return new CrewInput
             {
                 AimAngle = latest.AimAngle,
@@ -37,6 +45,7 @@ namespace RushAhead.Net
                 Throttle = latest.Throttle,
                 Brace = latest.Brace,
                 Burst = burst,
+                UseItem = useItem,
             };
         }
 

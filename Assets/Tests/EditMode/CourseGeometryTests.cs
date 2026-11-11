@@ -191,6 +191,40 @@ namespace RushAhead.Tests
 
             Assert.That(def.whirlpools.Length + def.logs.Length + def.barrels.Length, Is.LessThanOrEqualTo(64), "snapshots carry at most 64 loose things");
 
+            // Islands: between checkpoints, clear of where rafts come back (with a run-up), nothing fixed in the way, and
+            // both branches wide enough for a raft with room to steer, the safe one the wider.
+            foreach (var island in course.Islands.All)
+            {
+                var name = $"island at {island.Nose:0} m";
+                Assert.That(island.Nose, Is.GreaterThan(def.startDistance + Course.RowGap + 12f), $"{name} leaves the start a run-up");
+                foreach (var gate in def.gates)
+                {
+                    Assert.That(gate < island.Nose - 14f || gate > island.Tail + 6f, Is.True, $"{name} is clear of the gate at {gate:0} m");
+                    if (gate < island.Nose) Assert.That(island.Nose, Is.GreaterThan(gate + 3f + Course.RowGap + 12f), $"{name} leaves a run-up after the gate at {gate:0} m");
+                }
+
+                for (var d = island.Nose + island.Spot.length * 0.2f; d < island.Tail - island.Spot.length * 0.2f; d += 2f)
+                {
+                    var fast = island.Branch(island.FastSide, d).half * 2f;
+                    var safe = island.Branch(-island.FastSide, d).half * 2f;
+                    Assert.That(fast, Is.GreaterThanOrEqualTo(6.5f), $"{name}: its fast line is {fast:0.0} m wide at {d:0} m");
+                    Assert.That(safe, Is.GreaterThan(fast + 1f), $"{name}: its safe line ({safe:0.0} m) is wider than its fast line ({fast:0.0} m) at {d:0} m");
+                }
+
+                void ClearOfIsland(Vector2 point, float radius, string what)
+                {
+                    var at = river.Project(point);
+                    if (at.Distance < island.Nose - 12f || at.Distance > island.Tail + 6f) return;
+                    var w = Mathf.Max(island.HalfWidthAt(at.Distance), island.Spot.halfWidth * 0.5f);
+                    Assert.That(Mathf.Abs(at.Lateral - island.Across), Is.GreaterThan(w + radius + raftRadius + 2f), $"{what} is in the way of the {name}");
+                }
+
+                foreach (var rock in def.rocks) ClearOfIsland(rock.position, rock.radius, $"rock at {rock.position}");
+                foreach (var pool in def.whirlpools) ClearOfIsland(pool.position, pool.radius, $"whirlpool at {pool.position}");
+                foreach (var barrel in def.barrels) ClearOfIsland(barrel, Course.BarrelRadius, $"barrel at {barrel}");
+                foreach (var log in def.logs) ClearOfIsland(log.position, log.length * 0.5f, $"log at {log.position}");
+            }
+
             // Obstacles: in the water, leaving a way past, and clear of every place a raft starts or comes back.
             var respawns = new List<Vector2>();
             for (var gate = 0; gate < def.gates.Length; gate++) respawns.Add(course.RespawnPose(gate).position);
@@ -427,6 +461,28 @@ namespace RushAhead.Tests
                         var at = river.At(boost.distance + BoostLane.Length * 0.5f);
                         Assert.That(Mathf.Abs(boost.across) + BoostLane.HalfWidth, Is.LessThan(at.HalfWidth), $"boost lane at {boost.distance:0} m is in the water");
                         ClearOfRespawns(at.Centre + at.Left * boost.across, 0f, $"boost lane at {boost.distance:0} m");
+                    }
+
+                    // Nothing dealt on an island's shore (its fast line's buoy, boost and crate are in the water beside it).
+                    foreach (var boost in layout.boosts)
+                        Assert.That(course.Islands.OnIsland(boost.distance + BoostLane.Length * 0.5f, boost.across, BoostLane.HalfWidth + 0.5f), Is.False,
+                            $"boost lane at {boost.distance:0} m runs onto an island");
+                    foreach (var crate in layout.crates)
+                        Assert.That(course.Islands.OnIsland(crate.distance, crate.across, PowerUps.CrateRadius + 0.5f), Is.False, $"crate at {crate.distance:0} m is on an island");
+                    foreach (var bumper in layout.bumpers)
+                    {
+                        var at = river.Project(bumper.position);
+                        Assert.That(course.Islands.OnIsland(at.Distance, at.Lateral, bumper.radius + 0.2f), Is.False, $"bumper at {bumper.position} is on an island");
+                    }
+
+                    // Power-up crates: in the water, clear of every respawn, at least two stops on every course.
+                    if (def.HasMenu) Assert.That(layout.crates.Length, Is.InRange(2, PowerUps.MaxCrates), "power-up crates on the course");
+                    foreach (var crate in layout.crates)
+                    {
+                        OnCourse(crate.distance, "power-up crate");
+                        var at = river.At(crate.distance);
+                        Assert.That(Mathf.Abs(crate.across) + PowerUps.CrateRadius, Is.LessThan(at.HalfWidth - 1f), $"crate at {crate.distance:0} m is in the water");
+                        ClearOfRespawns(at.Centre + at.Left * crate.across, 0f, $"crate at {crate.distance:0} m");
                     }
                 }
                 catch (AssertionException failure)

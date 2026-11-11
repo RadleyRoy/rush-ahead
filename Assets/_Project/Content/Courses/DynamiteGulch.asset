@@ -46,13 +46,13 @@ MonoBehaviour:
     width: 16
     lineOffset: 0
   - position: {x: 136.8, y: 49.1}
-    width: 20
+    width: 26
     lineOffset: 0
   - position: {x: 153.7, y: 50.3}
-    width: 20
+    width: 26
     lineOffset: 0
   - position: {x: 169.7, y: 56.1}
-    width: 16
+    width: 26
     lineOffset: 0
   - position: {x: 183.5, y: 66.1}
     width: 13
@@ -125,16 +125,9 @@ MonoBehaviour:
   - 476.73297
   - 511.8213
   flow: 11
-  rocks:
-  - position: {x: 136.76201, y: 43.10012}
-    radius: 1.3
-  - position: {x: 152.46759, y: 56.17207}
-    radius: 1.3
+  rocks: []
   barrels: []
-  logs:
-  - position: {x: 140.7641, y: 51.621304}
-    angleDeg: 70.82093
-    length: 3.5
+  logs: []
   currents:
   - from: 21.011883
     to: 51.146584
@@ -146,6 +139,12 @@ MonoBehaviour:
     to: 408.73984
     speed: -1.2
   whirlpools: []
+  islands:
+  - distance: 160.29517
+    length: 34.1653
+    across: -2
+    halfWidth: 3.5
+    fastSide: -1
   menu:
   - kind: 37
     weight: 1.6
@@ -219,3 +218,6 @@ MonoBehaviour:
   netBoats: []
   extras: []
   boosts: []
+  crates: []
+  boss: 0
+  extraCrates: 0

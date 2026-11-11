@@ -109,7 +109,7 @@ namespace RushAhead.UI
         {
             var courses = Game.Courses;
             var total = Game.TotalStars;
-            starTotal.text = $"{total} of {courses.Count * 3} stars";
+            starTotal.text = $"{total} of {courses.Count * 3} stars   {Records.Coins} coins";
             for (var i = 0; i < bests.Count && i < courses.Count; i++)
             {
                 var open = Game.IsOpen(i + 1);

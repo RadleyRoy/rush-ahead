@@ -159,6 +159,25 @@ namespace RushAhead.Render
 
             return material;
         }
+        [NonSerialized] Dictionary<Color, Material> glows;
+
+        /// <summary>Something giving off its own light (a lantern, a lamp, a firefly): its colour however dark it is.</summary>
+        public Material Glow(Color color)
+        {
+            if (spray == null) return Tinted(foam, color);
+            glows ??= new Dictionary<Color, Material>();
+            if (!glows.TryGetValue(color, out var material) || material == null)
+            {
+                material = new Material(spray) { name = $"Glow {ColorUtility.ToHtmlStringRGBA(color)}", color = color };
+                material.SetFloat("_Streaks", 0f);
+                material.SetFloat("_Rim", 0.25f);
+                material.SetFloat("_Glow", 1f);
+                glows[color] = material;
+            }
+
+            return material;
+        }
+
         [NonSerialized] Dictionary<(Color, Color, Color), Material> furs;
 
         /// <summary>The fur material in one animal's colours (shared by everyone asking for the same ones).</summary>

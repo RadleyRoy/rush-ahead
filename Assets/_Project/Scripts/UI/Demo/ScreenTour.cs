@@ -34,6 +34,8 @@ namespace RushAhead.UI
         float waited;
         Loadout look;
         int ai;
+        int coins;
+        string owned;
 
         public static void StartIfRequested(GameController game)
         {
@@ -54,6 +56,8 @@ namespace RushAhead.UI
             tour.folder = folder;
             tour.look = game.Local.Profile;
             tour.ai = game.AiSetting;
+            tour.coins = PlayerPrefs.GetInt("rushahead.coins", 0);
+            tour.owned = PlayerPrefs.GetString("rushahead.owned", "");
             game.AllowSearching = false; // listening on every network makes desktop firewalls ask
             if (game.Mode == NetMode.Offline) tour.Plan();
             else tour.PlanTogether(game.Mode == NetMode.Hosting);
@@ -111,6 +115,36 @@ namespace RushAhead.UI
             Shot(1.2f, "03-animal-changed");
             Do(0.2f, "scroll to the blowers", () => game.Ui.ScrollTo("animal-blower-4"));
             Shot(0.8f, "03b-animal-blowers");
+
+            // The shop: hats, raft skins and blower paints, bought with coins (given here, then put back at the end).
+            Do(0.2f, "coins for the shop", () =>
+            {
+                Records.AddCoins(1500);
+                return true;
+            });
+            Press(0.3f, "animal-tab-1");
+            Shot(1.0f, "03c-shop-hats");
+            Press(0.3f, "shop-hat-12");
+            Shot(0.6f, "03d-shop-buy");
+            Do(0.2f, "buy the crown", () =>
+            {
+                game.Ui.CloseModal();
+                Records.Buy(CosmeticKind.Hat, 12);
+                return game.Ui.Press("shop-hat-12");
+            });
+            Shot(1.2f, "03e-shop-crown");
+            Do(0.2f, "own everything", () =>
+            {
+                Records.OwnEverything();
+                return true;
+            });
+            Press(0.3f, "animal-tab-2");
+            Press(0.3f, "shop-skin-7");
+            Shot(1.2f, "03f-shop-raft");
+            Press(0.3f, "animal-tab-3");
+            Press(0.3f, "shop-paint-8");
+            Shot(1.2f, "03g-shop-paint");
+            Press(0.2f, "animal-tab-0");
             Press(0.2f, "animal-done");
 
             Press(0.4f, "menu-settings");
@@ -129,16 +163,33 @@ namespace RushAhead.UI
             Press(0.2f, "lobby-mode-1");
             Press(0.2f, "lobby-crew-2");
             Shot(1.5f, "08-lobby-team");
+            Press(0.2f, "lobby-mode-2");
+            Press(0.2f, "lobby-rafts-1");
+            Shot(1.5f, "08b-lobby-elimination");
             Press(0.2f, "lobby-course");
             Shot(0.5f, "09-course-picker");
             Press(0.2f, "venue-1");
-            Press(0.2f, "lobby-mode-0");
+            Press(0.2f, "lobby-mode-1");
             Press(0.2f, "lobby-crew-3");
+            Press(0.2f, "lobby-weather-1");
             Shot(1.5f, "10-lobby-course");
 
             Press(0.3f, "lobby-start");
             Shot(1.0f, "11-countdown");
             Shot(6f, "12-race");
+            Do(0.1f, "look round", () =>
+            {
+                game.TourLook = new Vector2(0.55f, 0.15f);
+                return true;
+            });
+            Shot(0.9f, "12b-race-look");
+            Do(0.1f, "let the look go", () =>
+            {
+                game.TourLook = null;
+                if (game.Boat != null) game.Boat.Item = Sim.PowerUp.Shield;
+                return true;
+            });
+            Shot(0.15f, "12c-race-item");
             Do(0.5f, "pause", () =>
             {
                 game.Ui.Flow.Pause();
@@ -147,8 +198,20 @@ namespace RushAhead.UI
             Shot(0.6f, "13-pause");
             Press(0.2f, "pause-resume");
             Shot(8f, "14-race-later");
+            Wait("a raft home", () => game.CanWatch || game.PhotoFinishPlaying || game.Ui.Flow.Screen == AppScreen.Results, 240f);
+            Shot(0.5f, "14b-watch-offer");
+            Do(0.2f, "watch the other raft", () =>
+            {
+                if (game.CanWatch && !game.WatchingOther) game.WatchNext();
+                return true;
+            });
+            Shot(1.5f, "14c-watching");
+            Wait("the photo finish", () => game.PhotoStage == PhotoFinishStage.Playing || game.Ui.Flow.Screen == AppScreen.Results, 120f);
+            Shot(2.5f, "14d-photo-replay");
+            Wait("the photo", () => game.PhotoStage == PhotoFinishStage.Frozen || game.Ui.Flow.Screen == AppScreen.Results, 30f);
+            Shot(0.9f, "14e-photo");
             Wait("the results", () => game.Ui.Flow.Screen == AppScreen.Results, 240f);
-            Shot(1.0f, "15-results");
+            Shot(2.5f, "15-results");
             Press(0.5f, "results-lobby");
             Shot(1.5f, "16-lobby-again");
 
@@ -156,6 +219,10 @@ namespace RushAhead.UI
             {
                 game.DressMe(look);
                 game.SetAiSetting(ai);
+                PlayerPrefs.SetInt("rushahead.coins", coins);
+                PlayerPrefs.SetString("rushahead.owned", owned);
+                PlayerPrefs.Save();
+                Records.Reload();
                 return true;
             });
             Do(0.5f, "quit", () =>

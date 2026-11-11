@@ -232,6 +232,12 @@ namespace RushAhead.Net
                 b.Fallen = boat.State == BoatState.Fallen;
                 b.Out = boat.Out;
                 b.Lives = (byte)Mathf.Clamp(boat.Lives, 0, 255);
+                b.Item = boat.Item;
+                b.Turbo = boat.TurboSeconds > 0f;
+                b.Shielded = boat.Shielded;
+                b.ShieldPops = (byte)boat.ShieldPops;
+                b.HornCount = (byte)boat.HornCount;
+                b.Pickups = (byte)boat.Pickups;
                 b.Crew.Clear();
                 foreach (var crew in boat.Crew)
                 {
@@ -250,7 +256,14 @@ namespace RushAhead.Net
             snapshot.Props.Clear();
             foreach (var prop in Props)
                 if (prop != null) snapshot.Props.Add(new PropSnapshot { Position = prop.position, AngleRad = prop.rotation * Mathf.Deg2Rad });
+            snapshot.CratesReady = CratesReady?.Invoke() ?? 0u;
+            snapshot.Boss = Boss?.Invoke() ?? default;
         }
+
+        /// <summary>Which power-up crates are there to take, and the boss croc: the host's game fills these in.</summary>
+        public System.Func<uint> CratesReady;
+
+        public System.Func<BossSnapshot> Boss;
 
         public void Dispose()
         {

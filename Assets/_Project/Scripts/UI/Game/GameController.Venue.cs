@@ -1,4 +1,5 @@
 using RushAhead.Content;
+using RushAhead.Net;
 using RushAhead.Render;
 using RushAhead.Sim;
 using UnityEngine;
@@ -27,6 +28,14 @@ namespace RushAhead.UI
             }
         }
 
+        /// <summary>Whether a power-up crate is there to take: the host's power-ups, or a joined player's snapshots. All of them in the lobby.</summary>
+        bool CrateReady(int crate)
+        {
+            if (course == null || Phase == RoomPhase.Lobby) return true;
+            if (Mode == NetMode.Joined) return client.Boats.Count == 0 || (client.Boats[0].CratesReady & (1u << crate)) != 0;
+            return course.Hazards.PowerUps.Ready(crate, runner.World.Tick / (double)config.tickRate);
+        }
+
         /// <summary>Tears down the current venue and builds another. Joined, its barrels only show where the host says.</summary>
         void LoadVenue(int index)
         {
@@ -51,6 +60,8 @@ namespace RushAhead.UI
                     var audio = GameAudio.Instance;
                     if (audio != null) audio.Play(audio.Bank.Burst, 0.9f, 1.45f);
                 };
+                courseView.Obstacles.Crates.Ready = CrateReady;
+                if (course.Hazards.Boss != null) BossView.Build(palette, courseView.transform).State = BossState;
                 barrels.AddRange(course.Barrels);
                 barrelBodies.AddRange(course.BarrelBodies);
                 runner.World.WaterVelocity = course.WaterVelocityAt;
@@ -61,6 +72,7 @@ namespace RushAhead.UI
                 foreach (var barrel in barrels) PhysicsBodies.Freeze(barrel);
             recordedRun = (-1, -1);
             layoutRaced = false;
+            ApplyWeather(true);
         }
 
         System.Func<double> exhibitClock;
@@ -91,8 +103,24 @@ namespace RushAhead.UI
                 boat.Moored = true;
             }
 
+            ExhibitWeather(Weather.Clear);
             return course;
         }
+
+        /// <summary>The gallery: the weather over an exhibit (rain with its gusts, fog, night with the lamps lit).</summary>
+        internal void ExhibitWeather(Weather weather)
+        {
+            if (weatherView == null || course == null) return;
+            course.Gusts = weather == Weather.Rain ? new Gusts(7) : null;
+            weatherView.Show(weather, course.Def.scene, true);
+            courseView.SetNight(weather == Weather.Night);
+            shownWeather = weather;
+        }
+
+        /// <summary>The gallery: the exhibit's view (for its knockout banners) and the art (for Old Snapjaw's picture).</summary>
+        internal CourseView ExhibitView => courseView;
+
+        internal ArtPalette ExhibitPalette => palette;
 
         /// <summary>Host or solo: deals a fresh layout of obstacles for the next round (rebuilding the course with it).</summary>
         void DealNewLayout()

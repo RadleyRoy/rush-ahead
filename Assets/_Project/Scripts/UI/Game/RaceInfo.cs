@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using RushAhead.Content;
 using RushAhead.Net;
+using RushAhead.Sim;
 
 namespace RushAhead.UI
 {
@@ -76,8 +77,43 @@ namespace RushAhead.UI
         public bool RivalFinished;
         public float RivalSeconds;
 
+        /// <summary>Co-op, Team Race or Elimination.</summary>
+        public GameMode Mode;
+
+        /// <summary>Elimination: every raft, best placed first (raft numbers), and this player's place from 1.</summary>
+        public int[] Places;
+        public int Place;
+
+        /// <summary>Elimination: each raft's progress (0 to 1), whether it's out, and the knockout gates as checkpoint counts.</summary>
+        public float[] FieldProgress;
+        public bool[] FieldOut;
+        public int[] KnockoutGates;
+
+        /// <summary>Elimination: the next knockout gate ahead of this player's raft (a checkpoint count), or 0.</summary>
+        public int NextKnockout;
+
+        /// <summary>The boss course: how far behind the raft on screen Old Snapjaw is (-1 when it's not up, or not after it), and whether it's lunging.</summary>
+        public bool BossCourse;
+        public float BossBehind;
+        public bool BossLunging;
+
+        /// <summary>The results: the coins this run earned this player, and why. Null before the results.</summary>
+        public IReadOnlyList<CoinAward> Coins;
+
+        /// <summary>The wind in the rain: how near the next gust is (0 to 1), how hard one's blowing (0 to 1), and which way on the screen (-1 left, +1 right).</summary>
+        public float GustWarning;
+        public float GustStrength;
+        public int GustScreenSide;
+
         public bool Active => Course != null;
-        public bool TeamRace => Rafts > 1;
-        public int Stars => CourseDef.Stars(Finished, Lives);
+        public bool Elimination => Mode == GameMode.Elimination;
+
+        /// <summary>Two rafts, Red against Blue.</summary>
+        public bool TeamRace => Rafts > 1 && !Elimination;
+
+        /// <summary>Knocked out of an Elimination at a gate, with lives to spare.</summary>
+        public bool KnockedOut => Elimination && Out && Lives > 0;
+        /// <summary>A star for every life left at the finish (Elimination is about places, not stars).</summary>
+        public int Stars => Elimination ? 0 : CourseDef.Stars(Finished, Lives);
     }
 }

@@ -59,9 +59,33 @@ what matters, and condensed uppercase type in Barlow Condensed (Barlow for text 
 SIL Open Font License (`Assets/_Project/ThirdParty/Fonts`, with `OFL.txt`). Buttons are slanted parallelograms painted
 by `Ui.Slant` from the `--fill`, `--edge` and `--slant` properties in `Game.uss`.
 
+## Modes, items and the shop
+
+- **Co-op** (one raft), **Team Race** (two rafts, Red against Blue) and **Elimination**: three or four rafts, AI in
+  every spare seat, where the last raft through each knockout gate (red "LAST ONE OUT" banners) is out and the river
+  runs faster for those left (`Sim/Rules/Knockout.cs`). Up to four rafts and eight people.
+- **Watching and looking round**: once your raft is home or out, WATCH follows another raft still racing; the look stick
+  (right of the HUD, or the right mouse button, or a pad's right stick) swings the camera round the raft and eases back.
+- **Power-ups**: glowing "?" crates dealt with each layout give a raft an item, used with ITEM by anyone aboard: a
+  turbo can, a shield bubble that saves one fall or capsize, and an air horn that shoves rafts, scatters geese and
+  barrels, and sends Old Snapjaw diving (`Sim/Course/PowerUps.cs`).
+- **Weather**, the host's choice in the lobby: Clear, Rain (with gusts across the river), Fog, Night (lanterns, lit
+  gates, fireflies) or Random, dealt from the round's seed (`Sim/World/Weather.cs`, `Render/WeatherView.cs`).
+- **Islands** on nine courses split the river into a narrow fast line (quicker water, a boost lane, something in the
+  way) and a wide safe line (`Sim/Course/Island.cs`).
+- **Old Snapjaw**, the giant crocodile of Snapjaw Swamp (course 13, 22 stars), chases the last raft down the river and
+  lunges when it's close (`Sim/Course/BossCroc.cs`, `Render/BossView.cs`). A crew pushing steadily keeps ahead; a burst,
+  a dodge or a horn gets you out of a lunge.
+- **Photo finish**: when a Team Race's first two rafts (or an Elimination's last two) cross within 0.6 s, each device
+  replays the run-in at a fifth of the speed from beside the line and freezes on a sepia photo with the margin, which
+  then sits on the results (`UI/Game/GameController.PhotoFinish.cs`, `Render/ReplayBoat.cs`). Nothing extra is sent.
+- **Coins and the shop**: results pay coins (10 a star, a Team Race win, an Elimination podium, a new best, escaping
+  Snapjaw; `UI/Records/CoinRules.cs`), spent in the shop tabs of Your animal on 12 hats, 8 raft skins and 9 blower
+  paints, all made in code (`Content/Cosmetics.cs`, `Render/CosmeticViews.cs`). A raft wears its captain's skin.
+
 ## Courses
 
-The twelve courses, in five places (creek, lake, rapids, glacier and canyon), are laid out in code
+The thirteen courses, in six places (creek, lake, rapids, glacier, canyon and swamp), are laid out in code
 (`Assets/_Project/Editor/CourseLibrary.cs`): the river, checkpoints, rocks,
 barrels and logs, currents and whirlpools, the river's flow, and a menu of obstacles each course may be dealt, with how
 many. Every round deals a fresh layout from that menu (`Sim/Course/LayoutGenerator.cs`): only the seed goes over the
@@ -140,6 +164,8 @@ Builds/Windows/RushAhead.exe -screen-fullscreen 0 -screen-width 1200 -screen-hei
 - Two copies, one with `-rushahead-host 127.0.0.1` and one with `-rushahead-join 127.0.0.1`, each with
   its own `-rushahead-tour` folder: the host picks a course and starts, and the joiner follows it.
 - `-rushahead-course 1` skips the menus and races straight away; `-rushahead-dev` shows the tuning sliders.
+- `-rushahead-mode team|elimination` (with `-rushahead-rafts 3|4`), `-rushahead-weather clear|rain|fog|night|random`
+  and `-rushahead-photo-any` (every Team Race and Elimination ends in a photo finish) set up a run for screenshots.
 - `-rushahead-hitzones` draws what actually hits on the water: every collider's outline (red solid, cyan triggers,
   white rafts) and each obstacle's scripted reach in yellow, live, to check that hits land where things are drawn.
 - With `-rushahead-demo <folder>`, `-rushahead-quality 1` (Low) to `3` (High) picks the graphics setting, and the log

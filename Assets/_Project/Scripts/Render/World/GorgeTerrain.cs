@@ -244,6 +244,7 @@ namespace RushAhead.Render
                 CourseScene.Rapids => new[] { Ground.Forest, Ground.Scree, Ground.Moss, Ground.Grass },
                 CourseScene.Glacier => new[] { Ground.Snow, Ground.Scree, Ground.Forest, Ground.Ice },
                 CourseScene.Canyon => new[] { Ground.Dust, Ground.RedRock, Ground.Sand, Ground.Mud },
+                CourseScene.Swamp => new[] { Ground.Mud, Ground.Moss, Ground.Forest, Ground.Grass },
                 _ => new[] { Ground.Grass, Ground.Forest, Ground.Scree, Ground.Mud },
             };
             var layers = new TerrainLayer[roles.Length];
